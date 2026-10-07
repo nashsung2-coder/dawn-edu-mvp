@@ -1,0 +1,7 @@
+# .gitignore — dawn-edu-mvp
+__pycache__/
+*.py[cod]
+venv/
+.env
+data/*.db
+.DS_Store
