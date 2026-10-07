@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>曙光教育智能系統 · 慢荒宇宙 MVP</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="starfield"></canvas>
+
+<div id="app">
+  <header class="hero">
+    <div class="kicker">慢荒宇宙 · DAWN EDUCATION</div>
+    <h1>曙光教育智能系統</h1>
+    <p class="manifesto">「<strong>你的島嶼，是你知識的形狀。</strong>」</p>
+  </header>
+
+  <nav class="tabs" id="mainNav">
+    <button data-tab="explore" class="active">🔍 探究</button>
+    <button data-tab="island">🏝️ 島嶼</button>
+    <button data-tab="radar">📡 雷達</button>
+    <button data-tab="duel">⚔️ 對決</button>
+    <button data-tab="qa">💬 問答</button>
+  </nav>
+
+  <!-- ============ 1. 探究 ============ -->
+  <section class="tab-page active" id="page-explore">
+    <div class="panel">
+      <h2>🔍 知識湖探究</h2>
+      <p class="sub">從日常科學出發：引起好奇 → 親自探索 → 延伸思考。勾選多維標籤，交集搜尋會告訴你「為什麼推薦」。</p>
+
+      <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:0 0 8px;">探索階段</h4>
+      <div class="stage-row" id="stageRow">
+        <button class="stage-chip active" data-stage="all">全部階段</button>
+        <button class="stage-chip" data-stage="引起好奇">🌱 引起好奇</button>
+        <button class="stage-chip" data-stage="親自探索">🔬 親自探索</button>
+        <button class="stage-chip" data-stage="延伸思考">🌌 延伸思考</button>
+      </div>
+
+      <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:16px 0 8px;">搜尋模式</h4>
+      <div class="mode-row" id="modeRow"></div>
+
+      <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:16px 0 8px;">多維標籤篩選（可複選）</h4>
+      <div id="dimFilters"></div>
+
+      <div class="result-meta" id="exploreMeta"></div>
+      <div class="cards" id="exploreCards"></div>
+    </div>
+  </section>
+
+  <!-- ============ 2. 島嶼 ============ -->
+  <section class="tab-page" id="page-island">
+    <div class="panel">
+      <h2>🏝️ 我的島嶼 · 初生之島</h2>
+      <p class="sub">學習行為會開疆拓土。島嶼越大越繁茂——你的島嶼，是你知識的形狀。</p>
+      <div class="island-layout">
+        <div>
+          <canvas id="islandCanvas" width="520" height="340"></canvas>
+          <div class="island-stats">
+            <div class="stat-box"><div class="num" id="statUnits">1</div><div class="lbl">領土單位</div></div>
+            <div class="stat-box"><div class="num" id="statLevel">荒島</div><div class="lbl">島嶼階段</div></div>
+            <div class="stat-box"><div class="num" id="statToday">0 / 5</div><div class="lbl">今日擴張</div></div>
+          </div>
+          <div class="cap-bar">
+            <div class="cap-track"><div class="cap-fill" id="capFill" style="width:0%"></div></div>
+            <div class="cap-label">每日擴張上限 5 單位 · 穩定學習，細水長流</div>
+          </div>
+          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:18px 0 4px;">領土資源</h4>
+          <div class="res-grid" id="resGrid"></div>
+        </div>
+        <div>
+          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:0 0 4px;">學習行為 · 開疆拓土</h4>
+          <p class="sub" style="margin-bottom:8px;">完成學習行為即可擴張領土並獲得資源。</p>
+          <div class="action-list" id="islandActions"></div>
+          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:18px 0 4px;">領土日誌</h4>
+          <ul class="log-list" id="territoryLog"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. 雷達 ============ -->
+  <section class="tab-page" id="page-radar">
+    <div class="panel">
+      <h2>📡 三維空間雷達</h2>
+      <p class="sub">X 知識廣度 · Y 認知深度 · Z 社會連結。拖曳可旋轉視角，點選拓荒者查看知識距離。</p>
+      <div class="radar-layout">
+        <div><canvas id="radarCanvas" width="640" height="420"></canvas></div>
+        <div>
+          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:0 0 10px;">星海中的拓荒者</h4>
+          <div class="pioneer-list" id="pioneerList"></div>
+          <div class="radar-info" id="radarInfo">
+            <div style="color:var(--text-faint);font-size:13.5px;">👆 點選一位拓荒者，查看你們的知識距離與關係判讀。</div>
+          </div>
+          <div class="privacy-note">🔒 隱私設計：只顯示知識距離，不顯示任何人的精確座標。所有資料皆匿名化處理。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. 對決 ============ -->
+  <section class="tab-page" id="page-duel">
+    <div class="panel">
+      <h2>⚔️ 知識對決</h2>
+      <p class="sub">真正的攻擊，是讓對方看見自己還沒學會的地方。勝利者獲得資源，失敗者獲得成長。</p>
+
+      <div id="duelSetup">
+        <div class="duel-setup">
+          <div class="field">
+            <label>選擇對手</label>
+            <select id="duelOpponent"></select>
+          </div>
+          <div class="field">
+            <label>對決領域（共同標籤）</label>
+            <select id="duelDomain"></select>
+          </div>
+          <button class="btn primary" id="duelStart">發起對決 ⚔️</button>
+        </div>
+        <div class="empty-hint" style="grid-column:auto;">選擇對手與共同標籤領域，開始 5 回合的觀念交鋒。</div>
+      </div>
+
+      <div class="duel-arena" id="duelArena">
+        <div class="round-head">
+          <div class="round-pills" id="roundPills"></div>
+          <div style="font-size:13px;color:var(--text-faint);" id="duelScore">你 0 : 0 對手</div>
+        </div>
+        <div class="question-box">
+          <h3 id="duelQuestion"></h3>
+          <div id="duelOptions"></div>
+          <div class="feedback-box" id="duelFeedback"></div>
+          <div style="margin-top:14px;text-align:right;">
+            <button class="btn primary" id="duelNext" style="display:none;">下一題 →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="duel-result" id="duelResult"></div>
+    </div>
+  </section>
+
+  <!-- ============ 5. 問答 ============ -->
+  <section class="tab-page" id="page-qa">
+    <div class="panel">
+      <h2>💬 知識湖問答</h2>
+      <p class="sub">RAG 檢索小工具：輸入你的問題，系統從知識湖檢索相關內容，生成摘要回答並附上引用來源。</p>
+      <div class="qa-box">
+        <input id="qaInput" type="text" placeholder="例如：為什麼從泳池起來有風會特別冷？" maxlength="120">
+        <button class="btn primary" id="qaAsk">提問 ✨</button>
+      </div>
+      <div id="qaOutput"></div>
+    </div>
+  </section>
+
+  <footer>
+    曙光教育智能系統 · 慢荒宇宙 MVP · 交集資料庫 × 知識湖 × 三維雷達 × 知識對決<br>
+    雙擊 index.html 即可運行 · config.js 設定後端 URL 後可連線即時 API
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
