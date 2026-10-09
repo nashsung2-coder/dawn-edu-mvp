@@ -89,6 +89,7 @@ function mulberry32(seed) {
     document.querySelectorAll(".tab-page").forEach((p) => p.classList.remove("active"));
     $("page-" + btn.dataset.tab).classList.add("active");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (btn.dataset.tab === "island") loadIsland();
   });
 })();
 
@@ -99,6 +100,7 @@ function gotoTab(name) {
   document.querySelectorAll(".tab-page").forEach((p) => p.classList.remove("active"));
   $("page-" + name).classList.add("active");
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (name === "island") loadIsland();
 }
 
 /* ============================================================
@@ -229,6 +231,161 @@ async function fetchJSON(url, ms) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/* ---------------- 帳號系統 ----------------
+ * 暱稱＋密碼，權杖存 localStorage。島嶼進度跟著帳號走，存後端。
+ */
+const Auth = {
+  token: "",
+  user: null,
+  init() {
+    this.token = localStorage.getItem("dawn_token") || "";
+    try { this.user = JSON.parse(localStorage.getItem("dawn_user") || "null"); }
+    catch (e) { this.user = null; }
+    if (!this.token) this.user = null;
+    renderAuthBar();
+  },
+  save(token, user) {
+    this.token = token;
+    this.user = user;
+    localStorage.setItem("dawn_token", token);
+    localStorage.setItem("dawn_user", JSON.stringify(user));
+    renderAuthBar();
+  },
+  clear() {
+    this.token = "";
+    this.user = null;
+    localStorage.removeItem("dawn_token");
+    localStorage.removeItem("dawn_user");
+    renderAuthBar();
+  },
+  headers() {
+    return this.token ? { Authorization: "Bearer " + this.token } : {};
+  },
+};
+
+/* 帶權杖的 API 呼叫；失敗拋 {status, message} */
+async function api(path, opts) {
+  const base = apiBase();
+  if (!base) throw { status: 0, message: "後端尚未設定（config.js 的 DAWN_API_BASE 為空）。" };
+  const o = opts || {};
+  const r = await fetch(base + path, {
+    method: o.method || "GET",
+    headers: Object.assign(
+      { "Content-Type": "application/json" },
+      Auth.headers(),
+      o.headers || {}
+    ),
+    body: o.body,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw { status: r.status, message: data.detail || ("請求失敗（" + r.status + "）") };
+  return data;
+}
+
+function renderAuthBar() {
+  const bar = $("authBar");
+  bar.innerHTML = "";
+  if (Auth.user) {
+    const pill = document.createElement("span");
+    pill.className = "auth-user";
+    pill.textContent = "👤 " + Auth.user.name;
+    pill.title = "已登入";
+    const btn = document.createElement("button");
+    btn.className = "auth-btn ghost";
+    btn.textContent = "登出";
+    btn.onclick = async () => {
+      try { await api("/api/v1/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
+      Auth.clear();
+      loadIsland();
+      toast("已登出，星海會記得你，下次見 👋");
+    };
+    bar.appendChild(pill);
+    bar.appendChild(btn);
+  } else {
+    const btn = document.createElement("button");
+    btn.className = "auth-btn";
+    btn.textContent = "登入 / 註冊";
+    btn.onclick = () => openAuthModal("login");
+    bar.appendChild(btn);
+  }
+}
+
+let authMode = "login";
+
+function openAuthModal(mode) {
+  authMode = mode === "register" ? "register" : "login";
+  document.querySelectorAll(".auth-tab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.mode === authMode)
+  );
+  syncAuthModeUI();
+  $("authErr").textContent = "";
+  $("authModal").classList.add("show");
+  setTimeout(() => $("authName").focus(), 150);
+}
+
+function closeAuthModal() {
+  $("authModal").classList.remove("show");
+  $("authErr").textContent = "";
+  $("authPass").value = "";
+}
+
+function syncAuthModeUI() {
+  const isLogin = authMode === "login";
+  $("authTitle").textContent = isLogin ? "歡迎回來，拓荒者" : "在星海中留下你的名字";
+  $("authSubmit").textContent = isLogin ? "登入" : "註冊並啟程";
+}
+
+async function submitAuth() {
+  const name = $("authName").value.trim();
+  const pw = $("authPass").value;
+  const err = $("authErr");
+  err.textContent = "";
+  if (!name) { err.textContent = "請輸入暱稱。"; return; }
+  if (pw.length < 4) { err.textContent = "密碼至少需要 4 個字元。"; return; }
+  const btn = $("authSubmit");
+  btn.disabled = true;
+  try {
+    const data = await api("/api/v1/auth/" + authMode, {
+      method: "POST",
+      body: JSON.stringify({ name, password: pw }),
+    });
+    Auth.save(data.token, data.user);
+    closeAuthModal();
+    toast("🎉 " + (data.reason || "歡迎！"));
+    if ($("page-island").classList.contains("active")) loadIsland();
+  } catch (e) {
+    err.textContent = e.message || "發生錯誤，請重試。";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function initAuth() {
+  Auth.init();
+  document.querySelectorAll(".auth-tab").forEach((t) => {
+    t.onclick = () => {
+      authMode = t.dataset.mode;
+      document.querySelectorAll(".auth-tab").forEach((x) =>
+        x.classList.toggle("active", x === t)
+      );
+      syncAuthModeUI();
+      $("authErr").textContent = "";
+    };
+  });
+  $("authSubmit").onclick = submitAuth;
+  $("authClose").onclick = closeAuthModal;
+  $("authModal").addEventListener("click", (e) => {
+    if (e.target === $("authModal")) closeAuthModal();
+  });
+  $("authPass").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitAuth();
+  });
+  $("authName").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitAuth();
+  });
+  $("gateLoginBtn").onclick = () => openAuthModal("login");
 }
 
 function apiTagToLocal(tk) {
@@ -398,18 +555,35 @@ async function renderExplore() {
 /* ============================================================
  * 分頁 2：島嶼（領土系統）
  * ============================================================ */
+/* ============================================================
+ * 分頁 2：島嶼（領土系統）—— 進度存後端，跟著帳號走
+ * ============================================================ */
 const islandState = {
   units: 1,
   todayAdded: 0,
-  resources: { seed: 3, eye: 1, gear: 0, spring: 0, web: 0, key: 0 },
-  log: [],
+  cap: 5,
+  name: "初生之島",
+  resources: { seed: 0, eye: 0, gear: 0, spring: 0, web: 0, key: 0 },
 };
 
-function nowTime() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return p(d.getMonth() + 1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
-}
+/* 前端動作 id → 後端 EXPAND_ACTIONS 鍵 */
+const ACTION_MAP = {
+  explore: "complete_topic",
+  myth: "fix_myth",
+  ask: "ask_question",
+  quest: "complete_quest",
+  coresh: "co_study",
+};
+
+/* 後端資源鍵 → 前端資源 id */
+const RES_KEY_MAP = {
+  curiosity_seed: "seed",
+  observing_eye: "eye",
+  variable_gear: "gear",
+  flow_spring: "spring",
+  connection_web: "web",
+  shadow_key: "key",
+};
 
 function islandLevelName() {
   const u = islandState.units;
@@ -419,31 +593,79 @@ function islandLevelName() {
   return "星海重鎮";
 }
 
-function addTerritoryLog(text, gainText) {
-  islandState.log.unshift({ time: nowTime(), text, gain: gainText });
-  renderTerritoryLog();
+function applyIsland(isl) {
+  islandState.units = isl.territory;
+  islandState.todayAdded = isl.used_today || 0;
+  islandState.cap = isl.daily_cap || 5;
+  islandState.name = isl.name || "初生之島";
+  const raw = isl.resources_raw || {};
+  const mapped = { seed: 0, eye: 0, gear: 0, spring: 0, web: 0, key: 0 };
+  for (const [k, v] of Object.entries(raw)) {
+    if (RES_KEY_MAP[k]) mapped[RES_KEY_MAP[k]] = v;
+  }
+  islandState.resources = mapped;
+  $("islandName").textContent = islandState.name;
+  renderIslandStats();
+  drawIsland();
 }
 
-function renderTerritoryLog() {
-  const ul = $("territoryLog");
-  ul.innerHTML = "";
-  if (!islandState.log.length) {
-    ul.innerHTML = '<li><span class="ltime">--</span>還沒有開疆紀錄。完成左側的學習行為，開始擴張你的島嶼吧！</li>';
+async function loadIsland() {
+  const gate = $("islandGate");
+  const layout = $("islandLayout");
+  if (!Auth.user || !Auth.token) {
+    gate.style.display = "block";
+    layout.style.display = "none";
     return;
   }
-  islandState.log.slice(0, 30).forEach((e) => {
+  gate.style.display = "none";
+  layout.style.display = "";
+  try {
+    const isl = await api("/api/v1/islands/" + Auth.user.id);
+    applyIsland(isl);
+    await loadTerritoryLog();
+  } catch (e) {
+    if (e.status === 401) {
+      Auth.clear();
+      loadIsland();
+      openAuthModal("login");
+      toast("登入已過期，請重新登入。");
+    } else {
+      toast("⚠️ 島嶼載入失敗：" + e.message);
+    }
+  }
+}
+
+async function loadTerritoryLog() {
+  try {
+    const data = await api("/api/v1/islands/" + Auth.user.id + "/logs?limit=30");
+    renderTerritoryLog(data.logs || []);
+  } catch (e) { /* 靜默：島嶼狀態已顯示 */ }
+}
+
+function renderTerritoryLog(logs) {
+  const ul = $("territoryLog");
+  ul.innerHTML = "";
+  if (!logs.length) {
+    ul.innerHTML = '<li><span class="ltime">--</span>還沒有開疆紀錄。完成右側的學習行為，開始擴張你的島嶼吧！</li>';
+    return;
+  }
+  logs.slice(0, 30).forEach((e) => {
+    const a = ISLAND_ACTIONS.find((x) => ACTION_MAP[x.id] === e.action);
+    const label = a ? a.label : e.action;
+    const time = String(e.created_at || "").slice(5, 16).replace("T", " ");
     const li = document.createElement("li");
-    li.innerHTML = '<span class="ltime">' + e.time + "</span>" + e.text +
-      (e.gain ? ' <span class="lgain">' + e.gain + "</span>" : "");
+    li.innerHTML = '<span class="ltime">' + time + "</span>" + label +
+      ' <span class="lgain">+' + e.delta + " 領土</span>";
     ul.appendChild(li);
   });
 }
 
 function renderIslandStats() {
+  const cap = islandState.cap || 5;
   $("statUnits").textContent = islandState.units % 1 === 0 ? islandState.units : islandState.units.toFixed(1);
   $("statLevel").textContent = islandLevelName();
-  $("statToday").textContent = (islandState.todayAdded % 1 === 0 ? islandState.todayAdded : islandState.todayAdded.toFixed(1)) + " / " + DAILY_CAP;
-  $("capFill").style.width = Math.min(100, (islandState.todayAdded / DAILY_CAP) * 100) + "%";
+  $("statToday").textContent = (islandState.todayAdded % 1 === 0 ? islandState.todayAdded : islandState.todayAdded.toFixed(1)) + " / " + cap;
+  $("capFill").style.width = Math.min(100, (islandState.todayAdded / cap) * 100) + "%";
 
   const grid = $("resGrid");
   grid.innerHTML = "";
@@ -451,7 +673,7 @@ function renderIslandStats() {
     const d = document.createElement("div");
     d.className = "res-item";
     d.innerHTML = '<span class="ricon">' + r.icon + "</span>" + r.name +
-      '<span class="rcount">×' + islandState.resources[r.id] + "</span>" +
+      '<span class="rcount">×' + (islandState.resources[r.id] || 0) + "</span>" +
       '<span class="rdesc">' + r.desc + "</span>";
     grid.appendChild(d);
   });
@@ -466,31 +688,40 @@ function buildIslandActions() {
     row.innerHTML =
       '<div><div class="alabel">' + a.label + '</div><div class="ahint">' + a.hint + "</div></div>" +
       '<button class="btn small">執行</button>';
-    row.querySelector("button").onclick = () => doIslandAction(a);
+    row.querySelector("button").onclick = (ev) => doIslandAction(a, ev.currentTarget);
     box.appendChild(row);
   });
 }
 
-function doIslandAction(a) {
-  if (islandState.todayAdded + a.units > DAILY_CAP + 1e-9) {
-    toast("🌙 今日擴張已達上限 " + DAILY_CAP + " 單位！休息一下，明日再戰吧。", 3000);
-    return;
-  }
-  islandState.units = Math.round((islandState.units + a.units) * 10) / 10;
-  islandState.todayAdded = Math.round((islandState.todayAdded + a.units) * 10) / 10;
-  const rewardNames = [];
-  for (const [rid, n] of Object.entries(a.reward)) {
-    islandState.resources[rid] += n;
-    const r = RESOURCES.find((x) => x.id === rid);
-    rewardNames.push(r.icon + r.name + "×" + n);
-  }
-  const gainText = "+" + a.units + " 領土";
-  addTerritoryLog(a.label, gainText);
-  renderIslandStats();
-  drawIsland();
-  toast("🎉 開疆拓土！" + gainText + "，" + rewardNames.join("、") + "入袋！");
-  if (islandState.todayAdded >= DAILY_CAP) {
-    setTimeout(() => toast("🌙 今日擴張額度已用完。慢，就是快——明天見！", 3000), 1200);
+let islandBusy = false;
+
+async function doIslandAction(a, btn) {
+  if (!Auth.user || !Auth.token) { openAuthModal("login"); return; }
+  if (islandBusy) return;
+  islandBusy = true;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api("/api/v1/islands/" + Auth.user.id + "/expand", {
+      method: "POST",
+      body: JSON.stringify({ action: ACTION_MAP[a.id] }),
+    });
+    applyIsland(res.island);
+    await loadTerritoryLog();
+    toast("🎉 開疆拓土！領土 +" + res.delta + " 單位，" + res.reward + "入袋！");
+    if (res.used_today >= res.daily_cap - 1e-9) {
+      setTimeout(() => toast("🌙 今日擴張額度已用完。慢，就是快——明天見！", 3200), 1200);
+    }
+  } catch (e) {
+    if (e.status === 401) {
+      Auth.clear();
+      loadIsland();
+      openAuthModal("login");
+    } else {
+      toast("⚠️ " + e.message, 3200);
+    }
+  } finally {
+    islandBusy = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -996,34 +1227,17 @@ function settleDuel() {
   const win = duelState.myScore > duelState.oppScore;
   const draw = duelState.myScore === duelState.oppScore;
 
-  // 結算：資源 ±10%、領土 ±1（示意：以好奇種子為該領域資源）
-  const before = islandState.resources.seed;
-  let seedDelta, unitDelta, badge, badgeCls, title, emoji;
+  // 結算：徽章榮譽（對決為純觀念交鋒，不影響島嶼領土）
+  let badge, badgeCls, title, emoji;
   if (win) {
-    seedDelta = Math.max(1, Math.ceil(before * 0.1));
-    islandState.resources.seed += seedDelta;
-    unitDelta = 1;
-    islandState.units = Math.round((islandState.units + 1) * 10) / 10;
     badge = "對決勝利"; badgeCls = "win";
     title = "🏆 旗開得勝！";
     emoji = "🏆";
   } else {
-    seedDelta = -Math.max(1, Math.floor(before * 0.1));
-    islandState.resources.seed = Math.max(0, before + seedDelta);
-    unitDelta = -1;
-    islandState.units = Math.max(1, Math.round((islandState.units - 1) * 10) / 10);
     badge = "觀念修正"; badgeCls = "fix";
     title = draw ? "🤝 勢均力敵" : "🌱 雖敗猶榮";
     emoji = draw ? "🤝" : "🌱";
   }
-
-  addTerritoryLog(
-    "與「" + duelState.opponent.name + "」知識對決（" + duelState.domainKey.replace("・", " · ") + "）" +
-    (win ? "獲勝" : draw ? "平手" : "落敗"),
-    (unitDelta > 0 ? "+" : "") + unitDelta + " 領土"
-  );
-  renderIslandStats();
-  drawIsland();
 
   res.innerHTML =
     '<div class="trophy">' + emoji + "</div>" +
@@ -1031,9 +1245,8 @@ function settleDuel() {
     '<div style="font-size:15px;color:var(--text-dim)">最終比數：你 ' + duelState.myScore + " : " + duelState.oppScore + " " + duelState.opponent.name.split(" ")[0] + "</div>" +
     '<div style="margin:10px 0"><span class="badge ' + badgeCls + '">🎖️ ' + badge + "徽章</span></div>" +
     '<div class="settle-table">' +
-    '<div class="row"><span>🌱 好奇種子（領域資源）</span><span class="' + (seedDelta >= 0 ? "pos" : "neg") + '">' + (seedDelta >= 0 ? "+" : "") + seedDelta + "（±10%）</span></div>" +
-    '<div class="row"><span>🏝️ 領土</span><span class="' + (unitDelta >= 0 ? "pos" : "neg") + '">' + (unitDelta >= 0 ? "+" : "") + unitDelta + " 單位</span></div>" +
     '<div class="row"><span>💡 學習回饋</span><span style="color:var(--accent)">已獲得本領域觀念診斷</span></div>' +
+    '<div class="row"><span>🏝️ 島嶼</span><span style="color:var(--text-faint)">對決為觀念交鋒，領土不受影響</span></div>' +
     "</div>" +
     '<div style="font-size:13.5px;color:var(--text-faint);max-width:520px;margin:0 auto 18px">真正的攻擊，是讓對方看見自己還沒學會的地方。' +
     (win ? "勝利屬於你，但別忘了回頭看看那些答錯的觀念。" : "失敗的每一題都附上了觀念診斷——修正它們，你的島嶼會更強大。") + "</div>" +
@@ -1145,12 +1358,11 @@ function initQA() {
  * 初始化
  * ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
+  initAuth();
   buildExploreFilters();
   renderExplore();
   buildIslandActions();
   renderIslandStats();
-  renderTerritoryLog();
-  addTerritoryLog("拓荒者登入慢荒宇宙，佔領初始島嶼", "+1 領土");
   drawIsland();
   initRadar();
   initDuel();
