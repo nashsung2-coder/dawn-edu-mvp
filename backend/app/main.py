@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app import auth as auth_mod
 from app import db
+from app import economy
 from app.game import (
     compare_radar,
     create_duel,
@@ -261,7 +262,57 @@ def island_expand(user_id: str, body: ExpandIn, request: Request):
     result = expand_island(user_id, body.action)
     if not result.get("ok"):
         raise HTTPException(400, result["reason"])
+    # 開疆拓土由伺服器發放星砂（純遊戲）
+    result["points"] = economy.award_expand(user_id)
+    result["reason"] += "獲得星砂 ×10。"
     return result
+
+
+# ---------------- 星砂經濟（純遊戲） ----------------
+class EarnIn(BaseModel):
+    amount: int = Field(description="本次獲得星砂（1–50）")
+    reason: str = Field(default="", description="獲得原因")
+
+
+class BuyIn(BaseModel):
+    item_id: str = Field(description="武器 id：dart / wave / shield")
+
+
+@app.get("/api/v1/game/state", summary="星砂與武器庫")
+def game_state(request: Request):
+    user = _current_user(request)
+    return {"ok": True, **economy.get_state(user["id"])}
+
+
+@app.post("/api/v1/game/earn", summary="獲得星砂")
+def game_earn(body: EarnIn, request: Request):
+    user = _current_user(request)
+    try:
+        return economy.earn(user["id"], body.amount, body.reason)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/game/shop/buy", summary="購買武器")
+def game_buy(body: BuyIn, request: Request):
+    user = _current_user(request)
+    try:
+        return economy.buy(user["id"], body.item_id)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+
+
+class UseIn(BaseModel):
+    item_id: str = Field(description="消耗一個武器")
+
+
+@app.post("/api/v1/game/use", summary="消耗武器")
+def game_use(body: UseIn, request: Request):
+    user = _current_user(request)
+    try:
+        return economy.use_item(user["id"], body.item_id)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
 
 
 class OccupyIn(BaseModel):
