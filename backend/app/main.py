@@ -315,6 +315,51 @@ def game_use(body: UseIn, request: Request):
         raise HTTPException(400, str(e))
 
 
+# ---------------- 收藏（需登入，跟著帳號走） ----------------
+class FavoriteIn(BaseModel):
+    content_id: str = Field(description="內容 id")
+
+
+@app.get("/api/v1/favorites", summary="我的收藏")
+def favorites_list(request: Request):
+    user = _current_user(request)
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT content_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC",
+            (user["id"],),
+        ).fetchall()
+    return {"ok": True, "favorites": [r["content_id"] for r in rows]}
+
+
+@app.post("/api/v1/favorites", summary="加入收藏", status_code=201)
+def favorites_add(body: FavoriteIn, request: Request):
+    user = _current_user(request)
+    cid = body.content_id.strip()
+    if not cid:
+        raise HTTPException(400, "content_id 不可為空。")
+    if db.is_postgres():
+        sql = ("INSERT INTO favorites (user_id, content_id) VALUES (?, ?) "
+               "ON CONFLICT (user_id, content_id) DO NOTHING")
+    else:
+        sql = "INSERT OR IGNORE INTO favorites (user_id, content_id) VALUES (?, ?)"
+    with db.get_conn() as conn:
+        conn.execute(sql, (user["id"], cid))
+        conn.commit()
+    return {"ok": True, "content_id": cid}
+
+
+@app.delete("/api/v1/favorites/{content_id}", summary="取消收藏")
+def favorites_remove(content_id: str, request: Request):
+    user = _current_user(request)
+    with db.get_conn() as conn:
+        conn.execute(
+            "DELETE FROM favorites WHERE user_id = ? AND content_id = ?",
+            (user["id"], content_id),
+        )
+        conn.commit()
+    return {"ok": True, "content_id": content_id}
+
+
 # ---------------- 引路儀式（人格測驗，純問卷） ----------------
 class PersonaIn(BaseModel):
     persona: dict = Field(description="引路儀式結果：{role, role_name, axes, choices, at}")

@@ -214,6 +214,13 @@ CREATE TABLE IF NOT EXISTS flow_deposits (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS favorites (
+    user_id TEXT NOT NULL,
+    content_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, content_id)
+);
+
 CREATE TABLE IF NOT EXISTS duel_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     challenger_id TEXT NOT NULL,
@@ -331,6 +338,13 @@ CREATE TABLE IF NOT EXISTS flow_deposits (
     note TEXT NOT NULL DEFAULT '',
     context_stage TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS favorites (
+    user_id TEXT NOT NULL,
+    content_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, content_id)
 );
 
 CREATE TABLE IF NOT EXISTS duel_sessions (
