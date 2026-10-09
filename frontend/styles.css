@@ -346,6 +346,9 @@ select.input{appearance:none;cursor:pointer}
   background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.5}
 .site-footer span{color:var(--text-2);letter-spacing:.14em;font-size:12px}
 /* ---------- 響應式 ---------- */
+/* canvas 等比縮放＋觸控手勢 */
+canvas#radarCanvas,canvas#islandCanvas{max-width:100%;height:auto;display:block;margin:0 auto}
+#radarCanvas{touch-action:pan-y}
 @media (max-width:900px){
   .island-layout,.radar-layout{grid-template-columns:1fr}
   .duel-setup{grid-template-columns:1fr}
@@ -353,13 +356,42 @@ select.input{appearance:none;cursor:pointer}
 @media (max-width:760px){
   nav.tabs{display:flex;overflow-x:auto;margin-left:4px;scrollbar-width:none;flex:1}
   nav.tabs::-webkit-scrollbar{display:none}
-  nav.tabs button{padding:8px 12px;font-size:13.5px;white-space:nowrap}
+  nav.tabs button{padding:10px 14px;font-size:13.5px;white-space:nowrap;min-height:44px}
   .hd-in{padding:10px 16px;gap:8px}
   .brand small{display:none}
-  .panel{padding:24px 20px}
-  .hero{padding:64px 0 48px}
+  .brand b{font-size:16px}
+  .panel{padding:24px 18px}
+  .hero{padding:56px 0 40px}
+  .hero-emblem{width:120px;height:120px}
   .qa-box{flex-direction:column}
   .island-stats{grid-template-columns:repeat(3,1fr)}
+  /* 觸控目標 */
+  .btn.small{min-height:44px}
+  .card .actions{display:flex;gap:8px}
+  .card .actions .btn{flex:1;padding:12px 8px}
+  .tag-check{padding:10px 16px}
+  .stage-chip,.mode-chip{min-height:44px}
+  #modeRow{display:flex;flex-wrap:wrap}
+  .dim-head{padding:17px 4px}
+  /* 課本 */
+  .book-stats{gap:22px}
+  .book-cover{padding:40px 20px}
+  /* 戰鬥 */
+  .hp-row span{min-width:52px;font-size:12px}
+  .battle-weapons .btn{flex:1;min-height:48px}
+  /* 引路儀式 */
+  .ob-opt{padding:18px}
+  .ob-story p{font-size:15.5px}
+  /* 兵器庫 */
+  .weapon-card{padding:16px}
+  /* 個人橫幅 */
+  .persona-banner{align-items:flex-start}
+  .persona-banner-actions{width:100%}
+  .persona-banner-actions .btn{flex:1}
+  /* 已選摘要列：避免 sticky 遮擋 */
+  .sel-bar{top:64px;padding:10px 12px}
+  /* 對決 */
+  #duelOptions .opt-btn{min-height:52px;font-size:14.5px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001s!important;transition-duration:.001s!important}
