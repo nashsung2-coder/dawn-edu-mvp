@@ -209,7 +209,7 @@ function whyRecommend(c) {
   else if (inter === "影片") lines.push("短" + inter + "能在幾分鐘內抓住核心現象");
   else if (inter === "Podcast") lines.push("用耳朵學習，適合通勤或睡前延伸思考");
   if (subj) lines.push("屬於「" + subj + "」領域，正在為你的" + subj + "島嶼添磚加瓦");
-  return "💡 " + lines.slice(0, 2).join("；") + "。";
+  return lines.slice(0, 2).join("；") + "。";
 }
 
 /* ---------------- 後端 API 接線（可選） ----------------
@@ -290,7 +290,7 @@ function renderAuthBar() {
   if (Auth.user) {
     const pill = document.createElement("span");
     pill.className = "auth-user";
-    pill.textContent = "👤 " + Auth.user.name;
+    pill.textContent = Auth.user.name;
     pill.title = "已登入";
     const btn = document.createElement("button");
     btn.className = "auth-btn ghost";
@@ -299,7 +299,7 @@ function renderAuthBar() {
       try { await api("/api/v1/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
       Auth.clear();
       loadIsland();
-      toast("已登出，星海會記得你，下次見 👋");
+      toast("已登出，星海會記得你，下次見");
     };
     bar.appendChild(pill);
     bar.appendChild(btn);
@@ -353,7 +353,7 @@ async function submitAuth() {
     });
     Auth.save(data.token, data.user);
     closeAuthModal();
-    toast("🎉 " + (data.reason || "歡迎！"));
+    toast(data.reason || "歡迎！");
     if ($("page-island").classList.contains("active")) loadIsland();
   } catch (e) {
     err.textContent = e.message || "發生錯誤，請重試。";
@@ -378,6 +378,9 @@ function initAuth() {
   $("authClose").onclick = closeAuthModal;
   $("authModal").addEventListener("click", (e) => {
     if (e.target === $("authModal")) closeAuthModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("authModal").classList.contains("show")) closeAuthModal();
   });
   $("authPass").addEventListener("keydown", (e) => {
     if (e.key === "Enter") submitAuth();
@@ -436,7 +439,7 @@ async function searchViaAPI() {
 }
 
 function reasonText(c, matched, score) {
-  if (c._apiReason) return "🌐 後端：" + c._apiReason;
+  if (c._apiReason) return "後端：" + c._apiReason;
   const sel = exploreState.selected;
   if (sel.size === 0) return "瀏覽模式：尚未選擇標籤，以下為知識湖全部內容。";
   const names = matched.map((k) => {
@@ -458,7 +461,7 @@ async function renderExplore() {
       results = await searchViaAPI();
       usedAPI = true;
     } catch (e) {
-      toast("⚠️ 後端連線失敗，已切換為內嵌資料");
+      toast("後端連線失敗，已切換為內嵌資料");
     }
   }
   if (!results) results = searchContents();
@@ -466,12 +469,12 @@ async function renderExplore() {
   const selN = exploreState.selected.size;
   const modeName = SEARCH_MODES.find((m) => m.id === exploreState.mode).name;
   meta.textContent = "搜尋模式：" + modeName + " · 已選 " + selN + " 個標籤 · 找到 " + results.length + " 筆內容"
-    + (usedAPI ? " · 資料來源：後端 API 🌐" : "");
+    + (usedAPI ? " · 資料來源：後端 API" : "");
 
   const box = $("exploreCards");
   box.innerHTML = "";
   if (!results.length) {
-    box.innerHTML = '<div class="empty-hint">🌊 嚴格交集下沒有同時符合的內容。<br>試試切換為「加權交集」或「模糊交集」，或減少標籤數量。</div>';
+    box.innerHTML = '<div class="empty-hint"><span class="emblem-img" role="img" aria-label="曙光之境"></span><br>嚴格交集下沒有同時符合的內容。<br>試試切換為「加權交集」或「模糊交集」，或減少標籤數量。</div>';
     return;
   }
   results.forEach(({ c, matched, score }) => {
@@ -483,7 +486,7 @@ async function renderExplore() {
       (exploreState.mode === "fuzzy" && selN > 0
         ? '<div class="match-score">匹配 ' + Math.round(score * 100) + "%</div>"
         : "") +
-      '<div class="src-row"><span class="src-badge">' + c.source_type + '</span><span>⏱ ' + c.duration + '</span></div>' +
+      '<div class="src-row"><span class="src-badge">' + c.source_type + '</span><span>' + c.duration + '</span></div>' +
       "<h3>" + c.title + "</h3>" +
       '<div class="summary">' + c.summary.slice(0, 90) + "…</div>" +
       '<div class="tags">' +
@@ -497,8 +500,8 @@ async function renderExplore() {
       '<div style="font-size:12px;color:var(--text-faint)">' + reasonText(c, matched, score) + "</div>" +
       '<div class="actions">' +
       '<button class="btn small fav-btn">' + (fav ? "★ 已收藏" : "☆ 收藏") + "</button>" +
-      '<button class="btn small ask-btn">❓ 提問</button>' +
-      '<button class="btn small add-btn">🏝️ 加入島嶼</button>' +
+      '<button class="btn small ask-btn">提問</button>' +
+      '<button class="btn small add-btn">加入島嶼</button>' +
       "</div>";
 
     card.querySelector(".fav-btn").onclick = (e) => {
@@ -516,7 +519,7 @@ async function renderExplore() {
     card.querySelector(".ask-btn").onclick = () => {
       $("qaInput").value = "關於「" + c.title + "」，可以再多說明一點嗎？";
       gotoTab("qa");
-      toast("已把問題帶到問答頁，直接按「提問」即可 ✨");
+      toast("已把問題帶到問答頁，直接按「提問」即可");
     };
     card.querySelector(".add-btn").onclick = (e) => {
       const b = e.currentTarget;
@@ -544,7 +547,7 @@ async function renderExplore() {
       ).onfinish = () => {
         dot.remove();
         card.classList.add("just-added");
-        toast("🏝️ 已加入島嶼書架！這份知識正在為你的島嶼添磚加瓦。");
+        toast("已加入島嶼書架！這份知識正在為你的島嶼添磚加瓦。");
         setTimeout(() => card.classList.remove("just-added"), 600);
       };
     };
@@ -630,7 +633,7 @@ async function loadIsland() {
       openAuthModal("login");
       toast("登入已過期，請重新登入。");
     } else {
-      toast("⚠️ 島嶼載入失敗：" + e.message);
+      toast("島嶼載入失敗：" + e.message);
     }
   }
 }
@@ -672,7 +675,7 @@ function renderIslandStats() {
   RESOURCES.forEach((r) => {
     const d = document.createElement("div");
     d.className = "res-item";
-    d.innerHTML = '<span class="ricon">' + r.icon + "</span>" + r.name +
+    d.innerHTML = '<span class="ricon">' + r.name[0] + "</span>" + r.name +
       '<span class="rcount">×' + (islandState.resources[r.id] || 0) + "</span>" +
       '<span class="rdesc">' + r.desc + "</span>";
     grid.appendChild(d);
@@ -707,9 +710,9 @@ async function doIslandAction(a, btn) {
     });
     applyIsland(res.island);
     await loadTerritoryLog();
-    toast("🎉 開疆拓土！領土 +" + res.delta + " 單位，" + res.reward + "入袋！");
+    toast("開疆拓土！領土 +" + res.delta + " 單位，" + res.reward + "入袋！");
     if (res.used_today >= res.daily_cap - 1e-9) {
-      setTimeout(() => toast("🌙 今日擴張額度已用完。慢，就是快——明天見！", 3200), 1200);
+      setTimeout(() => toast("今日擴張額度已用完。慢，就是快——明天見！", 3200), 1200);
     }
   } catch (e) {
     if (e.status === 401) {
@@ -717,7 +720,7 @@ async function doIslandAction(a, btn) {
       loadIsland();
       openAuthModal("login");
     } else {
-      toast("⚠️ " + e.message, 3200);
+      toast(e.message, 3200);
     }
   } finally {
     islandBusy = false;
@@ -994,9 +997,9 @@ function renderPioneerList() {
     d.className = "pioneer-item" + (radarState.selectedId === p.id ? " selected" : "");
     const dist = p.isMe ? null : radarDistance(me, p);
     d.innerHTML =
-      '<div class="pname" style="color:' + p.color + '">' + (p.isMe ? "⭐ " : "") + p.name + "</div>" +
+      '<div class="pname" style="color:' + p.color + '">' + p.name + "</div>" +
       '<div class="ptitle">' + p.title + "</div>" +
-      (dist !== null ? '<div class="pdist">📏 知識距離：' + dist.toFixed(1) + "%</div>" : '<div class="pdist">📍 這就是你</div>');
+      (dist !== null ? '<div class="pdist">知識距離：' + dist.toFixed(1) + "%</div>" : '<div class="pdist">這就是你</div>');
     d.onclick = () => selectPioneer(p.id);
     box.appendChild(d);
   });
@@ -1008,17 +1011,17 @@ function selectPioneer(id) {
   const p = PIONEERS.find((x) => x.id === id);
   const info = $("radarInfo");
   if (p.isMe) {
-    info.innerHTML = '<div class="rel" style="color:#7dd3fc">⭐ 這就是你</div>' +
+    info.innerHTML = '<div class="rel" style="color:var(--cyan)">這就是你</div>' +
       "<div>見習拓荒者，初生之島的主人。繼續探索、對決、共修，你在星海中的位置會不斷移動。</div>" +
-      '<div class="privacy-note">🔒 你的精確座標只有你自己看得到。</div>';
+      '<div class="privacy-note">你的精確座標只有你自己看得到。</div>';
   } else {
     const dist = radarDistance(me, p);
     const rel = relationOf(dist);
     info.innerHTML =
       '<div class="rel ' + rel.cls + '">' + p.name + " · " + rel.name + "</div>" +
-      "<div>📏 知識距離：<strong>" + dist.toFixed(1) + "%</strong></div>" +
+      "<div>知識距離：<strong>" + dist.toFixed(1) + "%</strong></div>" +
       "<div style='margin-top:8px;color:var(--text-dim)'>" + rel.desc + "</div>" +
-      '<div class="privacy-note">🔒 隱私設計：僅顯示距離，不顯示對方精確座標。</div>';
+      '<div class="privacy-note">隱私設計：僅顯示距離，不顯示對方精確座標。</div>';
   }
   renderPioneerList();
 }
@@ -1140,7 +1143,7 @@ function startDuel() {
   $("duelResult").classList.remove("show");
   $("duelArena").classList.add("show");
   renderDuelRound();
-  toast("⚔️ 對決開始！主題：「" + duelState.domainKey.replace("・", " · ") + "」，共 5 回合。");
+  toast("對決開始！主題：「" + duelState.domainKey.replace("・", " · ") + "」，共 5 回合。");
 }
 
 function renderDuelRound() {
@@ -1206,13 +1209,13 @@ function answerDuel(idx, btn) {
   const fb = $("duelFeedback");
   fb.classList.add("show", correct ? "good" : "bad");
   fb.innerHTML =
-    "<div><strong>" + (correct ? "✅ 答對了！" : "❌ 答錯了") + "</strong> " + q.feedback + "</div>" +
-    (!correct ? "<div style='margin-top:6px'>🔍 觀念診斷：" + q.misconception + "</div>" : "") +
-    '<div class="opp-line">🎭 對手「' + duelState.opponent.name + "」" + (oppCorrect ? "答對了" : "也答錯了") + "，目前比數 " + duelState.myScore + " : " + duelState.oppScore + "。</div>";
+    "<div><strong>" + (correct ? "✓ 答對了！" : "✗ 答錯了") + "</strong> " + q.feedback + "</div>" +
+    (!correct ? "<div style='margin-top:6px'>觀念診斷：" + q.misconception + "</div>" : "") +
+    '<div class="opp-line">對手「' + duelState.opponent.name + "」" + (oppCorrect ? "答對了" : "也答錯了") + "，目前比數 " + duelState.myScore + " : " + duelState.oppScore + "。</div>";
 
   const nextBtn = $("duelNext");
   nextBtn.style.display = "";
-  nextBtn.textContent = duelState.round < 4 ? "下一題 →" : "查看結算 ⚖️";
+  nextBtn.textContent = duelState.round < 4 ? "下一題 →" : "查看結算";
 }
 
 function nextDuelRound() {
@@ -1228,29 +1231,27 @@ function settleDuel() {
   const draw = duelState.myScore === duelState.oppScore;
 
   // 結算：徽章榮譽（對決為純觀念交鋒，不影響島嶼領土）
-  let badge, badgeCls, title, emoji;
+  let badge, badgeCls, title;
   if (win) {
     badge = "對決勝利"; badgeCls = "win";
-    title = "🏆 旗開得勝！";
-    emoji = "🏆";
+    title = "旗開得勝！";
   } else {
     badge = "觀念修正"; badgeCls = "fix";
-    title = draw ? "🤝 勢均力敵" : "🌱 雖敗猶榮";
-    emoji = draw ? "🤝" : "🌱";
+    title = draw ? "勢均力敵" : "雖敗猶榮";
   }
 
   res.innerHTML =
-    '<div class="trophy">' + emoji + "</div>" +
+    '<span class="trophy-emblem" role="img" aria-label="曙光之境"></span>' +
     "<h2>" + title + "</h2>" +
     '<div style="font-size:15px;color:var(--text-dim)">最終比數：你 ' + duelState.myScore + " : " + duelState.oppScore + " " + duelState.opponent.name.split(" ")[0] + "</div>" +
-    '<div style="margin:10px 0"><span class="badge ' + badgeCls + '">🎖️ ' + badge + "徽章</span></div>" +
+    '<div style="margin:10px 0"><span class="badge ' + badgeCls + '">' + badge + "徽章</span></div>" +
     '<div class="settle-table">' +
-    '<div class="row"><span>💡 學習回饋</span><span style="color:var(--accent)">已獲得本領域觀念診斷</span></div>' +
-    '<div class="row"><span>🏝️ 島嶼</span><span style="color:var(--text-faint)">對決為觀念交鋒，領土不受影響</span></div>' +
+    '<div class="row"><span>學習回饋</span><span style="color:var(--accent)">已獲得本領域觀念診斷</span></div>' +
+    '<div class="row"><span>島嶼</span><span style="color:var(--text-faint)">對決為觀念交鋒，領土不受影響</span></div>' +
     "</div>" +
     '<div style="font-size:13.5px;color:var(--text-faint);max-width:520px;margin:0 auto 18px">真正的攻擊，是讓對方看見自己還沒學會的地方。' +
     (win ? "勝利屬於你，但別忘了回頭看看那些答錯的觀念。" : "失敗的每一題都附上了觀念診斷——修正它們，你的島嶼會更強大。") + "</div>" +
-    '<button class="btn primary" id="duelAgain">再來一局 ⚔️</button> ' +
+    '<button class="btn primary" id="duelAgain">再來一局</button> ' +
     '<button class="btn" id="duelBack">返回設定</button>';
   res.classList.add("show");
   $("duelAgain").onclick = () => { res.classList.remove("show"); startDuel(); };
@@ -1295,7 +1296,7 @@ function askQuestion() {
   const input = $("qaInput");
   const q = input.value.trim();
   const out = $("qaOutput");
-  if (!q) { toast("先輸入你的問題吧 💭"); input.focus(); return; }
+  if (!q) { toast("先輸入你的問題吧"); input.focus(); return; }
 
   const { results, keywords } = ragSearch(q);
   if (!results.length) {
@@ -1304,7 +1305,7 @@ function askQuestion() {
       c.tags.filter((t) => suggDims.includes(t.dim)).map((t) => t.value)
     ))].slice(0, 8);
     out.innerHTML =
-      '<div class="qa-empty">🌊 目前知識湖沒有足夠內容，要不要換個標籤？<div class="suggest-tags">' +
+      '<div class="qa-empty"><span class="emblem-img" role="img" aria-label="曙光之境"></span><br>目前知識湖沒有足夠內容，要不要換個標籤？<div class="suggest-tags">' +
       sugg.map((s) => '<button class="btn small sugg-btn" data-tag="' + s + '">' + s + "</button>").join("") +
       "</div></div>";
     out.querySelectorAll(".sugg-btn").forEach((b) => {
@@ -1317,7 +1318,7 @@ function askQuestion() {
         buildExploreFilters();
         renderExplore();
         gotoTab("explore");
-        toast("已為你勾選「" + b.dataset.tag + "」標籤 🔍");
+        toast("已為你勾選「" + b.dataset.tag + "」標籤");
       };
     });
     return;
@@ -1326,7 +1327,7 @@ function askQuestion() {
   const cites = results.map((r, i) =>
     '<div class="cite-card"><span style="color:var(--text-faint)">[' + (i + 1) + "]</span> " +
     '<span class="ctitle">' + r.c.title + "</span><br>" +
-    '<span class="cmeta">' + r.c.source_type + " · ⏱ " + r.c.duration + " · " +
+    '<span class="cmeta">' + r.c.source_type + " · " + r.c.duration + " · " +
     r.c.tags.map((t) => t.value).join(" / ") + "</span></div>"
   ).join("");
 
@@ -1341,9 +1342,9 @@ function askQuestion() {
     " → 交集過濾 → 相關度排序 → 生成摘要（附引用）</div>" +
     "<div>根據知識湖中的 <strong>" + results.length + "</strong> 筆相關內容，為你整理如下：</div>" +
     '<div style="margin:12px 0;color:var(--text-dim)">' + summaryLines + "</div>" +
-    '<div style="font-size:13px;color:var(--text-faint);margin-top:6px">📚 引用來源：</div>' +
+    '<div style="font-size:13px;color:var(--text-faint);margin-top:6px">引用來源：</div>' +
     cites +
-    '<div style="margin-top:12px;font-size:13px;color:var(--text-faint)">💡 想深入探索？到「探究」頁用標籤交集找更多相關內容，或到「島嶼」頁把這次學習沉澱為領土。</div>' +
+    '<div style="margin-top:12px;font-size:13px;color:var(--text-faint)">想深入探索？到「探究」頁用標籤交集找更多相關內容，或到「島嶼」頁把這次學習沉澱為領土。</div>' +
     "</div>";
 }
 

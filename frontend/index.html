@@ -3,50 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>曙光教育智能系統 · 慢荒宇宙 MVP</title>
+<title>曙光教育智能系統 · 慢荒宇宙</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="assets/emblem.css">
 </head>
 <body>
 <canvas id="starfield"></canvas>
+<div class="nebula"></div>
 
-<div id="authBar"></div>
+<header class="site-header">
+  <div class="hd-in">
+    <a class="brand" href="#top" id="brandHome">
+      <span class="emblem-img" role="img" aria-label="曙光之境"></span>
+      <span><b>曙光教育</b><small>DAWN EDUCATION</small></span>
+    </a>
+    <nav class="tabs" id="mainNav" aria-label="主導覽">
+      <button data-tab="explore" class="active">探究</button>
+      <button data-tab="island">島嶼</button>
+      <button data-tab="radar">雷達</button>
+      <button data-tab="duel">對決</button>
+      <button data-tab="qa">問答</button>
+    </nav>
+    <div class="hd-right"><div id="authBar"></div></div>
+  </div>
+</header>
 
 <div id="app">
-  <header class="hero">
-    <div class="kicker">慢荒宇宙 · DAWN EDUCATION</div>
-    <h1>曙光教育智能系統</h1>
-    <p class="manifesto">「<strong>你的島嶼，是你知識的形狀。</strong>」</p>
-  </header>
-
-  <nav class="tabs" id="mainNav">
-    <button data-tab="explore" class="active">🔍 探究</button>
-    <button data-tab="island">🏝️ 島嶼</button>
-    <button data-tab="radar">📡 雷達</button>
-    <button data-tab="duel">⚔️ 對決</button>
-    <button data-tab="qa">💬 問答</button>
-  </nav>
+  <section class="hero" id="top">
+    <span class="emblem-img hero-emblem" role="img" aria-label="曙光之境"></span>
+    <div class="kicker"><span>慢荒宇宙 · 曙光教育智能系統</span></div>
+    <h1 class="display">讓每一次好奇，<br>都成為<span class="hl">島嶼</span>的新生地。</h1>
+    <p class="manifesto">從日常科學出發，經歷引起好奇、親自探索、延伸思考——<br>你的島嶼，是你知識的形狀。</p>
+  </section>
 
   <!-- ============ 1. 探究 ============ -->
   <section class="tab-page active" id="page-explore">
     <div class="panel">
-      <h2>🔍 知識湖探究</h2>
-      <p class="sub">從日常科學出發：引起好奇 → 親自探索 → 延伸思考。勾選多維標籤，交集搜尋會告訴你「為什麼推薦」。</p>
+      <h2 class="h2">知識湖探究</h2>
+      <p class="sub">勾選多維標籤，交集搜尋會告訴你「為什麼推薦」。</p>
 
-      <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:0 0 8px;">探索階段</h4>
+      <h4 class="lbl-h">探索階段</h4>
       <div class="stage-row" id="stageRow">
         <button class="stage-chip active" data-stage="all">全部階段</button>
-        <button class="stage-chip" data-stage="引起好奇">🌱 引起好奇</button>
-        <button class="stage-chip" data-stage="親自探索">🔬 親自探索</button>
-        <button class="stage-chip" data-stage="延伸思考">🌌 延伸思考</button>
+        <button class="stage-chip" data-stage="引起好奇">引起好奇</button>
+        <button class="stage-chip" data-stage="親自探索">親自探索</button>
+        <button class="stage-chip" data-stage="延伸思考">延伸思考</button>
       </div>
 
-      <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:16px 0 8px;">搜尋模式</h4>
+      <h4 class="lbl-h">搜尋模式</h4>
       <div class="mode-row" id="modeRow"></div>
 
-      <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:16px 0 8px;">多維標籤篩選（可複選）</h4>
+      <h4 class="lbl-h">多維標籤篩選<span class="lbl-hint">可複選</span></h4>
       <div id="dimFilters"></div>
 
       <div class="result-meta" id="exploreMeta"></div>
@@ -57,12 +67,12 @@
   <!-- ============ 2. 島嶼 ============ -->
   <section class="tab-page" id="page-island">
     <div class="panel">
-      <h2>🏝️ 我的島嶼 · <span id="islandName">初生之島</span></h2>
-      <p class="sub">學習行為會開疆拓土。島嶼越大越繁茂——你的島嶼，是你知識的形狀。進度跟著帳號走，換裝置也不會消失。</p>
+      <h2 class="h2">我的島嶼 · <span id="islandName">初生之島</span></h2>
+      <p class="sub">學習行為會開疆拓土。進度跟著帳號走，換裝置也不會消失。</p>
       <div id="islandGate" class="gate" style="display:none">
-        <div style="font-size:46px">🏝️</div>
-        <h3>島嶼需要一位主人</h3>
-        <p>登入後，你的領土、資源與開疆紀錄都會保存在雲端，跟著帳號走——重整頁面、換裝置都不會消失。</p>
+        <span class="emblem-img" role="img" aria-label="曙光之境"></span>
+        <h3 class="h3">島嶼需要一位主人</h3>
+        <p class="small">登入後，你的領土、資源與開疆紀錄都會保存在雲端——重整頁面、換裝置都不會消失。</p>
         <button class="btn primary" id="gateLoginBtn">登入 / 註冊</button>
       </div>
       <div class="island-layout" id="islandLayout">
@@ -77,14 +87,14 @@
             <div class="cap-track"><div class="cap-fill" id="capFill" style="width:0%"></div></div>
             <div class="cap-label">每日擴張上限 5 單位 · 穩定學習，細水長流</div>
           </div>
-          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:18px 0 4px;">領土資源</h4>
+          <h4 class="lbl-h">領土資源</h4>
           <div class="res-grid" id="resGrid"></div>
         </div>
         <div>
-          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:0 0 4px;">學習行為 · 開疆拓土</h4>
-          <p class="sub" style="margin-bottom:8px;">完成學習行為即可擴張領土並獲得資源。</p>
+          <h4 class="lbl-h">學習行為 · 開疆拓土</h4>
+          <p class="sub">完成學習行為即可擴張領土並獲得資源。</p>
           <div class="action-list" id="islandActions"></div>
-          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:18px 0 4px;">領土日誌</h4>
+          <h4 class="lbl-h">領土日誌</h4>
           <ul class="log-list" id="territoryLog"></ul>
         </div>
       </div>
@@ -94,17 +104,17 @@
   <!-- ============ 3. 雷達 ============ -->
   <section class="tab-page" id="page-radar">
     <div class="panel">
-      <h2>📡 三維空間雷達</h2>
+      <h2 class="h2">三維空間雷達</h2>
       <p class="sub">X 知識廣度 · Y 認知深度 · Z 社會連結。拖曳可旋轉視角，點選拓荒者查看知識距離。</p>
       <div class="radar-layout">
         <div><canvas id="radarCanvas" width="640" height="420"></canvas></div>
         <div>
-          <h4 style="color:var(--accent-2);font-size:13px;letter-spacing:.15em;margin:0 0 10px;">星海中的拓荒者</h4>
+          <h4 class="lbl-h">星海中的拓荒者</h4>
           <div class="pioneer-list" id="pioneerList"></div>
           <div class="radar-info" id="radarInfo">
-            <div style="color:var(--text-faint);font-size:13.5px;">👆 點選一位拓荒者，查看你們的知識距離與關係判讀。</div>
+            <div class="small" style="color:var(--text-3)">點選一位拓荒者，查看你們的知識距離與關係判讀。</div>
           </div>
-          <div class="privacy-note">🔒 隱私設計：只顯示知識距離，不顯示任何人的精確座標。所有資料皆匿名化處理。</div>
+          <div class="privacy-note">隱私設計：只顯示知識距離，不顯示任何人的精確座標。所有資料皆匿名化處理。</div>
         </div>
       </div>
     </div>
@@ -113,34 +123,34 @@
   <!-- ============ 4. 對決 ============ -->
   <section class="tab-page" id="page-duel">
     <div class="panel">
-      <h2>⚔️ 知識對決</h2>
-      <p class="sub">真正的攻擊，是讓對方看見自己還沒學會的地方。勝利者獲得資源，失敗者獲得成長。</p>
+      <h2 class="h2">知識對決</h2>
+      <p class="sub">真正的攻擊，是讓對方看見自己還沒學會的地方。勝利者獲得榮譽，失敗者獲得成長。</p>
 
       <div id="duelSetup">
         <div class="duel-setup">
           <div class="field">
             <label>選擇對手</label>
-            <select id="duelOpponent"></select>
+            <select id="duelOpponent" class="input"></select>
           </div>
           <div class="field">
             <label>對決領域（共同標籤）</label>
-            <select id="duelDomain"></select>
+            <select id="duelDomain" class="input"></select>
           </div>
-          <button class="btn primary" id="duelStart">發起對決 ⚔️</button>
+          <button class="btn primary" id="duelStart">發起對決</button>
         </div>
-        <div class="empty-hint" style="grid-column:auto;">選擇對手與共同標籤領域，開始 5 回合的觀念交鋒。</div>
+        <div class="empty-hint">選擇對手與共同標籤領域，開始 5 回合的觀念交鋒。</div>
       </div>
 
       <div class="duel-arena" id="duelArena">
         <div class="round-head">
           <div class="round-pills" id="roundPills"></div>
-          <div style="font-size:13px;color:var(--text-faint);" id="duelScore">你 0 : 0 對手</div>
+          <div class="duel-score" id="duelScore">你 0 : 0 對手</div>
         </div>
         <div class="question-box">
           <h3 id="duelQuestion"></h3>
           <div id="duelOptions"></div>
           <div class="feedback-box" id="duelFeedback"></div>
-          <div style="margin-top:14px;text-align:right;">
+          <div class="duel-next-row">
             <button class="btn primary" id="duelNext" style="display:none;">下一題 →</button>
           </div>
         </div>
@@ -153,45 +163,45 @@
   <!-- ============ 5. 問答 ============ -->
   <section class="tab-page" id="page-qa">
     <div class="panel">
-      <h2>💬 知識湖問答</h2>
-      <p class="sub">RAG 檢索小工具：輸入你的問題，系統從知識湖檢索相關內容，生成摘要回答並附上引用來源。</p>
+      <h2 class="h2">知識湖問答</h2>
+      <p class="sub">輸入你的問題，系統從知識湖檢索相關內容，生成摘要回答並附上引用來源。</p>
       <div class="qa-box">
-        <input id="qaInput" type="text" placeholder="例如：為什麼從泳池起來有風會特別冷？" maxlength="120">
-        <button class="btn primary" id="qaAsk">提問 ✨</button>
+        <input id="qaInput" class="input" type="text" placeholder="例如：為什麼從泳池起來有風會特別冷？" maxlength="120">
+        <button class="btn primary" id="qaAsk">提問</button>
       </div>
       <div id="qaOutput"></div>
     </div>
   </section>
 
-  <footer>
-    曙光教育智能系統 · 慢荒宇宙 MVP · 交集資料庫 × 知識湖 × 三維雷達 × 知識對決<br>
-    雙擊 index.html 即可運行 · config.js 設定後端 URL 後可連線即時 API
+  <footer class="site-footer">
+    <div class="rule"></div>
+    曙光教育智能系統 · 慢荒宇宙<br>
+    <span>交集資料庫 × 知識湖 × 三維雷達 × 知識對決</span>
   </footer>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status"></div>
 
-<div id="authModal" class="auth-modal">
-  <div class="auth-card">
-    <button class="auth-close" id="authClose">✕</button>
+<div id="authModal" class="auth-modal" aria-hidden="true">
+  <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="auth-close" id="authClose" aria-label="關閉">✕</button>
+    <span class="auth-emblem" role="img" aria-label="曙光之境"></span>
     <div class="auth-tabs">
       <button class="auth-tab active" data-mode="login">登入</button>
       <button class="auth-tab" data-mode="register">註冊</button>
     </div>
-    <h3 id="authTitle">歡迎回來，拓荒者</h3>
+    <h3 id="authTitle">歡迎回來，旅人</h3>
     <div class="auth-field">
-      <label>暱 稱</label>
-      <input id="authName" maxlength="20" placeholder="例如：星海旅人" autocomplete="username">
+      <label for="authName">暱稱</label>
+      <input id="authName" class="input" maxlength="20" placeholder="例如：星海旅人" autocomplete="username">
     </div>
     <div class="auth-field">
-      <label>密 碼</label>
-      <input id="authPass" type="password" placeholder="至少 4 個字元" autocomplete="current-password">
+      <label for="authPass">密碼</label>
+      <input id="authPass" class="input" type="password" placeholder="至少 4 個字元" autocomplete="current-password">
     </div>
     <div class="auth-err" id="authErr"></div>
     <button class="btn primary" id="authSubmit" style="width:100%">登入</button>
-    <p style="text-align:center;font-size:12px;color:var(--text-faint);margin:14px 0 0;line-height:1.8">
-      你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了 🌊
-    </p>
+    <p class="auth-note">你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。</p>
   </div>
 </div>
 
