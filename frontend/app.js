@@ -938,7 +938,12 @@ function renderDuelRound() {
   q.options.forEach((opt, idx) => {
     const b = document.createElement("button");
     b.className = "opt-btn";
-    b.textContent = String.fromCharCode(65 + idx) + ". " + opt;
+    const badge = document.createElement("b");
+    badge.textContent = String.fromCharCode(65 + idx);
+    const label = document.createElement("span");
+    label.textContent = opt;
+    b.appendChild(badge);
+    b.appendChild(label);
     b.onclick = () => answerDuel(idx, b);
     box.appendChild(b);
   });
