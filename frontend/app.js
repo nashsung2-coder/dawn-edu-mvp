@@ -89,6 +89,7 @@ function mulberry32(seed) {
     document.querySelectorAll(".tab-page").forEach((p) => p.classList.remove("active"));
     $("page-" + btn.dataset.tab).classList.add("active");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    btn.scrollIntoView({ inline: "center", block: "nearest" });
     if (btn.dataset.tab === "island") loadIsland();
     if (btn.dataset.tab === "textbook") buildTextbook();
     if (btn.dataset.tab === "radar") Game.refresh();
@@ -102,6 +103,8 @@ function gotoTab(name) {
   document.querySelectorAll(".tab-page").forEach((p) => p.classList.remove("active"));
   $("page-" + name).classList.add("active");
   window.scrollTo({ top: 0, behavior: "smooth" });
+  const tabBtn = document.querySelector('#mainNav button[data-tab="' + name + '"]');
+  if (tabBtn) tabBtn.scrollIntoView({ inline: "center", block: "nearest" });
   if (name === "island") loadIsland();
   if (name === "textbook") buildTextbook();
   if (name === "radar") Game.refresh();
@@ -847,8 +850,20 @@ async function doIslandAction(a, btn) {
 }
 
 /* 島嶼繪製：領土單位越多，島越大、植被越茂盛 */
+let islandResizeT = null;
+window.addEventListener("resize", () => {
+  clearTimeout(islandResizeT);
+  islandResizeT = setTimeout(() => {
+    if ($("page-island") && $("page-island").classList.contains("active")) drawIsland();
+  }, 200);
+});
+
 function drawIsland() {
   const cv = $("islandCanvas");
+  // 按容器寬度自適應內部分辨率
+  const w = Math.min(520, Math.floor((cv.parentElement && cv.parentElement.clientWidth) || 520));
+  const h = Math.round((w * 340) / 520);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const ctx = cv.getContext("2d");
   const W = cv.width, H = cv.height;
   const u = islandState.units;
@@ -1014,11 +1029,19 @@ function project3D(nx, ny, nz, cx, cy, R) {
   return { x: cx + x1 * R * scale, y: cy - y2 * R * scale, s: scale, z: z2 };
 }
 
+function fitRadarCanvas() {
+  const cv = $("radarCanvas");
+  if (!cv || !cv.parentElement) return;
+  const w = Math.min(640, Math.floor(cv.parentElement.clientWidth) || 640);
+  const h = Math.round((w * 420) / 640);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+}
+
 function drawRadar() {
   const cv = $("radarCanvas");
   const ctx = cv.getContext("2d");
   const W = cv.width, H = cv.height;
-  const cx = W / 2, cy = H / 2 + 10, R = 130;
+  const cx = W / 2, cy = H / 2 + 10, R = Math.min(W, H) * 0.31;
   ctx.clearRect(0, 0, W, H);
   radarState.points2D = [];
 
@@ -1187,6 +1210,7 @@ function initRadar() {
 
   (function loop() {
     if (radarState.auto && !dragging) radarState.rotY += 0.004;
+    fitRadarCanvas();
     drawRadar();
     requestAnimationFrame(loop);
   })();
