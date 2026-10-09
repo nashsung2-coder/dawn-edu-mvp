@@ -70,7 +70,17 @@
   <section class="tab-page" id="page-island">
     <div class="panel">
       <h2 class="h2">我的島嶼 · <span id="islandName">初生之島</span></h2>
-      <p class="sub">學習行為會開疆拓土。進度跟著帳號走，換裝置也不會消失。</p>
+      <p class="sub">學習行為會開疆拓土。進度跟著帳號走，換裝置也不會消失。
+        <span id="personaTag" class="persona-tag" style="display:none"></span>
+        <button class="linklike" id="retakePersona" style="display:none">重測人格</button>
+      </p>
+      <div id="personaBanner" class="persona-banner" style="display:none">
+        <div><b>星海還不認識你。</b><span class="small">完成引路儀式，測出你的人格與角色——未來你的課本與學習會為你個人化。</span></div>
+        <div class="persona-banner-actions">
+          <button class="btn primary" id="personaStart">開始引路儀式</button>
+          <button class="btn" id="personaDismiss">稍後</button>
+        </div>
+      </div>
       <div id="islandGate" class="gate" style="display:none">
         <span class="emblem-img" role="img" aria-label="曙光之境"></span>
         <h3 class="h3">島嶼需要一位主人</h3>
@@ -221,6 +231,12 @@
     <div class="auth-err" id="authErr"></div>
     <button class="btn primary" id="authSubmit" style="width:100%">登入</button>
     <p class="auth-note">你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。</p>
+  </div>
+</div>
+
+<div id="onboardModal" class="auth-modal" aria-hidden="true">
+  <div class="auth-card onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
+    <div id="onboardBody"></div>
   </div>
 </div>
 

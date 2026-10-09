@@ -437,3 +437,52 @@ select.input{appearance:none;cursor:pointer}
   border:1px solid var(--hairline);border-radius:12px;padding:10px 14px}
 .book-colophon{text-align:center;padding:28px}
 .ltime{color:var(--text-3);font-size:12.5px;margin-right:10px;font-variant-numeric:tabular-nums}
+
+/* ============ 引路儀式 ============ */
+.onboard-card{min-width:min(560px,94vw);text-align:center}
+.ob-kicker{font-size:12px;letter-spacing:.3em;color:var(--gold);margin-bottom:18px}
+.ob-story{text-align:left;margin:0 auto 8px;max-width:480px}
+.ob-story p{font-family:var(--serif);font-size:16.5px;line-height:2;color:var(--text-1);
+  margin:0 0 14px;animation:rise var(--dur-med) var(--ease)}
+.ob-story p:last-child{margin-bottom:0}
+.ob-big{width:100%;margin-top:20px;font-size:16px;padding:14px}
+.ob-skip{display:block;margin:14px auto 0;background:none;border:0;color:var(--text-3);
+  font-size:13px;cursor:pointer;letter-spacing:.1em;font-family:var(--sans)}
+.ob-skip:hover{color:var(--text-2)}
+.ob-dots{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
+.ob-dots i{width:26px;height:4px;border-radius:2px;background:oklch(94.6% 0.026 275 / 12%)}
+.ob-dots i.done{background:var(--gold)}
+.ob-dots i.now{background:var(--gold-hi);box-shadow:0 0 8px oklch(82.9% 0.116 86 / 60%)}
+.ob-options{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.ob-opt{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;
+  background:var(--bg-card);border:1px solid var(--hairline);border-radius:var(--r-card);
+  padding:16px 18px;cursor:pointer;font-family:var(--sans);color:var(--text-1);
+  transition:all var(--dur-fast) var(--ease);animation:rise var(--dur-fast) var(--ease)}
+.ob-opt:hover{border-color:oklch(82.9% 0.116 86 / 55%);transform:translateY(-2px);
+  background:oklch(82.9% 0.116 86 / 6%)}
+.ob-opt b{font-size:15.5px;color:var(--gold-hi)}
+.ob-opt span{font-size:13px;color:var(--text-3)}
+.ob-emblem{width:76px;height:76px;margin:6px auto 16px}
+.ob-role-label{font-size:13px;letter-spacing:.24em;color:var(--text-3);margin-bottom:8px}
+.ob-role-name{font-family:var(--serif);font-size:clamp(30px,5vw,42px);color:var(--gold-hi);
+  margin:0 0 16px;animation:rise var(--dur-med) var(--ease)}
+.ob-study{margin:18px auto 0;max-width:480px;background:oklch(82.9% 0.116 86 / 6%);
+  border:1px solid oklch(82.9% 0.116 86 / 25%);border-radius:var(--r-card);padding:16px 18px;
+  text-align:left}
+.ob-study b{display:block;font-size:13px;letter-spacing:.2em;color:var(--gold);margin-bottom:8px}
+.ob-study p{font-size:14px;line-height:1.8;color:var(--text-2);margin:0}
+/* 人格橫幅與標籤 */
+.persona-banner{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  background:oklch(82.9% 0.116 86 / 6%);border:1px solid oklch(82.9% 0.116 86 / 30%);
+  border-radius:var(--r-card);padding:16px 20px;margin:4px 0 18px;animation:rise var(--dur-med) var(--ease)}
+.persona-banner b{color:var(--gold-hi);margin-right:8px}
+.persona-banner-actions{display:flex;gap:10px}
+.persona-tag{display:inline-block;font-size:12px;color:var(--violet);
+  border:1px solid oklch(66.2% 0.188 285 / 45%);background:oklch(66.2% 0.188 285 / 10%);
+  border-radius:var(--r-pill);padding:3px 12px;margin-left:8px;letter-spacing:.08em}
+.linklike{background:none;border:0;color:var(--text-3);font-size:12.5px;cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;margin-left:8px;font-family:var(--sans)}
+.linklike:hover{color:var(--gold-hi)}
+.book-role{display:inline-block;font-size:13px;letter-spacing:.28em;color:var(--violet);
+  border:1px solid oklch(66.2% 0.188 285 / 45%);border-radius:var(--r-pill);
+  padding:6px 18px 6px 22px;margin-bottom:14px}
