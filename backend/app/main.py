@@ -4,10 +4,11 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from app import auth as auth_mod
 from app import db
 from app.game import (
     compare_radar,
@@ -55,6 +56,69 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------- 帳號 ----------------
+class AuthIn(BaseModel):
+    name: str = Field(description="暱稱（1–20 字，唯一）")
+    password: str = Field(description="密碼（至少 4 字元）")
+
+
+def _bearer_token(request: Request) -> str:
+    authz = request.headers.get("authorization", "")
+    if authz.lower().startswith("bearer "):
+        return authz[7:].strip()
+    return ""
+
+
+def _current_user(request: Request) -> dict:
+    """由 Bearer 權杖取當前使用者；無效則 401。"""
+    user = auth_mod.get_user_by_token(_bearer_token(request))
+    if not user:
+        raise HTTPException(401, "請先登入。你的權杖無效或已過期，請重新登入。")
+    return user
+
+
+def _own_island(request: Request, user_id: str) -> dict:
+    """島嶼 API 守衛：需登入，且只能存取自己的島嶼。"""
+    user = _current_user(request)
+    if user["id"] != user_id:
+        raise HTTPException(403, "你只能存取自己的島嶼。")
+    return user
+
+
+@app.post("/api/v1/auth/register", summary="註冊帳號", status_code=201)
+def auth_register(body: AuthIn):
+    try:
+        result = auth_mod.register(body.name, body.password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "token": result["token"],
+            "user": {"id": result["id"], "name": result["name"]},
+            "reason": f"歡迎來到慢荒宇宙，{result['name']}！你的島嶼已經在星海中浮現。"}
+
+
+@app.post("/api/v1/auth/login", summary="登入")
+def auth_login(body: AuthIn):
+    try:
+        result = auth_mod.login(body.name, body.password)
+    except ValueError as e:
+        raise HTTPException(401, str(e))
+    return {"ok": True, "token": result["token"],
+            "user": {"id": result["id"], "name": result["name"]},
+            "reason": f"歡迎回來，{result['name']}！你的島嶼還在原處等你。"}
+
+
+@app.post("/api/v1/auth/logout", summary="登出")
+def auth_logout(request: Request):
+    auth_mod.logout(_bearer_token(request))
+    return {"ok": True, "reason": "已登出。星海會記得你，下次見。"}
+
+
+@app.get("/api/v1/auth/me", summary="當前使用者")
+def auth_me(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "user": user}
 
 
 # ---------------- 標籤 ----------------
@@ -182,7 +246,8 @@ def post_flow_deposit(fd: FlowDepositIn):
 
 # ---------------- 島嶼 ----------------
 @app.get("/api/v1/islands/{user_id}", summary="島嶼狀態")
-def island_state(user_id: str):
+def island_state(user_id: str, request: Request):
+    _own_island(request, user_id)
     return get_island(user_id)
 
 
@@ -191,7 +256,8 @@ class ExpandIn(BaseModel):
 
 
 @app.post("/api/v1/islands/{user_id}/expand", summary="開疆拓土")
-def island_expand(user_id: str, body: ExpandIn):
+def island_expand(user_id: str, body: ExpandIn, request: Request):
+    _own_island(request, user_id)
     result = expand_island(user_id, body.action)
     if not result.get("ok"):
         raise HTTPException(400, result["reason"])
@@ -203,10 +269,23 @@ class OccupyIn(BaseModel):
 
 
 @app.post("/api/v1/islands/{user_id}/occupy", summary="佔領標籤")
-def island_occupy(user_id: str, body: OccupyIn):
+def island_occupy(user_id: str, body: OccupyIn, request: Request):
+    _own_island(request, user_id)
     occupy_tag(user_id, body.tag)
     return {"ok": True, "island": get_island(user_id),
             "reason": f"已佔領標籤「{body.tag}」，島嶼的知識密度提升了！"}
+
+
+@app.get("/api/v1/islands/{user_id}/logs", summary="領土日誌")
+def island_logs(user_id: str, request: Request, limit: int = Query(30, ge=1, le=100)):
+    _own_island(request, user_id)
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT action, delta, territory_after, log_date, created_at "
+            "FROM territory_logs WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+        return {"logs": [dict(r) for r in rows]}
 
 
 # ---------------- 雷達 ----------------

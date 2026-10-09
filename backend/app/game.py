@@ -29,13 +29,13 @@ EXPAND_ACTIONS = {
 }
 DAILY_EXPAND_CAP = 5.0  # §10.2 每日擴張上限
 
-# 每次擴張附贈的資源（鼓勵回饋）
+# 每次擴張附贈的資源（鼓勵回饋）：行為 → [(資源鍵, 數量), ...]
 ACTION_RESOURCE_REWARD = {
-    "complete_topic": ("curiosity_seed", 1),
-    "fix_myth": ("observing_eye", 1),
-    "ask_question": ("curiosity_seed", 1),
-    "complete_quest": ("variable_gear", 1),
-    "co_study": ("connection_web", 1),
+    "complete_topic": (("curiosity_seed", 1),),
+    "fix_myth": (("observing_eye", 1),),
+    "ask_question": (("curiosity_seed", 1),),
+    "complete_quest": (("variable_gear", 1), ("flow_spring", 1)),
+    "co_study": (("connection_web", 1),),
 }
 
 
@@ -51,6 +51,14 @@ def ensure_user(conn, user_id: str) -> None:
         )
 
 
+def _used_today(conn, user_id: str) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(delta), 0) AS s FROM territory_logs WHERE user_id = ? AND log_date = ?",
+        (user_id, _today()),
+    ).fetchone()
+    return float(row["s"] or 0)
+
+
 def get_island(user_id: str) -> dict:
     """§10.1 初始島嶼：不存在則建立（領土 1 單位、好奇種子×3、觀察之眼×1）。"""
     with db.get_conn() as conn:
@@ -64,7 +72,10 @@ def get_island(user_id: str) -> dict:
             )
             conn.commit()
             row = conn.execute("SELECT * FROM islands WHERE user_id = ?", (user_id,)).fetchone()
-        return _island_dict(row)
+        d = _island_dict(row)
+        d["used_today"] = _used_today(conn, user_id)
+        d["daily_cap"] = DAILY_EXPAND_CAP
+        return d
 
 
 def _island_dict(row) -> dict:
@@ -141,8 +152,9 @@ def expand_island(user_id: str, action: str) -> dict:
         import json
 
         resources = json.loads(island["resources"]) if island else dict(DEFAULT_RESOURCES)
-        rkey, rval = ACTION_RESOURCE_REWARD[action]
-        resources[rkey] = resources.get(rkey, 0) + rval
+        rewards = ACTION_RESOURCE_REWARD[action]
+        for rkey, rval in rewards:
+            resources[rkey] = resources.get(rkey, 0) + rval
         new_territory = round((island["territory"] if island else 1.0) + delta, 2)
         if island:
             conn.execute(
@@ -161,15 +173,16 @@ def expand_island(user_id: str, action: str) -> dict:
             (user_id, action, delta, new_territory, _today()),
         )
         conn.commit()
+    reward_text = "、".join(f"{RESOURCE_NAMES[k]} ×{v}" for k, v in rewards)
     return {
         "ok": True,
         "action": action,
         "delta": delta,
         "used_today": round(used + delta, 2),
         "daily_cap": DAILY_EXPAND_CAP,
-        "reward": f"{RESOURCE_NAMES[rkey]} ×{rval}",
+        "reward": reward_text,
         "island": get_island(user_id),
-        "reason": f"開疆拓土成功！領土 +{delta} 單位，獲得{RESOURCE_NAMES[rkey]} ×{rval}。",
+        "reason": f"開疆拓土成功！領土 +{delta} 單位，獲得{reward_text}。",
     }
 
 

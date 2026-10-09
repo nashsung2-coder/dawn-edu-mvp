@@ -105,8 +105,17 @@ def test_learning_events_and_flow(client):
     assert r.status_code == 200 and r.json()["ok"]
 
 
+def _mkuser(client, name):
+    """註冊並回傳 (user_id, auth_headers)。"""
+    r = client.post("/api/v1/auth/register", json={"name": name, "password": "pass1234"})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    return body["user"]["id"], {"Authorization": "Bearer " + body["token"]}
+
+
 def test_island_init_and_expand_cap(client):
-    r = client.get("/api/v1/islands/u_cap")
+    uid, H = _mkuser(client, "上限測試者")
+    r = client.get(f"/api/v1/islands/{uid}", headers=H)
     assert r.status_code == 200
     island = r.json()
     assert island["territory"] == 1.0
@@ -115,48 +124,52 @@ def test_island_init_and_expand_cap(client):
 
     # +2, +2, +1 = 5 單位（每日上限）
     for action, expect in [("complete_quest", 3.0), ("complete_quest", 5.0), ("complete_topic", 6.0)]:
-        r = client.post("/api/v1/islands/u_cap/expand", json={"action": action})
+        r = client.post(f"/api/v1/islands/{uid}/expand", json={"action": action}, headers=H)
         assert r.status_code == 200, r.text
         assert r.json()["island"]["territory"] == expect
     # 再 +0.5 就超過上限 → 400
-    r = client.post("/api/v1/islands/u_cap/expand", json={"action": "ask_question"})
+    r = client.post(f"/api/v1/islands/{uid}/expand", json={"action": "ask_question"}, headers=H)
     assert r.status_code == 400
     assert "每日上限" in r.json()["detail"]
     # 非法 action → 400
-    r = client.post("/api/v1/islands/u_cap/expand", json={"action": "fly"})
+    r = client.post(f"/api/v1/islands/{uid}/expand", json={"action": "fly"}, headers=H)
     assert r.status_code == 400
 
 
-def _occupy(client, uid, tag):
-    r = client.post(f"/api/v1/islands/{uid}/occupy", json={"tag": tag})
+def _occupy(client, uid, headers, tag):
+    r = client.post(f"/api/v1/islands/{uid}/occupy", json={"tag": tag}, headers=headers)
     assert r.status_code == 200
 
 
 def test_duel_territory_gap_rejected(client):
-    _occupy(client, "big", "CONC:蒸發")
-    _occupy(client, "small", "CONC:蒸發")
+    big, Hbig = _mkuser(client, "大島主")
+    small, Hsmall = _mkuser(client, "小島主")
+    _occupy(client, big, Hbig, "CONC:蒸發")
+    _occupy(client, small, Hsmall, "CONC:蒸發")
     # big 擴張到 6 單位，small 維持 1 → 差距 83% > 50%
-    client.post("/api/v1/islands/big/expand", json={"action": "complete_quest"})
-    client.post("/api/v1/islands/big/expand", json={"action": "complete_quest"})
-    client.post("/api/v1/islands/big/expand", json={"action": "complete_topic"})
+    client.post(f"/api/v1/islands/{big}/expand", json={"action": "complete_quest"}, headers=Hbig)
+    client.post(f"/api/v1/islands/{big}/expand", json={"action": "complete_quest"}, headers=Hbig)
+    client.post(f"/api/v1/islands/{big}/expand", json={"action": "complete_topic"}, headers=Hbig)
     r = client.post("/api/v1/duels",
-                    json={"challenger_id": "big", "opponent_id": "small", "tag": "CONC:蒸發"})
+                    json={"challenger_id": big, "opponent_id": small, "tag": "CONC:蒸發"})
     assert r.status_code == 400
     assert "50%" in r.json()["detail"]
 
 
 def test_duel_full_flow_and_settlement(client):
-    _occupy(client, "duel_a", "CONC:蒸發")
-    _occupy(client, "duel_b", "CONC:蒸發")
+    duel_a, Ha = _mkuser(client, "對決甲")
+    duel_b, Hb = _mkuser(client, "對決乙")
+    _occupy(client, duel_a, Ha, "CONC:蒸發")
+    _occupy(client, duel_b, Hb, "CONC:蒸發")
     r = client.post("/api/v1/duels",
-                    json={"challenger_id": "duel_a", "opponent_id": "duel_b", "tag": "CONC:蒸發"})
+                    json={"challenger_id": duel_a, "opponent_id": duel_b, "tag": "CONC:蒸發"})
     assert r.status_code == 200, r.text
     duel = r.json()
     assert len(duel["questions"]) == 5
 
     # 同一對手每日只能一次
     r2 = client.post("/api/v1/duels",
-                     json={"challenger_id": "duel_a", "opponent_id": "duel_b", "tag": "CONC:蒸發"})
+                     json={"challenger_id": duel_a, "opponent_id": duel_b, "tag": "CONC:蒸發"})
     assert r2.status_code == 400
 
     # 從 DB 讀正確答案：a 全對、b 全錯
@@ -169,37 +182,39 @@ def test_duel_full_flow_and_settlement(client):
     wrong = [(a + 1) % 4 for a in answers]
 
     ra = client.post(f"/api/v1/duels/{duel['duel_id']}/answers",
-                     json={"user_id": "duel_a", "answers": answers})
+                     json={"user_id": duel_a, "answers": answers})
     assert ra.status_code == 200
     assert ra.json()["settled"] is False
     assert ra.json()["your_score"] == 5
     assert all("concept_note" in f and f["correct"] for f in ra.json()["feedback"])
 
     rb = client.post(f"/api/v1/duels/{duel['duel_id']}/answers",
-                     json={"user_id": "duel_b", "answers": wrong})
+                     json={"user_id": duel_b, "answers": wrong})
     assert rb.status_code == 200
     done = rb.json()
     assert done["settled"] is True
-    assert done["winner_id"] == "duel_a"
-    assert done["badges"] == {"duel_a": "對決勝利", "duel_b": "觀念修正"}
-    assert done["territory_change"] == {"duel_a": "+1", "duel_b": "-1"}
+    assert done["winner_id"] == duel_a
+    assert done["badges"] == {duel_a: "對決勝利", duel_b: "觀念修正"}
+    assert done["territory_change"] == {duel_a: "+1", duel_b: "-1"}
 
-    ia = client.get("/api/v1/islands/duel_a").json()
-    ib = client.get("/api/v1/islands/duel_b").json()
+    ia = client.get(f"/api/v1/islands/{duel_a}", headers=Ha).json()
+    ib = client.get(f"/api/v1/islands/{duel_b}", headers=Hb).json()
     assert ia["territory"] == 2.0 and ib["territory"] == 1.0  # 失敗者不低於 1
     assert "對決勝利" in ia["badges"] and "觀念修正" in ib["badges"]
 
 
 def test_radar_formula_and_compare(client):
-    _occupy(client, "r_a", "SUBJ:物理")
+    r_a, Ha = _mkuser(client, "雷達甲")
+    r_b, Hb = _mkuser(client, "雷達乙")
+    _occupy(client, r_a, Ha, "SUBJ:物理")
     for t in ["SUBJ:物理", "SUBJ:化學", "SUBJ:生物", "SUBJ:地球科學"]:
-        _occupy(client, "r_b", t)
-    pa = client.get("/api/v1/radar/r_a").json()
-    pb = client.get("/api/v1/radar/r_b").json()
+        _occupy(client, r_b, Hb, t)
+    pa = client.get(f"/api/v1/radar/{r_a}").json()
+    pb = client.get(f"/api/v1/radar/{r_b}").json()
     assert pa["x"] == 25 and pb["x"] == 100  # 跨學科數 × 25
     assert pa["y"] == 0 and pa["z"] == 0
 
-    r = client.get("/api/v1/radar/compare", params={"me": "r_a", "other": "r_b"})
+    r = client.get("/api/v1/radar/compare", params={"me": r_a, "other": r_b})
     assert r.status_code == 200
     data = r.json()
     # distance = sqrt(0.75²)/sqrt(3)*100 = 43.30

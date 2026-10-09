@@ -160,6 +160,8 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     persona TEXT NOT NULL DEFAULT '',
+    pw_hash TEXT NOT NULL DEFAULT '',
+    token_hash TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -275,6 +277,8 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     persona TEXT NOT NULL DEFAULT '',
+    pw_hash TEXT NOT NULL DEFAULT '',
+    token_hash TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -363,6 +367,22 @@ def init_db() -> None:
     with get_conn() as conn:
         for stmt in statements:
             conn.execute(stmt)
+    _migrate_users_auth_columns()
+
+
+def _migrate_users_auth_columns() -> None:
+    """為已存在的 users 表補上帳號系統欄位（冪等，雙模式相容）。"""
+    cols = (("pw_hash", "TEXT NOT NULL DEFAULT ''"),
+            ("token_hash", "TEXT NOT NULL DEFAULT ''"))
+    with get_conn() as conn:
+        if is_postgres():
+            for name, ddl in cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {ddl}")
+        else:
+            existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+            for name, ddl in cols:
+                if name not in existing:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
 
 
 def table_empty(table: str) -> bool:
