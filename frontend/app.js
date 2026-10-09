@@ -389,6 +389,8 @@ function renderAuthBar() {
       try { await api("/api/v1/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
       Auth.clear();
       Game.refresh();
+      exploreState.favorites.clear();
+      renderExplore();
       loadIsland();
       toast("已登出，星海會記得你，下次見");
     };
@@ -467,6 +469,8 @@ async function submitAuth() {
     toast(data.reason || "歡迎！");
     Game.refresh();
     refreshMe();
+    await loadFavorites();
+    renderExplore();
     if ($("page-island").classList.contains("active")) loadIsland();
     if (authMode === "register") {
       // 首次註冊：情境式引路儀式
@@ -626,16 +630,7 @@ async function renderExplore() {
       "</div>";
 
     card.querySelector(".fav-btn").onclick = (e) => {
-      const b = e.currentTarget;
-      if (exploreState.favorites.has(c.id)) {
-        exploreState.favorites.delete(c.id);
-        b.textContent = "☆ 收藏";
-        toast("已取消收藏");
-      } else {
-        exploreState.favorites.add(c.id);
-        b.textContent = "★ 已收藏";
-        toast("★ 已收藏：「" + c.title.slice(0, 18) + "…」");
-      }
+      toggleFavorite(c.id, e.currentTarget);
     };
     card.querySelector(".ask-btn").onclick = () => {
       $("qaInput").value = "關於「" + c.title + "」，可以再多說明一點嗎？";
@@ -1858,6 +1853,50 @@ async function buildTextbook() {
     '<div class="panel book-colophon"><div class="small" style="color:var(--text-3)">跋 · 這本書沒有終點。你每一次探索、對決、提問，都會變成下一頁。慢荒宇宙與你同行。</div></div>';
 }
 
+/* ---------- 收藏（需登入，後端持久化） ---------- */
+async function loadFavorites() {
+  exploreState.favorites.clear();
+  if (!Auth.user || !Auth.token) return;
+  try {
+    const d = await api("/api/v1/favorites");
+    (d.favorites || []).forEach((id) => exploreState.favorites.add(id));
+  } catch (e) { /* 離線：保持空集合 */ }
+}
+
+function paintFavBtn(btn, fav) {
+  if (btn) btn.textContent = fav ? "★ 已收藏" : "☆ 收藏";
+}
+
+async function toggleFavorite(contentId, btn) {
+  if (!Auth.user || !Auth.token) {
+    openAuthModal("login");
+    toast("登入後才能收藏，進度會跟著帳號走。");
+    return;
+  }
+  const has = exploreState.favorites.has(contentId);
+  // 樂觀更新
+  if (has) exploreState.favorites.delete(contentId);
+  else exploreState.favorites.add(contentId);
+  paintFavBtn(btn, !has);
+  try {
+    if (has) {
+      await api("/api/v1/favorites/" + encodeURIComponent(contentId), { method: "DELETE" });
+      toast("已取消收藏");
+    } else {
+      await api("/api/v1/favorites", {
+        method: "POST", body: JSON.stringify({ content_id: contentId }),
+      });
+      toast("★ 已收藏");
+    }
+  } catch (e) {
+    // 失敗回滾
+    if (has) exploreState.favorites.add(contentId);
+    else exploreState.favorites.delete(contentId);
+    paintFavBtn(btn, has);
+    toast("收藏失敗：" + (e.message || "請重試"));
+  }
+}
+
 /* ---------- 對決紀錄（課本用） ---------- */
 function recordDuel(oppName, meScore, oppScore, win) {
   try {
@@ -2107,8 +2146,9 @@ async function refreshMe() {
 /* ============================================================
  * 初始化
  * ============================================================ */
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   initAuth();
+  await loadFavorites();
   buildExploreFilters();
   renderExplore();
   buildIslandActions();
