@@ -466,7 +466,12 @@ async function submitAuth() {
     closeAuthModal();
     toast(data.reason || "歡迎！");
     Game.refresh();
+    refreshMe();
     if ($("page-island").classList.contains("active")) loadIsland();
+    if (authMode === "register") {
+      // 首次註冊：情境式引路儀式
+      setTimeout(openOnboarding, 600);
+    }
   } catch (e) {
     fail(e && e.status === 0
       ? "伺服器還在睡覺（免費版冷啟動較慢），請稍後再試一次。"
@@ -479,6 +484,7 @@ async function submitAuth() {
 
 function initAuth() {
   Auth.init();
+  refreshMe();
   document.querySelectorAll(".auth-tab").forEach((t) => {
     t.onclick = () => {
       authMode = t.dataset.mode;
@@ -741,6 +747,7 @@ async function loadIsland() {
     const isl = await api("/api/v1/islands/" + Auth.user.id);
     applyIsland(isl);
     await loadTerritoryLog();
+    maybeShowPersonaBanner();
   } catch (e) {
     if (e.status === 401) {
       Auth.clear();
@@ -1825,10 +1832,12 @@ async function buildTextbook() {
       ).join("") + "</ul>"
     : '<p class="small" style="color:var(--text-3)">還沒有對決紀錄。去對決頁找一位拓荒者交鋒吧。</p>';
 
+  const roleName = Auth.user.persona && Auth.user.persona.role_name;
   body.innerHTML =
     '<div class="panel book-cover">' +
       '<span class="trophy-emblem book-emblem" role="img" aria-label="曙光之境"></span>' +
       '<div class="book-kicker">曙光之境 · 慢荒宇宙</div>' +
+      (roleName ? '<div class="book-role">' + roleName + "</div>" : "") +
       '<h1 class="book-title">' + Auth.user.name + " 的專屬課本</h1>" +
       '<div class="book-sub">根據你的學習軌跡自動編纂 · ' + today + '</div>' +
       '<div class="book-stats">' +
@@ -1873,6 +1882,229 @@ function initGame() {
 }
 
 /* ============================================================
+ * 引路儀式：註冊後的人格測驗（情境式）
+ * 五個故事問題 → 四種角色 → 存入 users.persona，供未來個人化學習使用。
+ * ============================================================ */
+const ONBOARD = {
+  intro: [
+    "你在寂靜中醒來。",
+    "頭頂是緩慢旋轉的星海，腳下是微微發光的潮汐。空氣裡有一種味道——像雨後的圖書館，混著遠方篝火的煙。",
+    "遠處，一座島嶼正從海面上升起。那是你的島，還沒有名字，還沒有故事。",
+    "但在你踏上去之前，一個聲音從星海深處傳來——",
+    "「旅人啊。在你成為這片星海的一部分之前，讓我先認識你。回答我五個問題，我會告訴你，你是什麼樣的人。」",
+  ],
+  questions: [
+    {
+      story: "潮汐退去，沙灘上留下兩樣東西：一張殘缺的星圖，和一枚發燙的指南針。你先拿起——",
+      options: [
+        { t: "星圖", d: "先看見全貌，再決定往哪走。", dx: 1, dy: 0 },
+        { t: "指南針", d: "方向對了，路自然會出現。", dx: -1, dy: 0 },
+      ],
+    },
+    {
+      story: "沿著海岸前行，前方傳來爭吵聲。兩名拓荒者為了一條航線爭執不下。你會——",
+      options: [
+        { t: "走上前去", d: "也許聽一聽，就能幫上忙。", dx: 0, dy: 1 },
+        { t: "靜靜繞開", d: "把心力留給自己的路。", dx: 0, dy: -1 },
+        { t: "記下關鍵", d: "先查清楚，回去再說。", dx: -1, dy: 0 },
+      ],
+    },
+    {
+      story: "夜幕降臨，你在沙灘上升起篝火。火光搖曳中，你決定今晚要做一件事——",
+      options: [
+        { t: "畫下星星", d: "把白天看到的星都連成一幅圖。", dx: 1, dy: 0 },
+        { t: "研究指南針", d: "弄懂它為什麼發燙。", dx: -1, dy: 0 },
+        { t: "去找拓荒者們", d: "圍著火堆，交換彼此的故事。", dx: 0, dy: 1 },
+      ],
+    },
+    {
+      story: "清晨，海面上升起濃霧。霧中有個從沒見過的東西在發光。你——",
+      options: [
+        { t: "走進霧裡", d: "未知，就是邀請函。", dx: 1, dy: -1 },
+        { t: "結伴再去", d: "準備齊全，和同伴一起進去。", dx: -1, dy: 1 },
+        { t: "霧外觀察", d: "先記錄它的光如何變化。", dx: -1, dy: 0 },
+      ],
+    },
+    {
+      story: "最後一個問題。聲音問：「如果只能帶一樣東西上島，你選——」",
+      options: [
+        { t: "空白的航海日誌", d: "每一頁，都等著被星海寫滿。", dx: 1, dy: 0 },
+        { t: "磨利的刻刀", d: "把重要的事，一筆一筆刻下來。", dx: -1, dy: 0 },
+        { t: "能分給別人的燈", d: "光，要有人一起看才亮。", dx: 0, dy: 1 },
+      ],
+    },
+  ],
+  roles: {
+    weaver: {
+      name: "星圖織者",
+      desc: "你把散落的星星連成圖，把陌生人變成同伴。你的島嶼，注定成為眾人交會的港口。",
+      study: "你適合從連結中學習：把不同領域的觀念織在一起，多參加共修，和別人討論。",
+    },
+    wanderer: {
+      name: "星海漫遊者",
+      desc: "你不趕路，路會自己長出來。你的好奇沒有邊界，你的島嶼也一樣。",
+      study: "你適合從探索中學習：廣泛涉獵，讓好奇心帶路，別怕繞遠路。",
+    },
+    keeper: {
+      name: "曙光守望者",
+      desc: "你為同伴舉燈，也為真理守夜。你的島嶼，是迷航者看見的第一道光。",
+      study: "你適合從守護中學習：把學會的東西教給別人，在共修與討論中長大。",
+    },
+    diver: {
+      name: "深淵潛行者",
+      desc: "你向深處去，帶回別人看不見的光。你的島嶼，深不見底。",
+      study: "你適合從深潛中學習：選一個題目鑽到底，弄懂它發燙的原因。",
+    },
+  },
+};
+
+function onboardRoleId(dx, dy) {
+  const key = (dx >= 0 ? "E" : "F") + (dy >= 0 ? "S" : "A");
+  return { ES: "weaver", EA: "wanderer", FS: "keeper", FA: "diver" }[key];
+}
+
+const onboard = { step: 0, dx: 0, dy: 0, choices: [] };
+
+function openOnboarding() {
+  if (!Auth.user) { openAuthModal("login"); return; }
+  onboard.step = 0; onboard.dx = 0; onboard.dy = 0; onboard.choices = [];
+  renderOnboard();
+  const m = $("onboardModal");
+  m.classList.add("show");
+  m.setAttribute("aria-hidden", "false");
+}
+function closeOnboarding() {
+  const m = $("onboardModal");
+  m.classList.remove("show");
+  m.setAttribute("aria-hidden", "true");
+}
+
+function renderOnboard() {
+  const body = $("onboardBody");
+  const total = ONBOARD.questions.length;
+  if (onboard.step === 0) {
+    body.innerHTML =
+      '<div class="ob-kicker">引路儀式</div>' +
+      '<div class="ob-story">' + ONBOARD.intro.map((p) => "<p>" + p + "</p>").join("") + "</div>" +
+      '<button class="btn primary ob-big" id="obStart">開始引路儀式</button>' +
+      '<button class="ob-skip" id="obSkip">跳過，直接進入星海</button>';
+    $("obStart").onclick = () => { onboard.step = 1; renderOnboard(); };
+    $("obSkip").onclick = closeOnboarding;
+    return;
+  }
+  if (onboard.step <= total) {
+    const q = ONBOARD.questions[onboard.step - 1];
+    const dots = Array.from({ length: total }, (_, i) =>
+      '<i class="' + (i < onboard.step - 1 ? "done" : i === onboard.step - 1 ? "now" : "") + '"></i>'
+    ).join("");
+    body.innerHTML =
+      '<div class="ob-kicker">引路儀式 · ' + onboard.step + " / " + total + "</div>" +
+      '<div class="ob-dots">' + dots + "</div>" +
+      '<div class="ob-story"><p>' + q.story + "</p></div>" +
+      '<div class="ob-options">' +
+        q.options.map((o, i) =>
+          '<button class="ob-opt" data-i="' + i + '"><b>' + o.t + "</b><span>" + o.d + "</span></button>"
+        ).join("") +
+      "</div>" +
+      '<button class="ob-skip" id="obSkip">跳過</button>';
+    body.querySelectorAll(".ob-opt").forEach((b) => {
+      b.onclick = () => {
+        const o = q.options[+b.dataset.i];
+        onboard.dx += o.dx; onboard.dy += o.dy;
+        onboard.choices.push({ q: onboard.step, option: o.t });
+        onboard.step++;
+        renderOnboard();
+      };
+    });
+    $("obSkip").onclick = closeOnboarding;
+    return;
+  }
+  const roleId = onboardRoleId(onboard.dx, onboard.dy);
+  const role = ONBOARD.roles[roleId];
+  body.innerHTML =
+    '<div class="ob-kicker">儀式完成</div>' +
+    '<span class="trophy-emblem ob-emblem" role="img" aria-label="曙光之境"></span>' +
+    '<div class="ob-role-label">星海說，你是——</div>' +
+    '<h2 class="ob-role-name">' + role.name + "</h2>" +
+    '<div class="ob-story"><p>' + role.desc + "</p></div>" +
+    '<div class="ob-study"><b>你的學習風格</b><p>' + role.study + "</p></div>" +
+    '<button class="btn primary ob-big" id="obDone">踏上我的島</button>';
+  $("obDone").onclick = async () => {
+    const btn = $("obDone");
+    btn.disabled = true;
+    btn.textContent = "星海正在記住你…";
+    const persona = {
+      role: roleId,
+      role_name: role.name,
+      axes: { x: onboard.dx, y: onboard.dy },
+      choices: onboard.choices,
+      at: new Date().toISOString().slice(0, 10),
+    };
+    try {
+      const d = await api("/api/v1/auth/persona", {
+        method: "POST", body: JSON.stringify({ persona }),
+      });
+      if (Auth.user) {
+        Auth.user.persona = d.persona;
+        try { localStorage.setItem("dawn_user", JSON.stringify(Auth.user)); } catch (e) {}
+      }
+      toast("星海記住了你是" + role.name + "。");
+    } catch (e) { /* 離線：下次再存 */ }
+    closeOnboarding();
+    hidePersonaBanner();
+    syncPersonaTag();
+    gotoTab("island");
+  };
+}
+
+/* ---------- 人格橫幅（尚未引路的使用者） ---------- */
+function maybeShowPersonaBanner() {
+  const b = $("personaBanner");
+  if (!b) return;
+  const done = !!(Auth.user && Auth.user.persona && Auth.user.persona.role);
+  const dismissed = localStorage.getItem("dawn_persona_dismissed") === "1";
+  b.style.display = (!done && !dismissed && Auth.user) ? "" : "none";
+  syncPersonaTag();
+}
+function hidePersonaBanner() {
+  const b = $("personaBanner");
+  if (b) b.style.display = "none";
+}
+function syncPersonaTag() {
+  const tag = $("personaTag"), retake = $("retakePersona");
+  const roleName = Auth.user && Auth.user.persona && Auth.user.persona.role_name;
+  if (tag) {
+    tag.style.display = roleName ? "" : "none";
+    tag.textContent = roleName || "";
+  }
+  if (retake) retake.style.display = Auth.user ? "" : "none";
+}
+function initOnboarding() {
+  const s = $("personaStart");
+  if (s) s.onclick = openOnboarding;
+  const d = $("personaDismiss");
+  if (d) d.onclick = () => {
+    try { localStorage.setItem("dawn_persona_dismissed", "1"); } catch (e) {}
+    hidePersonaBanner();
+  };
+  const r = $("retakePersona");
+  if (r) r.onclick = openOnboarding;
+}
+
+/* 從後端同步完整使用者（含 persona） */
+async function refreshMe() {
+  if (!Auth.token) return;
+  try {
+    const d = await api("/api/v1/auth/me");
+    if (d.user) {
+      Auth.user = d.user;
+      try { localStorage.setItem("dawn_user", JSON.stringify(d.user)); } catch (e) {}
+      renderAuthBar();
+    }
+  } catch (e) { /* 離線：保留本機 */ }
+}
+
+/* ============================================================
  * 初始化
  * ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
@@ -1886,4 +2118,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initDuel();
   initQA();
   initGame();
+  initOnboarding();
 });
