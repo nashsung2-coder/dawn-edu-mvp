@@ -9,4 +9,4 @@
  *
  * 注意：結尾不要加斜線。部署教學見 README-DEPLOY.md。
  * ============================================================ */
-window.DAWN_API_BASE = "";
+window.DAWN_API_BASE = "https://dawn-edu-mvp.onrender.com";
