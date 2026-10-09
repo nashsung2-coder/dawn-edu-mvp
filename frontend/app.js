@@ -115,6 +115,9 @@ const exploreState = {
 
 function tagKey(dim, value) { return dim + ":" + value; }
 
+// 手風琴展開狀態（預設展開第一個維度）
+const dimOpen = new Set(["SUBJ"]);
+
 function buildExploreFilters() {
   // 搜尋模式
   const modeRow = $("modeRow");
@@ -128,7 +131,7 @@ function buildExploreFilters() {
     modeRow.appendChild(b);
   });
 
-  // 維度分組 checkbox
+  // 維度分組：可收合手風琴 ＋ 已選摘要列
   const wrap = $("dimFilters");
   wrap.innerHTML = "";
   const order = ["SUBJ", "CONC", "COGN", "STAGE", "LIFE", "INTER", "DIFF"];
@@ -137,15 +140,26 @@ function buildExploreFilters() {
       c.tags.filter((t) => t.dim === dim).map((t) => t.value)
     ))].sort();
     if (!values.length) return;
+    const selCount = values.filter((v) => exploreState.selected.has(tagKey(dim, v))).length;
+    const expanded = selCount > 0 || dimOpen.has(dim);
     const g = document.createElement("div");
     g.className = "dim-group";
-    g.innerHTML = "<h4>" + dim + " · " + DIM_NAMES[dim] + "</h4>";
+    g.dataset.dim = dim;
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className = "dim-head" + (expanded ? "" : " closed");
+    head.setAttribute("aria-expanded", expanded ? "true" : "false");
+    head.innerHTML =
+      '<span class="dim-name">' + dim + " · " + DIM_NAMES[dim] + "</span>" +
+      '<span class="dim-count"' + (selCount ? "" : ' style="display:none"') + ">" + selCount + "</span>" +
+      '<span class="dim-chev">›</span>';
     const list = document.createElement("div");
-    list.className = "tag-list";
+    list.className = "tag-list" + (expanded ? "" : " collapsed");
     values.forEach((v) => {
       const key = tagKey(dim, v);
       const label = document.createElement("label");
       label.className = "tag-check" + (exploreState.selected.has(key) ? " on" : "");
+      label.dataset.key = key;
       label.innerHTML = '<input type="checkbox">' + v;
       label.querySelector("input").checked = exploreState.selected.has(key);
       label.onclick = (e) => {
@@ -153,13 +167,71 @@ function buildExploreFilters() {
         if (exploreState.selected.has(key)) exploreState.selected.delete(key);
         else exploreState.selected.add(key);
         label.classList.toggle("on", exploreState.selected.has(key));
+        refreshFilterUI();
         renderExplore();
       };
       list.appendChild(label);
     });
+    head.onclick = () => {
+      const collapsed = list.classList.toggle("collapsed");
+      head.classList.toggle("closed", collapsed);
+      head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      if (collapsed) dimOpen.delete(dim); else dimOpen.add(dim);
+    };
+    g.appendChild(head);
     g.appendChild(list);
     wrap.appendChild(g);
   });
+  refreshFilterUI();
+
+/* 已選標籤摘要列 ＋ 各維度計數徽章 */
+function refreshFilterUI() {
+  document.querySelectorAll("#dimFilters .dim-group").forEach((g) => {
+    let n = 0;
+    g.querySelectorAll(".tag-check").forEach((l) => {
+      if (exploreState.selected.has(l.dataset.key)) n++;
+    });
+    const badge = g.querySelector(".dim-count");
+    if (badge) {
+      badge.textContent = n;
+      badge.style.display = n ? "" : "none";
+    }
+  });
+  const bar = $("selBar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  if (!exploreState.selected.size) { bar.style.display = "none"; return; }
+  bar.style.display = "";
+  const hint = document.createElement("span");
+  hint.className = "sel-hint";
+  hint.textContent = "已選 " + exploreState.selected.size + " 個";
+  bar.appendChild(hint);
+  [...exploreState.selected].forEach((key) => {
+    const v = key.split(":").slice(1).join(":");
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "sel-chip";
+    chip.title = "移除「" + v + "」";
+    chip.innerHTML = "<span></span><i>✕</i>";
+    chip.querySelector("span").textContent = v;
+    chip.onclick = () => {
+      exploreState.selected.delete(key);
+      buildExploreFilters();
+      renderExplore();
+    };
+    bar.appendChild(chip);
+  });
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "sel-clear";
+  clear.textContent = "清除全部";
+  clear.onclick = () => {
+    exploreState.selected.clear();
+    buildExploreFilters();
+    renderExplore();
+  };
+  bar.appendChild(clear);
+}
 
   // 階段
   document.querySelectorAll("#stageRow .stage-chip").forEach((chip) => {
