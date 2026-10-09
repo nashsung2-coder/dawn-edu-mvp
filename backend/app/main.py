@@ -315,6 +315,21 @@ def game_use(body: UseIn, request: Request):
         raise HTTPException(400, str(e))
 
 
+# ---------------- 引路儀式（人格測驗，純問卷） ----------------
+class PersonaIn(BaseModel):
+    persona: dict = Field(description="引路儀式結果：{role, role_name, axes, choices, at}")
+
+
+@app.post("/api/v1/auth/persona", summary="儲存人格設定")
+def auth_persona(body: PersonaIn, request: Request):
+    user = _current_user(request)
+    try:
+        saved = auth_mod.set_persona(user["id"], body.persona)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "persona": saved}
+
+
 class OccupyIn(BaseModel):
     tag: str = Field(description="如 SUBJ:物理")
 

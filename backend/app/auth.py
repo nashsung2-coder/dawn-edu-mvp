@@ -120,9 +120,40 @@ def get_user_by_token(token: str) -> dict | None:
         return None
     with db.get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name FROM users WHERE token_hash = ? AND token_hash != ''",
+            "SELECT id, name, persona FROM users WHERE token_hash = ? AND token_hash != ''",
             (_token_hash(token),),
         ).fetchone()
         if not row:
             return None
-        return {"id": row["id"], "name": row["name"]}
+        return {"id": row["id"], "name": row["name"], "persona": db.jloads(row["persona"], {})}
+
+
+def set_persona(user_id: str, persona: dict) -> dict:
+    """儲存引路儀式測得的人格（JSON）。回傳解析後的 persona。"""
+    import json
+
+    if not isinstance(persona, dict):
+        raise ValueError("persona 須為 JSON 物件。")
+    # 只保留已知欄位，避免亂塞
+    clean = {
+        "role": str(persona.get("role", ""))[:32],
+        "role_name": str(persona.get("role_name", ""))[:32],
+        "axes": persona.get("axes") if isinstance(persona.get("axes"), dict) else {},
+        "choices": persona.get("choices") if isinstance(persona.get("choices"), list) else [],
+        "at": str(persona.get("at", ""))[:32],
+    }
+    if not clean["role"]:
+        raise ValueError("persona 缺少 role。")
+    with db.get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE users SET persona = ? WHERE id = ?",
+            (json.dumps(clean, ensure_ascii=False), user_id),
+        )
+        conn.commit()
+        try:
+            updated = cur.rowcount > 0
+        except Exception:
+            updated = True
+        if not updated:
+            raise KeyError("user not found")
+    return clean
