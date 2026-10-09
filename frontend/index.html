@@ -26,6 +26,7 @@
       <button data-tab="radar">雷達</button>
       <button data-tab="duel">對決</button>
       <button data-tab="qa">問答</button>
+      <button data-tab="textbook">課本</button>
     </nav>
     <div class="hd-right"><div id="authBar"></div></div>
   </div>
@@ -119,6 +120,13 @@
         </div>
       </div>
     </div>
+    <div class="panel">
+      <h2 class="h2">兵器庫 <span class="points-pill" id="radarPoints">星砂 <b>0</b></span></h2>
+      <p class="sub">學習賺取星砂：開疆拓土 ＋10、對決勝利 ＋20。星砂換武器，挑戰星海中的拓荒者——純遊戲，點到為止。</p>
+      <div class="shop-grid" id="shopGrid"></div>
+      <h4 class="lbl-h" style="margin-top:18px">戰報</h4>
+      <ul class="battle-log-list" id="battleLogList"><li class="small" style="color:var(--text-3)">還沒有戰報。選一位拓荒者，發起你的第一場挑戰吧。</li></ul>
+    </div>
   </section>
 
   <!-- ============ 4. 對決 ============ -->
@@ -174,6 +182,16 @@
     </div>
   </section>
 
+  <!-- ============ 6. 課本 ============ -->
+  <section class="tab-page" id="page-textbook">
+    <div id="textbookGate" class="gate" style="display:none">
+      <h3>你的專屬課本還在星海深處</h3>
+      <p>登入後，系統會根據你的學習軌跡，自動編纂一本只屬於你的課本。</p>
+      <button class="btn primary" id="textbookLogin">登入 / 註冊</button>
+    </div>
+    <div id="textbookBody"></div>
+  </section>
+
   <footer class="site-footer">
     <div class="rule"></div>
     曙光教育智能系統 · 慢荒宇宙<br>
@@ -203,6 +221,20 @@
     <div class="auth-err" id="authErr"></div>
     <button class="btn primary" id="authSubmit" style="width:100%">登入</button>
     <p class="auth-note">你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。</p>
+  </div>
+</div>
+
+<div id="battleModal" class="auth-modal" aria-hidden="true">
+  <div class="auth-card battle-card" role="dialog" aria-modal="true" aria-labelledby="battleTitle">
+    <button class="auth-close" id="battleClose" aria-label="關閉">✕</button>
+    <h3 id="battleTitle">星海挑戰</h3>
+    <div class="battle-hp">
+      <div class="hp-row"><span id="battleMeName">你</span><div class="hp-bar"><i id="battleMeHp"></i></div><b id="battleMeHpN">100</b></div>
+      <div class="hp-row"><span id="battleOppName">對手</span><div class="hp-bar opp"><i id="battleOppHp"></i></div><b id="battleOppHpN">100</b></div>
+    </div>
+    <div class="battle-log" id="battleArenaLog"></div>
+    <div class="battle-weapons" id="battleWeapons"></div>
+    <p class="auth-note">純遊戲：點到為止，拓荒者是模擬資料，不會真的受傷。</p>
   </div>
 </div>
 

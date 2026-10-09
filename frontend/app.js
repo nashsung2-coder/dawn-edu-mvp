@@ -90,6 +90,8 @@ function mulberry32(seed) {
     $("page-" + btn.dataset.tab).classList.add("active");
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (btn.dataset.tab === "island") loadIsland();
+    if (btn.dataset.tab === "textbook") buildTextbook();
+    if (btn.dataset.tab === "radar") Game.refresh();
   });
 })();
 
@@ -101,6 +103,8 @@ function gotoTab(name) {
   $("page-" + name).classList.add("active");
   window.scrollTo({ top: 0, behavior: "smooth" });
   if (name === "island") loadIsland();
+  if (name === "textbook") buildTextbook();
+  if (name === "radar") Game.refresh();
 }
 
 /* ============================================================
@@ -342,24 +346,38 @@ async function api(path, opts) {
   const base = apiBase();
   if (!base) throw { status: 0, message: "後端尚未設定（config.js 的 DAWN_API_BASE 為空）。" };
   const o = opts || {};
-  const r = await fetch(base + path, {
-    method: o.method || "GET",
-    headers: Object.assign(
-      { "Content-Type": "application/json" },
-      Auth.headers(),
-      o.headers || {}
-    ),
-    body: o.body,
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw { status: r.status, message: data.detail || ("請求失敗（" + r.status + "）") };
-  return data;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), o.timeout || 30000);
+  try {
+    const r = await fetch(base + path, {
+      method: o.method || "GET",
+      headers: Object.assign(
+        { "Content-Type": "application/json" },
+        Auth.headers(),
+        o.headers || {}
+      ),
+      body: o.body,
+      signal: ctl.signal,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw { status: r.status, message: data.detail || ("請求失敗（" + r.status + "）") };
+    return data;
+  } catch (e) {
+    if (e && e.name === "AbortError") throw { status: 0, message: "連線逾時" };
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function renderAuthBar() {
   const bar = $("authBar");
   bar.innerHTML = "";
   if (Auth.user) {
+    const pts = document.createElement("span");
+    pts.className = "points-pill";
+    pts.title = "學習賺取的星砂，可在雷達頁兵器庫換武器";
+    pts.innerHTML = '星砂 <b id="pointsVal">' + Game.points + "</b>";
     const pill = document.createElement("span");
     pill.className = "auth-user";
     pill.textContent = Auth.user.name;
@@ -370,9 +388,11 @@ function renderAuthBar() {
     btn.onclick = async () => {
       try { await api("/api/v1/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
       Auth.clear();
+      Game.refresh();
       loadIsland();
       toast("已登出，星海會記得你，下次見");
     };
+    bar.appendChild(pts);
     bar.appendChild(pill);
     bar.appendChild(btn);
   } else {
@@ -414,23 +434,46 @@ async function submitAuth() {
   const pw = $("authPass").value;
   const err = $("authErr");
   err.textContent = "";
-  if (!name) { err.textContent = "請輸入暱稱。"; return; }
-  if (pw.length < 4) { err.textContent = "密碼至少需要 4 個字元。"; return; }
+  err.classList.remove("show");
+  const fail = (m) => { err.textContent = m; err.classList.add("show"); };
+  if (!name) { fail("請輸入暱稱。"); return; }
+  if (pw.length < 4) { fail("密碼至少需要 4 個字元。"); return; }
   const btn = $("authSubmit");
+  const btnOrig = btn.textContent;
   btn.disabled = true;
+  btn.textContent = "喚醒伺服器中…";
   try {
-    const data = await api("/api/v1/auth/" + authMode, {
-      method: "POST",
-      body: JSON.stringify({ name, password: pw }),
-    });
+    let data = null, lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        data = await api("/api/v1/auth/" + authMode, {
+          method: "POST",
+          body: JSON.stringify({ name, password: pw }),
+          timeout: 30000,
+        });
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (e && e.status === 0 && attempt === 0) {
+          btn.textContent = "還在叫醒它，再試一次…";
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (!data) throw lastErr;
     Auth.save(data.token, data.user);
     closeAuthModal();
     toast(data.reason || "歡迎！");
+    Game.refresh();
     if ($("page-island").classList.contains("active")) loadIsland();
   } catch (e) {
-    err.textContent = e.message || "發生錯誤，請重試。";
+    fail(e && e.status === 0
+      ? "伺服器還在睡覺（免費版冷啟動較慢），請稍後再試一次。"
+      : (e.message || "發生錯誤，請重試。"));
   } finally {
     btn.disabled = false;
+    btn.textContent = btnOrig;
   }
 }
 
@@ -782,7 +825,8 @@ async function doIslandAction(a, btn) {
     });
     applyIsland(res.island);
     await loadTerritoryLog();
-    toast("開疆拓土！領土 +" + res.delta + " 單位，" + res.reward + "入袋！");
+    if (res.points != null) { Game.points = res.points; renderPointsPills(); }
+    toast("開疆拓土！領土 +" + res.delta + " 單位，" + res.reward + "入袋！星砂 ×10。");
     if (res.used_today >= res.daily_cap - 1e-9) {
       setTimeout(() => toast("今日擴張額度已用完。慢，就是快——明天見！", 3200), 1200);
     }
@@ -1093,7 +1137,9 @@ function selectPioneer(id) {
       '<div class="rel ' + rel.cls + '">' + p.name + " · " + rel.name + "</div>" +
       "<div>知識距離：<strong>" + dist.toFixed(1) + "%</strong></div>" +
       "<div style='margin-top:8px;color:var(--text-dim)'>" + rel.desc + "</div>" +
-      '<div class="privacy-note">隱私設計：僅顯示距離，不顯示對方精確座標。</div>';
+      '<div style="margin-top:12px"><button class="btn primary" id="challengeBtn">發起挑戰</button></div>' +
+      '<div class="privacy-note">隱私設計：僅顯示距離，不顯示對方精確座標。挑戰為純遊戲，點到為止。</div>';
+    $("challengeBtn").onclick = () => openBattle(p.id);
   }
   renderPioneerList();
 }
@@ -1326,6 +1372,13 @@ function settleDuel() {
     '<button class="btn primary" id="duelAgain">再來一局</button> ' +
     '<button class="btn" id="duelBack">返回設定</button>';
   res.classList.add("show");
+  // 對決紀錄（課本用）＋勝利賺星砂
+  recordDuel(duelState.opponent.name, duelState.myScore, duelState.oppScore, win);
+  if (win) {
+    Game.earn(20, "對決勝利").then((r) => {
+      if (r) toast("對決勝利！星砂 ×20 入袋。");
+    });
+  }
   $("duelAgain").onclick = () => { res.classList.remove("show"); startDuel(); };
   $("duelBack").onclick = () => {
     res.classList.remove("show");
@@ -1428,6 +1481,398 @@ function initQA() {
 }
 
 /* ============================================================
+ * 星砂經濟 ＋ 專屬課本 ＋ 雷達戰鬥（純遊戲）
+ * 學習 → 星砂 → 武器 → 挑戰模擬拓荒者。點到為止，不影響真實使用者。
+ * ============================================================ */
+const WEAPONS = {
+  dart:   { name: "星塵飛鏢", cost: 20, type: "attack", dmg: [10, 20],
+            desc: "輕巧迅捷的星砂飛鏢，對拓荒者造成 10–20 傷害。" },
+  wave:   { name: "潮汐巨浪", cost: 50, type: "attack", dmg: [25, 40],
+            desc: "引動知識之海的巨浪，造成 25–40 傷害。" },
+  shield: { name: "曙光護盾", cost: 30, type: "defense",
+            desc: "啟動後抵擋下一次反擊，守護你的島嶼。" },
+};
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const Game = {
+  points: 0,
+  inventory: {},
+  async refresh() {
+    if (!Auth.user || !Auth.token) { this.points = 0; this.inventory = {}; }
+    else {
+      try {
+        const d = await api("/api/v1/game/state");
+        this.points = d.points; this.inventory = d.inventory || {};
+      } catch (e) { /* 離線：保留舊值 */ }
+    }
+    renderPointsPills();
+    renderShop();
+  },
+  async earn(amount, reason) {
+    if (!Auth.user) return null;
+    try {
+      const d = await api("/api/v1/game/earn", {
+        method: "POST", body: JSON.stringify({ amount, reason: reason || "" }),
+      });
+      this.points = d.points;
+      renderPointsPills();
+      return d;
+    } catch (e) { return null; }
+  },
+  async buy(itemId) {
+    const d = await api("/api/v1/game/shop/buy", {
+      method: "POST", body: JSON.stringify({ item_id: itemId }),
+    });
+    this.points = d.points; this.inventory = d.inventory;
+    renderPointsPills();
+    return d;
+  },
+  async useItem(itemId) {
+    const d = await api("/api/v1/game/use", {
+      method: "POST", body: JSON.stringify({ item_id: itemId }),
+    });
+    this.inventory = d.inventory;
+    return d;
+  },
+};
+
+function renderPointsPills() {
+  const v = $("pointsVal");
+  if (v) v.textContent = Game.points;
+  const r = document.querySelector("#radarPoints b");
+  if (r) r.textContent = Game.points;
+}
+
+/* ---------- 兵器庫商店 ---------- */
+function renderShop() {
+  const grid = $("shopGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  Object.entries(WEAPONS).forEach(([id, w]) => {
+    const owned = Game.inventory[id] || 0;
+    const card = document.createElement("div");
+    card.className = "weapon-card";
+    const info = document.createElement("div");
+    info.innerHTML =
+      '<div class="w-name">' + w.name + "</div>" +
+      '<div class="w-desc">' + w.desc + "</div>" +
+      '<div class="w-meta"><span class="w-cost">星砂 ' + w.cost + '</span>' +
+      "<span>擁有 ×" + owned + "</span></div>";
+    const btn = document.createElement("button");
+    btn.className = "btn" + (Auth.user && Game.points >= w.cost ? " primary" : "");
+    btn.textContent = !Auth.user ? "登入後購買" : (Game.points >= w.cost ? "購買" : "星砂不足");
+    btn.disabled = !Auth.user || Game.points < w.cost;
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        await Game.buy(id);
+        toast("獲得「" + w.name + "」！去挑戰一位拓荒者吧。");
+        renderShop();
+      } catch (e) {
+        toast(e.message || "購買失敗");
+        btn.disabled = false;
+      }
+    };
+    card.appendChild(info);
+    card.appendChild(btn);
+    grid.appendChild(card);
+  });
+  renderBattleLog();
+}
+
+/* ---------- 戰報 ---------- */
+function battleLogKey() {
+  return "dawn_battlelog_" + (Auth.user ? Auth.user.id : "guest");
+}
+function pushBattleLog(text) {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(battleLogKey()) || "[]"); } catch (e) {}
+  arr.unshift(new Date().toLocaleString("zh-TW", { hour12: false }) + " · " + text);
+  try { localStorage.setItem(battleLogKey(), JSON.stringify(arr.slice(0, 10))); } catch (e) {}
+  renderBattleLog();
+}
+function renderBattleLog() {
+  const ul = $("battleLogList");
+  if (!ul) return;
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(battleLogKey()) || "[]"); } catch (e) {}
+  ul.innerHTML = arr.length
+    ? arr.map((t) => "<li></li>").join("")
+    : '<li class="small" style="color:var(--text-3)">還沒有戰報。選一位拓荒者，發起你的第一場挑戰吧。</li>';
+  if (arr.length) {
+    [...ul.children].forEach((li, i) => { li.textContent = arr[i]; });
+  }
+}
+
+/* ---------- 戰鬥 ---------- */
+const battle = { oppId: null, meHp: 100, oppHp: 100, shieldArmed: false, busy: false };
+
+function battleStore() {
+  const k = "dawn_battle_" + (Auth.user ? Auth.user.id : "guest");
+  try { return JSON.parse(localStorage.getItem(k) || "{}"); } catch (e) { return {}; }
+}
+function getOppHp(id) {
+  const v = battleStore()["hp_" + id];
+  return v != null ? v : 100;
+}
+function setOppHp(id, hp) {
+  const k = "dawn_battle_" + (Auth.user ? Auth.user.id : "guest");
+  const s = battleStore();
+  s["hp_" + id] = hp;
+  try { localStorage.setItem(k, JSON.stringify(s)); } catch (e) {}
+}
+
+function openBattle(oppId) {
+  if (!Auth.user) { openAuthModal("login"); return; }
+  const p = PIONEERS.find((x) => x.id === oppId);
+  if (!p || p.isMe) return;
+  battle.oppId = oppId;
+  battle.meHp = 100;
+  battle.oppHp = getOppHp(oppId);
+  battle.shieldArmed = false;
+  battle.busy = false;
+  $("battleTitle").textContent = "挑戰 " + p.name;
+  $("battleMeName").textContent = Auth.user.name;
+  $("battleOppName").textContent = p.name;
+  $("battleArenaLog").innerHTML = "";
+  blog("星海戰鼓擂起——" + p.name + " 接受了你的挑戰！");
+  updateBattleHp();
+  renderBattleWeapons();
+  const m = $("battleModal");
+  m.classList.add("show");
+  m.setAttribute("aria-hidden", "false");
+}
+function closeBattle() {
+  const m = $("battleModal");
+  m.classList.remove("show");
+  m.setAttribute("aria-hidden", "true");
+  if (battle.oppId) setOppHp(battle.oppId, battle.oppHp);
+}
+function blog(msg, cls) {
+  const log = $("battleArenaLog");
+  const div = document.createElement("div");
+  div.className = "bmsg" + (cls ? " " + cls : "");
+  div.textContent = msg;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+function updateBattleHp() {
+  $("battleMeHp").style.width = Math.max(0, battle.meHp) + "%";
+  $("battleOppHp").style.width = Math.max(0, battle.oppHp) + "%";
+  $("battleMeHpN").textContent = Math.max(0, battle.meHp);
+  $("battleOppHpN").textContent = Math.max(0, battle.oppHp);
+}
+function flashHp(id) {
+  const el = $(id);
+  el.classList.remove("hit");
+  void el.offsetWidth;
+  el.classList.add("hit");
+}
+function renderBattleWeapons() {
+  const box = $("battleWeapons");
+  box.innerHTML = "";
+  let any = false;
+  Object.entries(WEAPONS).forEach(([id, w]) => {
+    const owned = Game.inventory[id] || 0;
+    if (!owned) return;
+    any = true;
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = (w.type === "attack" ? "使用" : "啟動") + "「" + w.name + "」×" + owned;
+    b.onclick = () => (w.type === "attack" ? battleAttack(id) : battleShield(id));
+    box.appendChild(b);
+  });
+  if (!any) {
+    box.innerHTML = '<div class="small" style="color:var(--text-3)">武器庫空空如也——關閉視窗，去兵器庫用星砂買一把吧。</div>';
+  }
+}
+
+async function battleAttack(id) {
+  if (battle.busy) return;
+  const w = WEAPONS[id];
+  battle.busy = true;
+  try { await Game.useItem(id); }
+  catch (e) { blog("武器不足，先去兵器庫補給吧。"); battle.busy = false; return; }
+  renderBattleWeapons();
+  renderShop();
+  const dmg = w.dmg[0] + Math.floor(Math.random() * (w.dmg[1] - w.dmg[0] + 1));
+  battle.oppHp = Math.max(0, battle.oppHp - dmg);
+  blog("你擲出「" + w.name + "」，造成 " + dmg + " 點傷害！", "me");
+  updateBattleHp();
+  flashHp("battleOppHp");
+  await wait(650);
+  if (battle.oppHp <= 0) {
+    await winBattle();
+    battle.busy = false;
+    return;
+  }
+  await counterAttack();
+  battle.busy = false;
+}
+
+async function battleShield(id) {
+  if (battle.busy || battle.shieldArmed) return;
+  battle.busy = true;
+  try { await Game.useItem(id); }
+  catch (e) { battle.busy = false; return; }
+  battle.shieldArmed = true;
+  blog("「曙光護盾」展開——下一次反擊將被抵擋。", "me");
+  renderBattleWeapons();
+  renderShop();
+  battle.busy = false;
+}
+
+async function counterAttack() {
+  const p = PIONEERS.find((x) => x.id === battle.oppId);
+  if (Math.random() > 0.45) {
+    blog("對方按兵不動，似乎在觀察你。");
+    return;
+  }
+  const dmg = 5 + Math.floor(Math.random() * 11);
+  if (battle.shieldArmed) {
+    battle.shieldArmed = false;
+    blog("對方反擊 " + dmg + " 點——被曙光護盾擋下了！", "block");
+    return;
+  }
+  battle.meHp = Math.max(0, battle.meHp - dmg);
+  blog(p.name + " 反擊，造成 " + dmg + " 點傷害！", "opp");
+  updateBattleHp();
+  flashHp("battleMeHp");
+  await wait(650);
+  if (battle.meHp <= 0) {
+    blog("你的島嶼需要休整……休整完畢，重新振作！", "opp");
+    battle.meHp = 100;
+    updateBattleHp();
+    pushBattleLog("與 " + p.name + " 激戰後休整，雖敗猶榮");
+  }
+}
+
+async function winBattle() {
+  const p = PIONEERS.find((x) => x.id === battle.oppId);
+  blog(p.name + " 的星艦黯淡下去——你贏了！", "win");
+  setOppHp(battle.oppId, 100);
+  battle.oppHp = 100;
+  const r = await Game.earn(20, "挑戰勝利");
+  blog("獲得星砂 ×20" + (r ? "（目前 " + Game.points + "）" : "") + "！", "win");
+  pushBattleLog("擊敗 " + p.name + "，獲得星砂 ×20");
+  updateBattleHp();
+  renderBattleWeapons();
+}
+
+/* ---------- 專屬課本 ---------- */
+function actionLabel(action) {
+  try {
+    const a = ISLAND_ACTIONS.find((x) => ACTION_MAP[x.id] === action);
+    if (a) return a.label || a.name || a.id;
+  } catch (e) {}
+  return action;
+}
+
+async function buildTextbook() {
+  const gate = $("textbookGate"), body = $("textbookBody");
+  if (!Auth.user || !Auth.token) {
+    gate.style.display = "block";
+    body.innerHTML = "";
+    return;
+  }
+  gate.style.display = "none";
+  body.innerHTML = '<div class="panel"><div class="small" style="color:var(--text-3)">正在翻閱星海，為你編纂專屬課本…</div></div>';
+  let logs = [], isl = null;
+  try {
+    const d = await api("/api/v1/islands/" + Auth.user.id + "/logs?limit=100");
+    logs = d.logs || [];
+  } catch (e) {}
+  try { isl = await api("/api/v1/islands/" + Auth.user.id); } catch (e) {}
+  const favIds = [...exploreState.favorites];
+  const favTitles = favIds.map((id) => {
+    const c = (typeof SEED_CONTENTS !== "undefined" ? SEED_CONTENTS : []).find((x) => x.id === id);
+    return c ? c.title : String(id);
+  });
+  let duels = [];
+  try { duels = JSON.parse(localStorage.getItem("dawn_duels_" + Auth.user.id) || "[]"); } catch (e) {}
+  const wins = duels.filter((d) => d.win).length;
+  const today = new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" });
+  const territory = isl && isl.territory != null ? isl.territory : "—";
+
+  // 第一章：按日期分組的成長史
+  const byDate = {};
+  logs.forEach((e) => {
+    const d = String(e.log_date || e.created_at || "").slice(0, 10) || "未知日期";
+    (byDate[d] = byDate[d] || []).push(e);
+  });
+  const dates = Object.keys(byDate).sort().reverse();
+  const ch1 = dates.length
+    ? dates.map((d) => {
+        const items = byDate[d].map((e) =>
+          '<li><span class="ltime">' + String(e.created_at || "").slice(11, 16) + "</span>" +
+          actionLabel(e.action) + "（領土 +" + e.delta + "）</li>"
+        ).join("");
+        return '<h4 class="book-date">' + d + '</h4><ul class="book-timeline">' + items + "</ul>";
+      }).join("")
+    : '<p class="small" style="color:var(--text-3)">還沒有開疆紀錄。去島嶼頁完成學習行為，你的故事就會從這裡開始。</p>';
+
+  const ch2 = favTitles.length
+    ? '<ul class="book-list">' + favTitles.map((t) => "<li>" + t + "</li>").join("") + "</ul>"
+    : '<p class="small" style="color:var(--text-3)">還沒有收藏。去探究頁把喜歡的主題收進星圖吧。</p>';
+
+  const ch3 = duels.length
+    ? '<div class="small" style="color:var(--text-3);margin-bottom:10px">共出戰 ' + duels.length +
+      " 場，勝 " + wins + " 場（勝率 " + Math.round((wins / duels.length) * 100) + "%）。</div>" +
+      '<ul class="book-list">' + duels.slice(0, 10).map((d) =>
+        "<li>" + new Date(d.t).toLocaleDateString("zh-TW") + " · 對戰 " + d.opp +
+        "（" + d.me + " : " + d.oppScore + "）" + (d.win ? " —— 勝利" : "") + "</li>"
+      ).join("") + "</ul>"
+    : '<p class="small" style="color:var(--text-3)">還沒有對決紀錄。去對決頁找一位拓荒者交鋒吧。</p>';
+
+  body.innerHTML =
+    '<div class="panel book-cover">' +
+      '<span class="trophy-emblem book-emblem" role="img" aria-label="曙光之境"></span>' +
+      '<div class="book-kicker">曙光之境 · 慢荒宇宙</div>' +
+      '<h1 class="book-title">' + Auth.user.name + " 的專屬課本</h1>" +
+      '<div class="book-sub">根據你的學習軌跡自動編纂 · ' + today + '</div>' +
+      '<div class="book-stats">' +
+        '<div><b>' + territory + '</b><span>領土</span></div>' +
+        '<div><b>' + Game.points + '</b><span>星砂</span></div>' +
+        '<div><b>' + favTitles.length + '</b><span>收藏</span></div>' +
+        '<div><b>' + duels.length + '</b><span>對決</span></div>' +
+      "</div>" +
+    "</div>" +
+    '<div class="panel"><h2 class="h2">目錄</h2><ol class="book-toc">' +
+      "<li>島嶼成長史 —— 你的每一次開疆拓土</li>" +
+      "<li>收藏星圖 —— 你親手收下的主題</li>" +
+      "<li>對決戰績 —— 每一場觀念交鋒</li>" +
+    "</ol></div>" +
+    '<div class="panel"><h2 class="h2"><span class="ch-num">壹</span>島嶼成長史</h2>' + ch1 + "</div>" +
+    '<div class="panel"><h2 class="h2"><span class="ch-num">貳</span>收藏星圖</h2>' + ch2 + "</div>" +
+    '<div class="panel"><h2 class="h2"><span class="ch-num">參</span>對決戰績</h2>' + ch3 + "</div>" +
+    '<div class="panel book-colophon"><div class="small" style="color:var(--text-3)">跋 · 這本書沒有終點。你每一次探索、對決、提問，都會變成下一頁。慢荒宇宙與你同行。</div></div>';
+}
+
+/* ---------- 對決紀錄（課本用） ---------- */
+function recordDuel(oppName, meScore, oppScore, win) {
+  try {
+    const k = "dawn_duels_" + (Auth.user ? Auth.user.id : "guest");
+    const arr = JSON.parse(localStorage.getItem(k) || "[]");
+    arr.unshift({ t: Date.now(), opp: oppName, me: meScore, oppScore, win: !!win });
+    localStorage.setItem(k, JSON.stringify(arr.slice(0, 30)));
+  } catch (e) {}
+}
+
+function initGame() {
+  $("battleClose").onclick = closeBattle;
+  $("battleModal").addEventListener("click", (e) => {
+    if (e.target.id === "battleModal") closeBattle();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("battleModal").classList.contains("show")) closeBattle();
+  });
+  const tl = $("textbookLogin");
+  if (tl) tl.onclick = () => openAuthModal("login");
+  Game.refresh();
+}
+
+/* ============================================================
  * 初始化
  * ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
@@ -1440,4 +1885,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initRadar();
   initDuel();
   initQA();
+  initGame();
 });
