@@ -14,18 +14,117 @@
 <link rel="stylesheet" href="css/page-home.css">
 <link rel="stylesheet" href="css/pages.css">
 <link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/gateway.css">
 <script src="config.js"></script>
 </head>
 <body data-layout="mobile" data-view="flow">
 
 <!-- 30秒進入動畫掛載點：心流版/宇宙版 Canvas 將掛載於此 -->
-<div id="entryAnim">
-  <!-- AI 生成進入動畫：按當前首頁自動選片，循環播放，上滑跳過 -->
-  <video id="entryVideo" autoplay muted loop playsinline preload="auto"></video>
-  <div class="entry-skip">上滑進入 →</div>
+
+
+
+<!-- ============ Gateway 分裂首頁：一體兩面 ============ -->
+<div id="gateway">
+  <!-- 左：學習（禪意） -->
+  <section class="zone-learn" data-zone="learn" aria-label="學習">
+    <div class="learn-inner">
+      <header class="learn-head">
+        <div class="learn-user">
+          <div class="avatar" id="gwAvatar">曜</div>
+          <div class="who"><b id="gwName">旅人</b><small>Lv.<span id="gwLv">1</span> · 曙光旅人</small></div>
+        </div>
+        <div class="learn-quiet"><span id="gwFellows">此刻 128 位同學也在靜修</span><br><span>今日已專注 <b id="gwFocusMin">0</b> 分鐘</span></div>
+      </header>
+      <div class="learn-hero">
+        <p class="learn-kicker">今日修煉</p>
+        <h1 id="gwHeroTitle">繼續上次的<em>數學函數試煉</em></h1>
+        <p class="sub" id="gwHeroSub">上次停在 62% · 約 8 分鐘可完成</p>
+        <button class="learn-cta" data-gosub="trial">進入今日修煉 →</button>
+      </div>
+      <nav class="learn-nav" aria-label="學習系統">
+        <button data-gosub="trial"><span class="glyph">⚔️</span>試煉場</button>
+        <button data-gosub="debate"><span class="glyph">🎙️</span>辯論台</button>
+        <button data-gosub="dex"><span class="glyph">📖</span>圖鑑</button>
+      </nav>
+      <div class="learn-progress">
+        <div class="lbl"><span>今日學習軌跡</span><span id="gwTrailPct">0%</span></div>
+        <div class="bar"><i id="gwTrailBar" style="width:0%"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 中線膜 -->
+  <div class="membrane" id="membrane" role="separator" aria-label="結界">
+    <div class="m-ripple" id="mRipple"></div>
+    <button class="m-lantern" id="mLantern" title="回家" aria-label="回家">🏮</button>
+    <span class="m-hint">選一邊</span>
+  </div>
+
+  <!-- 右：遊戲（霓虹） -->
+  <section class="zone-game" data-zone="game" aria-label="遊戲">
+    <canvas class="game-particles" id="gameParticles" aria-hidden="true"></canvas>
+    <div class="game-stars"></div><div class="game-nebula"></div>
+    <div class="game-inner">
+      <header class="game-head">
+        <div class="game-wallet">
+          <span class="coin">⭐ <span data-w-sands>0</span></span>
+          <span class="coin" style="color:var(--game-neon)">✨ <span data-w-particles>0</span></span>
+        </div>
+      </header>
+      <div class="game-hero">
+        <p class="game-kicker">星海戰況</p>
+        <h1>指揮官，<em>KX-447</em><br>等待出擊</h1>
+        <p class="sub">3 顆未知星球 · 今日首勝獎勵 ×2</p>
+        <button class="game-cta" data-gosub="battle">出發作戰 →</button>
+      </div>
+      <div class="game-grid">
+        <button class="game-card" data-gosub="battle"><span class="gi">🚀</span><b>星球戰役</b><small>征服未知星球</small></button>
+        <button class="game-card" data-gosub="market"><span class="gi">🏪</span><b>星際市集</b><small>武器防具補給</small></button>
+        <button class="game-card" data-gosub="forum"><span class="gi">🗣️</span><b>討論空間</b><small>旅人情報交換</small></button>
+        <button class="game-card" data-gosub="wallet"><span class="gi">💰</span><b>錢包</b><small>星砂與微粒</small></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 手機傳送門切換 -->
+  <nav class="g-switch" aria-label="世界切換">
+    <button data-gzone="learn" class="on">📖 學習</button>
+    <button data-gzone="game">🚀 遊戲</button>
+  </nav>
 </div>
 
-<div id="app-shell">
+<section class="page subpage" id="page-trial" data-panel="flow" data-page="trial">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>⚔️ 試煉場</h2>
+      <div class="subcoin"><span>✨ <b data-w-particles>0</b></span></div></header>
+    <div class="subbody" id="trialBody"></div>
+  </section>
+<section class="page subpage" id="page-dex" data-panel="flow" data-page="dex">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>📖 知識圖鑑</h2></header>
+    <div class="subbody" id="dexBody"></div>
+  </section>
+<section class="page subpage" id="page-debate" data-panel="overlay" data-page="debate">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🎙️ 辯論台</h2></header>
+    <div class="subbody" id="debateBody"></div>
+  </section>
+<section class="page subpage" id="page-battle" data-panel="cosmos" data-page="battle">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🚀 星球戰役</h2>
+      <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
+    <div class="subbody" id="battleBody"></div>
+  </section>
+<section class="page subpage" id="page-market" data-panel="cosmos" data-page="market">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🏪 星際市集</h2>
+      <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
+    <div class="subbody" id="marketBody"></div>
+  </section>
+<section class="page subpage" id="page-forum" data-panel="overlay" data-page="forum">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🗣️ 討論空間</h2></header>
+    <div class="subbody" id="forumBody"></div>
+  </section>
+<section class="page subpage" id="page-wallet" data-panel="overlay" data-page="wallet">
+    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>💰 錢包</h2></header>
+    <div class="subbody" id="walletBody"></div>
+  </section>
+<div id="app-shell" class="shell-hidden">
   <!-- 桌面頂欄：logo / 世界切換 / 家 / 錢包 / 帳號 -->
   <header id="topbar">
     <div class="tb-logo">曙光教育 <span>3.0</span></div>
@@ -221,37 +320,13 @@
 
   <!-- ============ 深層系統頁（獨立子頁） ============ -->
   <div id="overlay-root"></div>
-  <section class="page subpage" id="page-trial" data-panel="flow" data-page="trial">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>⚔️ 試煉場</h2>
-      <div class="subcoin"><span>✨ <b data-w-particles>0</b></span></div></header>
-    <div class="subbody" id="trialBody"></div>
-  </section>
-  <section class="page subpage" id="page-dex" data-panel="flow" data-page="dex">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>📖 知識圖鑑</h2></header>
-    <div class="subbody" id="dexBody"></div>
-  </section>
-  <section class="page subpage" id="page-debate" data-panel="overlay" data-page="debate">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🎙️ 辯論台</h2></header>
-    <div class="subbody" id="debateBody"></div>
-  </section>
-  <section class="page subpage" id="page-battle" data-panel="cosmos" data-page="battle">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🚀 星球戰役</h2>
-      <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
-    <div class="subbody" id="battleBody"></div>
-  </section>
-  <section class="page subpage" id="page-market" data-panel="cosmos" data-page="market">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🏪 星際市集</h2>
-      <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
-    <div class="subbody" id="marketBody"></div>
-  </section>
-  <section class="page subpage" id="page-forum" data-panel="overlay" data-page="forum">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🗣️ 討論空間</h2></header>
-    <div class="subbody" id="forumBody"></div>
-  </section>
-  <section class="page subpage" id="page-wallet" data-panel="overlay" data-page="wallet">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>💰 錢包</h2></header>
-    <div class="subbody" id="walletBody"></div>
-  </section>
+  <!-- subpage moved -->
+  <!-- subpage moved -->
+  <!-- subpage moved -->
+  <!-- subpage moved -->
+  <!-- subpage moved -->
+  <!-- subpage moved -->
+  <!-- subpage moved -->
 
   <!-- ============ 底部導航：三格（心流／宇宙／家） ============ -->
   <nav id="tabbar" aria-label="主導航">
@@ -280,6 +355,7 @@
 <div id="toast" role="status"></div>
 
 <script src="js/sys-core.js"></script>
+<script src="js/gateway.js"></script>
 <script src="js/sys-learn.js"></script>
 <script src="js/sys-world.js"></script>
 <script src="js/app.js"></script>
