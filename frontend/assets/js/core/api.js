@@ -119,6 +119,13 @@ export async function patch(path, body) {
   return data;
 }
 
+export async function put(path, body) {
+  const data = await rawFetch("PUT", path, { body, timeout: TIMEOUTS.write });
+  const invalidated = invalidateForPath(path, INVALIDATION_MAP);
+  if (invalidated.length) broadcast({ type: "cache:invalidate", keys: invalidated });
+  return data;
+}
+
 export async function del(path) {
   const data = await rawFetch("DELETE", path, { timeout: TIMEOUTS.write });
   const invalidated = invalidateForPath(path, INVALIDATION_MAP);
