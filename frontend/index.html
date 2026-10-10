@@ -233,6 +233,23 @@
         <p class="sub">修改後，其他裝置的登入會失效，請用新密碼重新登入。</p>
       </div>
       <div class="panel">
+        <h3 class="h3">安全問題</h3>
+        <p class="sub">忘記密碼時，答對安全問題即可重設。目前：<b id="acctSecQNow">讀取中…</b></p>
+        <div class="acct-form">
+          <select id="acctSecQ" class="input">
+            <option value="讓你最心動的一個名字是？">讓你最心動的一個名字是？</option>
+            <option value="你的第一隻寵物的名字是？">你的第一隻寵物的名字是？</option>
+            <option value="你最喜歡吃的食物是？">你最喜歡吃的食物是？</option>
+            <option value="你童年最好的朋友叫什麼名字？">你童年最好的朋友叫什麼名字？</option>
+            <option value="你最想去的地方是哪裡？">你最想去的地方是哪裡？</option>
+            <option value="__custom">✏️ 自訂問題…</option>
+          </select>
+          <input id="acctSecQCustom" class="input" maxlength="60" placeholder="輸入你自己的安全問題" style="display:none">
+          <input id="acctSecA" class="input" maxlength="60" placeholder="答案（只用來驗證，不會公開）" autocomplete="off">
+          <button class="btn primary" id="acctSecQSave">更新安全問題</button>
+        </div>
+      </div>
+      <div class="panel">
         <h3 class="h3">匯出學習歷程</h3>
         <p class="sub">下載你的完整學習資料（JSON）：個人檔案、島嶼、日誌、收藏、星砂、人格、對決與戰報紀錄。</p>
         <button class="btn" id="acctExport">下載學習歷程</button>
@@ -284,6 +301,31 @@
     <div class="auth-field" id="authPassWrap">
       <label for="authPass" id="authPassLabel">密碼</label>
       <input id="authPass" class="input" type="password" placeholder="至少 4 個字元" autocomplete="current-password">
+    </div>
+    <div class="auth-field" id="authSecQWrap" style="display:none">
+      <label for="authSecQ">安全問題 <span class="sub" style="font-weight:400">（忘記密碼時用來驗證身分）</span></label>
+      <select id="authSecQ" class="input">
+        <option value="讓你最心動的一個名字是？">讓你最心動的一個名字是？</option>
+        <option value="你的第一隻寵物的名字是？">你的第一隻寵物的名字是？</option>
+        <option value="你最喜歡吃的食物是？">你最喜歡吃的食物是？</option>
+        <option value="你童年最好的朋友叫什麼名字？">你童年最好的朋友叫什麼名字？</option>
+        <option value="你最想去的地方是哪裡？">你最想去的地方是哪裡？</option>
+        <option value="__custom">✏️ 自訂問題…</option>
+      </select>
+      <input id="authSecQCustom" class="input" maxlength="60" placeholder="輸入你自己的安全問題"
+             style="display:none;margin-top:8px">
+    </div>
+    <div class="auth-field" id="authSecAWrap" style="display:none">
+      <label for="authSecA">安全問題的答案</label>
+      <input id="authSecA" class="input" maxlength="60" placeholder="答案只用來驗證，不會公開" autocomplete="off">
+    </div>
+    <div class="auth-field" id="authForgotQWrap" style="display:none">
+      <label>你的安全問題</label>
+      <div class="forgot-q" id="authForgotQ"></div>
+    </div>
+    <div class="auth-field" id="authForgotAWrap" style="display:none">
+      <label for="authForgotA">答案</label>
+      <input id="authForgotA" class="input" maxlength="60" placeholder="輸入安全問題的答案" autocomplete="off">
     </div>
     <div class="auth-err" id="authErr"></div>
     <button class="btn primary" id="authSubmit" style="width:100%">登入</button>

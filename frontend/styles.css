@@ -536,3 +536,8 @@ canvas#radarCanvas,canvas#islandCanvas{max-width:100%;height:auto;display:block;
 @media (max-width:760px){
   .acct-form .btn{width:100%}
 }
+
+/* 忘記密碼：安全問題顯示 */
+.forgot-q{padding:14px 16px;border:1px dashed var(--cyan);border-radius:var(--r-sm);
+  background:oklch(80.2% 0.106 192 / 8%);color:var(--cyan);font-size:15px;font-weight:600}
+select.input{appearance:none;-webkit-appearance:none;cursor:pointer}
