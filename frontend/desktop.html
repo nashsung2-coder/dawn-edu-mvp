@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>曙光教育 3.0</title>
+<meta name="description" content="遊戲化適性學習：左岸靜修，右岸星海。">
+<link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
+<link rel="stylesheet" href="assets/css/pages/home.css?v=3.0.0">
+</head>
+<body>
+<div id="gateway">
+  <!-- 左：禪區 -->
+  <section class="zone-learn theme-zen" aria-label="學習區">
+    <main>
+      <p class="zone-sub">左岸 · 靜修</p>
+      <h1 class="zone-title">學習</h1>
+      <p class="zone-sub">刪除干擾，進入專注。點一枚徽章，進入那個世界。</p>
+      <div class="sys-grid">
+        <a class="card sys-card" href="pages/quiz.html">
+          <img src="assets/img/emblem-quiz.webp?v=3.0.0" alt="試煉徽章：卷軸與朱印" loading="lazy">
+          <h3>試煉場</h3><p>測驗 · 辯論 · 授勳</p>
+        </a>
+        <a class="card sys-card" href="pages/favorites.html">
+          <img src="assets/img/emblem-favorites.webp?v=3.0.0" alt="收藏徽章：藏書閣" loading="lazy">
+          <h3>藏書閣</h3><p>知識湖 · 收藏</p>
+        </a>
+      </div>
+    </main>
+  </section>
+
+  <!-- 中線：墨水分界河 -->
+  <div id="ink-river" aria-hidden="true"></div>
+
+  <!-- 右：霓虹區 -->
+  <section class="zone-game theme-neon" aria-label="遊戲區">
+    <main>
+      <p class="zone-sub">右岸 · 星海</p>
+      <h1 class="zone-title">遊戲</h1>
+      <p class="zone-sub">指揮官，你的艦隊在等你。</p>
+      <div class="sys-grid">
+        <a class="card sys-card" href="pages/island.html">
+          <img src="assets/img/emblem-island.webp?v=3.0.0" alt="島嶼徽章：浮空島" loading="lazy">
+          <h3>島嶼世界</h3><p>寵物 · 建設 · 探索</p>
+        </a>
+        <a class="card sys-card" href="pages/market.html">
+          <img src="assets/img/emblem-market.webp?v=3.0.0" alt="市集徽章：燈籠" loading="lazy">
+          <h3>星際市集</h3><p>交易 · 星砂錢包</p>
+        </a>
+        <a class="card sys-card" href="pages/duel.html">
+          <img src="assets/img/emblem-duel.webp?v=3.0.0" alt="對決徽章：交鋒雙劍" loading="lazy">
+          <h3>知識對決</h3><p>與其他旅人一戰</p>
+        </a>
+        <a class="card sys-card" href="pages/radar.html">
+          <img src="assets/img/emblem-radar.webp?v=3.0.0" alt="雷達徽章：星圖" loading="lazy">
+          <h3>三維雷達</h3><p>能力星圖</p>
+        </a>
+      </div>
+      <div style="margin-top:var(--sp-8);text-align:center">
+        <a class="btn btn-ghost" href="pages/settings.html">帳號設定</a>
+      </div>
+    </main>
+  </section>
+</div>
+<div id="toast-root" aria-live="polite"></div>
+<script type="module" src="assets/js/pages/home.js?v=3.0.0"></script>
+</body>
+</html>
