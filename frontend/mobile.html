@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>曙光教育 3.0 · 手機版</title>
+<link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
+<link rel="stylesheet" href="assets/css/pages/home.css?v=3.0.0">
+<style>
+  /* 手機版：上下分，橫向墨水河 */
+  #gateway { grid-template-columns: 1fr; grid-template-rows: 1fr 44px 1fr; }
+  #ink-river {
+    background: linear-gradient(90deg,
+      transparent 0%, #2B262066 30%, #00E5FF44 70%, transparent 100%);
+  }
+  .zone-learn, .zone-game { padding: var(--sp-8) var(--sp-4); overflow-y: auto; }
+  .sys-card img { width: 72px; height: 72px; }
+  .zone-title { font-size: var(--fs-24); }
+</style>
+</head>
+<body>
+<div id="gateway">
+  <section class="zone-learn theme-zen" aria-label="學習區">
+    <main>
+      <p class="zone-sub">上 · 靜修</p>
+      <h1 class="zone-title">學習</h1>
+      <div class="sys-grid">
+        <a class="card sys-card" href="pages/quiz.html">
+          <img src="assets/img/emblem-quiz.webp?v=3.0.0" alt="試煉徽章" loading="lazy">
+          <h3>試煉場</h3><p>測驗 · 辯論 · 授勳</p>
+        </a>
+        <a class="card sys-card" href="pages/favorites.html">
+          <img src="assets/img/emblem-favorites.webp?v=3.0.0" alt="收藏徽章" loading="lazy">
+          <h3>藏書閣</h3><p>知識湖 · 收藏</p>
+        </a>
+      </div>
+    </main>
+  </section>
+  <div id="ink-river" aria-hidden="true"></div>
+  <section class="zone-game theme-neon" aria-label="遊戲區">
+    <main>
+      <p class="zone-sub">下 · 星海</p>
+      <h1 class="zone-title">遊戲</h1>
+      <div class="sys-grid">
+        <a class="card sys-card" href="pages/island.html">
+          <img src="assets/img/emblem-island.webp?v=3.0.0" alt="島嶼徽章" loading="lazy">
+          <h3>島嶼世界</h3><p>寵物 · 建設</p>
+        </a>
+        <a class="card sys-card" href="pages/market.html">
+          <img src="assets/img/emblem-market.webp?v=3.0.0" alt="市集徽章" loading="lazy">
+          <h3>星際市集</h3><p>交易 · 錢包</p>
+        </a>
+        <a class="card sys-card" href="pages/duel.html">
+          <img src="assets/img/emblem-duel.webp?v=3.0.0" alt="對決徽章" loading="lazy">
+          <h3>知識對決</h3><p>一戰</p>
+        </a>
+        <a class="card sys-card" href="pages/radar.html">
+          <img src="assets/img/emblem-radar.webp?v=3.0.0" alt="雷達徽章" loading="lazy">
+          <h3>三維雷達</h3><p>星圖</p>
+        </a>
+      </div>
+      <div style="margin-top:var(--sp-6);text-align:center">
+        <a class="btn btn-ghost" href="pages/settings.html">帳號設定</a>
+      </div>
+    </main>
+  </section>
+</div>
+<div id="toast-root" aria-live="polite"></div>
+<script type="module" src="assets/js/pages/home.js?v=3.0.0"></script>
+</body>
+</html>
