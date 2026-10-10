@@ -33,42 +33,65 @@
 }
 /* 手機：傳送門式整屏切換（DeepSeek：不要上下堆疊） */
 @media (max-width:1023.98px){
-  #gateway{ grid-template-columns:1fr; grid-template-rows:1fr; }
-  .zone-learn, .zone-game{ grid-area:1/1; min-height:100dvh; }
-  .zone-game{ display:none; }
-  body[data-gzone="game"] .zone-learn{ display:none; }
-  body[data-gzone="game"] .zone-game{ display:flex; animation:portalIn .45s var(--motion-neon); }
-  body[data-gzone="learn"] .zone-learn{ animation:portalIn .6s var(--motion-zen); }
-  @keyframes portalIn{ from{ opacity:0; transform:scale(.96);} to{ opacity:1; transform:none;} }
-  .membrane{ display:none; }
-  .g-switch{
-    position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
-    z-index:var(--sys-z-membrane); display:flex; padding:4px; border-radius:var(--sys-r-full);
-    background:oklch(0 0 0/.55); backdrop-filter:blur(12px); border:1px solid oklch(1 0 0/.15);
+  /* 手機上下分：上學習 / 橫向墨水河 / 下遊戲 */
+  #gateway{ grid-template-columns:1fr; grid-template-rows:1fr auto 1fr; min-height:100dvh; }
+  .zone-learn, .zone-game{ min-height:0; overflow-y:auto; }
+  .membrane{
+    width:auto; height:44px; flex-direction:row;
+    background:
+      linear-gradient(180deg,
+        oklch(25% .03 80/.0) 0%,
+        oklch(25% .03 80/.55) 30%,
+        oklch(45% .08 180/.35) 50%,
+        oklch(65% .14 210/.55) 70%,
+        oklch(65% .14 210/.0) 100%);
   }
-  .g-switch button{
-    border:0; background:transparent; color:oklch(80% 0 0);
-    padding:10px 22px; border-radius:var(--sys-r-full);
-    font-size:var(--sys-fs-14); font-weight:700; cursor:pointer; min-height:44px;
+  .membrane::before{
+    background:
+      radial-gradient(12% 30% at 30% 40%, oklch(20% .04 80/.5), transparent 70%),
+      radial-gradient(10% 28% at 68% 62%, oklch(70% .16 200/.45), transparent 70%);
+    animation:riverFlowH 9s ease-in-out infinite alternate;
   }
-  .g-switch button.on{ background:oklch(1 0 0/.16); color:#fff; }
+  @keyframes riverFlowH{ from{ transform:translateX(-4%);} to{ transform:translateX(4%);} }
+  .membrane .m-hint{ writing-mode:horizontal-tb; letter-spacing:.4em; }
+  .membrane .m-lantern{ width:38px; height:38px; font-size:19px; }
+  .g-switch{ display:none; }
 }
-@media (min-width:1024px){ .g-switch{ display:none; } }
 
 /* ==================== 中線膜 ==================== */
 .membrane{
-  width:56px; position:relative; z-index:var(--sys-z-membrane);
-  background:
-    linear-gradient(90deg,
-      oklch(0 0 0/0) 0%,
-      oklch(30% .05 100/.35) 38%,
-      oklch(65% .12 200/.4) 62%,
-      oklch(0 0 0/0) 100%);
+  width:44px; position:relative; z-index:var(--sys-z-membrane);
   cursor:pointer; border:0; padding:0;
   display:flex; align-items:center; justify-content:center;
-  transition:filter .4s var(--motion-zen);
+  /* 墨水分界河：左墨暈 / 右星塵 / 中間交融流動 */
+  background:
+    linear-gradient(90deg,
+      oklch(25% .03 80/.0) 0%,
+      oklch(25% .03 80/.55) 30%,
+      oklch(45% .08 180/.35) 50%,
+      oklch(65% .14 210/.55) 70%,
+      oklch(65% .14 210/.0) 100%);
+  overflow:hidden;
 }
-.membrane:hover{ filter:brightness(1.35); }
+.membrane::before{ /* 流動的交融 */
+  content:""; position:absolute; inset:-20% -60%;
+  background:
+    radial-gradient(30% 12% at 40% 30%, oklch(20% .04 80/.5), transparent 70%),
+    radial-gradient(28% 10% at 62% 68%, oklch(70% .16 200/.45), transparent 70%);
+  animation:riverFlow 9s ease-in-out infinite alternate; pointer-events:none;
+}
+@keyframes riverFlow{ from{ transform:translateY(-4%);} to{ transform:translateY(4%);} }
+/* hover：墨與星塵被推開，露出「選一邊」 */
+.membrane .m-part{ position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .5s var(--motion-zen); }
+.membrane:hover .m-part{ opacity:1; }
+.membrane .m-hint{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.8);
+  writing-mode:vertical-rl; font-size:var(--sys-fs-13); letter-spacing:.4em; font-weight:700;
+  color:oklch(95% .02 90); text-shadow:0 1px 8px oklch(0 0 0/.5);
+  opacity:0; transition:opacity .5s var(--motion-zen), transform .5s var(--motion-zen);
+  white-space:nowrap; pointer-events:none; z-index:3;
+}
+.membrane:hover .m-hint{ opacity:1; transform:translate(-50%,-50%) scale(1); }
 .membrane .m-ripple{
   position:absolute; inset:0; overflow:hidden; pointer-events:none;
 }
