@@ -13,9 +13,10 @@
 <link rel="stylesheet" href="css/page-cosmos.css">
 <link rel="stylesheet" href="css/page-home.css">
 <link rel="stylesheet" href="css/pages.css">
+<link rel="stylesheet" href="css/layout.css">
 <script src="config.js"></script>
 </head>
-<body>
+<body data-layout="mobile" data-view="flow">
 
 <!-- 30秒進入動畫掛載點：心流版/宇宙版 Canvas 將掛載於此 -->
 <div id="entryAnim">
@@ -24,7 +25,25 @@
   <div class="entry-skip">上滑進入 →</div>
 </div>
 
-<div id="app">
+<div id="app-shell">
+  <!-- 桌面頂欄：logo / 世界切換 / 家 / 錢包 / 帳號 -->
+  <header id="topbar">
+    <div class="tb-logo">曙光教育 <span>3.0</span></div>
+    <nav class="tb-views" aria-label="世界切換">
+      <button data-tview="flow" class="on"><i>📖</i>心流</button>
+      <button data-tview="cosmos"><i>🚀</i>宇宙</button>
+      <button data-tview="home"><i>🏠</i>家</button>
+    </nav>
+    <div class="tb-right">
+      <button class="coin-chip sand" id="tbSand"><span class="dot"></span><span class="num" data-w-sands>0</span></button>
+      <button class="coin-chip mote" id="tbMote"><span class="dot"></span><span class="num" data-w-particles>0</span></button>
+      <div class="avatar-wrap">
+        <button class="avatar" id="tbAvatar" aria-label="帳戶選單">曜</button>
+        <div class="acct-menu" id="tbAcctMenu"></div>
+      </div>
+    </div>
+  </header>
+  <main id="panel-flow" aria-label="心流">
   <!-- ============ 心流學習首頁 ============ -->
   <section class="page" id="page-flow" data-page="flow">
     <div class="page-scroll">
@@ -82,6 +101,8 @@
     </div>
   </section>
 
+  </main>
+  <aside id="panel-cosmos" aria-label="宇宙">
   <!-- ============ 遊歷宇宙首頁 ============ -->
   <section class="page" id="page-cosmos" data-page="cosmos">
     <div class="starfield" id="starfield" aria-hidden="true"></div>
@@ -126,6 +147,8 @@
     </div>
   </section>
 
+  </aside>
+  <section id="panel-home" aria-label="家">
   <!-- ============ 家 ============ -->
   <section class="page" id="page-home" data-page="home">
     <div class="page-scroll">
@@ -194,36 +217,38 @@
       </div>
     </div>
   </section>
+  </section><!-- /panel-home -->
 
   <!-- ============ 深層系統頁（獨立子頁） ============ -->
-  <section class="page subpage" id="page-trial" data-page="trial">
+  <div id="overlay-root"></div>
+  <section class="page subpage" id="page-trial" data-panel="flow" data-page="trial">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>⚔️ 試煉場</h2>
       <div class="subcoin"><span>✨ <b data-w-particles>0</b></span></div></header>
     <div class="subbody" id="trialBody"></div>
   </section>
-  <section class="page subpage" id="page-dex" data-page="dex">
+  <section class="page subpage" id="page-dex" data-panel="flow" data-page="dex">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>📖 知識圖鑑</h2></header>
     <div class="subbody" id="dexBody"></div>
   </section>
-  <section class="page subpage" id="page-debate" data-page="debate">
+  <section class="page subpage" id="page-debate" data-panel="overlay" data-page="debate">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🎙️ 辯論台</h2></header>
     <div class="subbody" id="debateBody"></div>
   </section>
-  <section class="page subpage" id="page-battle" data-page="battle">
+  <section class="page subpage" id="page-battle" data-panel="cosmos" data-page="battle">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🚀 星球戰役</h2>
       <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
     <div class="subbody" id="battleBody"></div>
   </section>
-  <section class="page subpage" id="page-market" data-page="market">
+  <section class="page subpage" id="page-market" data-panel="cosmos" data-page="market">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🏪 星際市集</h2>
       <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
     <div class="subbody" id="marketBody"></div>
   </section>
-  <section class="page subpage" id="page-forum" data-page="forum">
+  <section class="page subpage" id="page-forum" data-panel="overlay" data-page="forum">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🗣️ 討論空間</h2></header>
     <div class="subbody" id="forumBody"></div>
   </section>
-  <section class="page subpage" id="page-wallet" data-page="wallet">
+  <section class="page subpage" id="page-wallet" data-panel="overlay" data-page="wallet">
     <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>💰 錢包</h2></header>
     <div class="subbody" id="walletBody"></div>
   </section>
