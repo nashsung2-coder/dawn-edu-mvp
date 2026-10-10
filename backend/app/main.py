@@ -63,6 +63,7 @@ app.add_middleware(
 class AuthIn(BaseModel):
     name: str = Field(description="暱稱（1–20 字，唯一）")
     password: str = Field(description="密碼（至少 4 字元）")
+    email: str = Field(default="", description="Email（選填，用於忘記密碼時重設）")
 
 
 def _bearer_token(request: Request) -> str:
@@ -91,11 +92,11 @@ def _own_island(request: Request, user_id: str) -> dict:
 @app.post("/api/v1/auth/register", summary="註冊帳號", status_code=201)
 def auth_register(body: AuthIn):
     try:
-        result = auth_mod.register(body.name, body.password)
+        result = auth_mod.register(body.name, body.password, body.email)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "token": result["token"],
-            "user": {"id": result["id"], "name": result["name"]},
+            "user": {"id": result["id"], "name": result["name"], "email": result["email"]},
             "reason": f"歡迎來到慢荒宇宙，{result['name']}！你的島嶼已經在星海中浮現。"}
 
 
@@ -373,6 +374,79 @@ def auth_persona(body: PersonaIn, request: Request):
     except (ValueError, KeyError) as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "persona": saved}
+
+
+# ---------------- 帳號管理 ----------------
+class EmailIn(BaseModel):
+    email: str = Field(description="Email（可清空）")
+
+
+class ChangePwIn(BaseModel):
+    old_password: str = Field(description="舊密碼")
+    new_password: str = Field(description="新密碼（至少 4 字元）")
+
+
+class ForgotIn(BaseModel):
+    name: str = Field(description="暱稱")
+    email: str = Field(description="註冊時填寫的 Email")
+    new_password: str = Field(description="新密碼（至少 4 字元）")
+
+
+class DeleteIn(BaseModel):
+    password: str = Field(description="密碼確認")
+
+
+@app.patch("/api/v1/auth/me", summary="更新 Email")
+def auth_update_email(body: EmailIn, request: Request):
+    user = _current_user(request)
+    try:
+        email = auth_mod.set_email(user["id"], body.email)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "email": email}
+
+
+@app.post("/api/v1/auth/password", summary="修改密碼（需舊密碼）")
+def auth_change_password(body: ChangePwIn, request: Request):
+    user = _current_user(request)
+    try:
+        auth_mod.change_password(user["id"], body.old_password, body.new_password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except KeyError:
+        raise HTTPException(401, "請重新登入。")
+    return {"ok": True, "reason": "密碼已更新，其他裝置的登入已失效，請用新密碼重新登入。"}
+
+
+@app.post("/api/v1/auth/forgot", summary="忘記密碼（暱稱＋Email 重設）")
+def auth_forgot(body: ForgotIn):
+    try:
+        auth_mod.reset_password_by_email(body.name, body.email, body.new_password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "reason": "密碼已重設，請用新密碼登入。"}
+
+
+@app.delete("/api/v1/auth/me", summary="刪除帳號（不可復原）")
+def auth_delete_me(body: DeleteIn, request: Request):
+    user = _current_user(request)
+    try:
+        auth_mod.delete_user(user["id"], body.password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except KeyError:
+        raise HTTPException(401, "請重新登入。")
+    return {"ok": True, "reason": "帳號與所有學習資料已刪除。星海會記得你曾來過。"}
+
+
+@app.get("/api/v1/export", summary="匯出學習歷程")
+def export_data(request: Request):
+    user = _current_user(request)
+    try:
+        data = auth_mod.export_user_data(user["id"])
+    except KeyError:
+        raise HTTPException(401, "請重新登入。")
+    return {"ok": True, **data}
 
 
 class OccupyIn(BaseModel):
