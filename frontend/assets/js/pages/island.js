@@ -1,7 +1,7 @@
-/* 島嶼世界：島嶼總覽 → 開疆拓土 → 佔領標籤 → 領土日誌 → 探索 → 建造 → 寵物
- * 全鏈路調真實後端，零假數據。
+/* 島嶼世界：動森式家園 ＋ 部落衝突式開拓
+ * 英雄圖（按領土等級）→ 儀表板 → 開疆任務卡 → 建築槽位 → 標籤雲 → 我的島嶼 → 領土日誌
+ * 全鏈路調真實後端，零假數據。樂觀更新（先動畫、後校正）＋ 並行載入。
  * 生命週期：init → loading → api → render / empty / error
- * 樣式僅用 base.css / island.css 已有 class + inline style（不新增 CSS 檔）。
  */
 import { swr, post, get } from "../core/api.js";
 import { isLoggedIn } from "../core/auth.js";
@@ -10,37 +10,50 @@ import { announce, focusMain } from "../core/a11y.js";
 const view = document.getElementById("i-view");
 const sub = document.getElementById("i-sub");
 
+/* ---- 真實獎勵表（後端 game.py EXPAND_ACTIONS + ACTION_RESOURCE_REWARD，curl 實測驗證） ---- */
 const EXPAND_ACTIONS = [
-  { key: "complete_topic", label: "完成主題" },
-  { key: "fix_myth", label: "破除迷思" },
-  { key: "ask_question", label: "提出好問題" },
-  { key: "complete_quest", label: "完成任務" },
-  { key: "co_study", label: "共學" },
+  { key: "complete_topic", icon: "🌱", label: "完成主題", desc: "完成一個學習主題",
+    reward: "領土 +1.0 · 好奇種子 ×1 · 星砂 ×10", delta: 1.0 },
+  { key: "fix_myth", icon: "👁️", label: "破除迷思", desc: "修正一個錯誤觀念",
+    reward: "領土 +1.0 · 觀察之眼 ×1 · 星砂 ×10", delta: 1.0 },
+  { key: "ask_question", icon: "❓", label: "提出好問題", desc: "提出一個新問題",
+    reward: "領土 +0.5 · 好奇種子 ×1 · 星砂 ×10", delta: 0.5 },
+  { key: "complete_quest", icon: "⚔️", label: "完成任務", desc: "完成一個任務委託",
+    reward: "領土 +2.0 · 變因齒輪 ×1 · 心流之泉 ×1 · 星砂 ×10", delta: 2.0 },
+  { key: "co_study", icon: "🤝", label: "共學", desc: "與夥伴完成共修任務",
+    reward: "領土 +1.5 · 連結之網 ×1 · 星砂 ×10", delta: 1.5 },
 ];
-const BUILD_TYPES = ["圖書館", "訓練場", "瞭望塔"];
 
-/* inline 樣式（base.css 沒有這些元件） */
+const BUILDINGS = [
+  { type: "圖書館", icon: "📚", desc: "加速文獻理解：測驗前可多看一次提示" },
+  { type: "訓練場", icon: "🏋️", desc: "提升武器默契成長速度" },
+  { type: "瞭望塔", icon: "🗼", desc: "探索加成：劇情選項多一條線索" },
+];
+const BUILD_MAX = 5;
+
 const S = {
   tabs: "display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap",
-  tabBase: "padding:10px 18px;border:1px solid var(--line);border-radius:var(--r-full);font-size:14px;background:transparent;cursor:pointer",
-  tabNow: "background:var(--accent,#4f8cff);color:#fff;border-color:transparent",
-  tag: "display:inline-block;padding:2px 10px;margin:2px 4px 2px 0;border:1px solid var(--line);border-radius:var(--r-full);font-size:12px",
-  actions: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px",
-  logs: "list-style:none;padding:0;margin:8px 0 0",
-  logRow: "display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px",
-  choices: "display:flex;flex-direction:column;gap:8px;margin-top:12px",
-  choice: "width:100%;text-align:left;justify-content:flex-start",
-  hint: "padding:10px 14px;border-radius:12px;background:rgba(79,140,255,.08);font-size:13px;margin-top:12px",
   muted: "color:var(--muted)",
   input: "padding:10px 14px;border:1px solid var(--line);border-radius:var(--r-full);font-size:14px",
   select: "width:100%;padding:10px;border:1px solid var(--line);border-radius:12px;font-size:14px",
   label: "display:block;margin:12px 0 4px;font-size:13px",
+  logs: "list-style:none;padding:0;margin:8px 0 0",
+  logRow: "display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px",
+  tag: "display:inline-block;padding:6px 14px;margin:3px;border-radius:var(--r-full);font-size:13px;cursor:pointer;border:1px solid var(--line);background:transparent",
+  tagOn: "background:var(--accent,#4f8cff);color:#fff;border-color:transparent",
+  hero: "width:100%;border-radius:16px;display:block;margin-bottom:16px",
+  card: "margin-bottom:16px",
+  barWrap: "height:12px;border-radius:var(--r-full);background:var(--bg-soft,#eee);border:1px solid var(--line);overflow:hidden;margin-top:8px",
+  barFill: "height:100%;border-radius:var(--r-full);background:var(--accent,#4f8cff);transition:width .5s ease",
+  questGrid: "display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:12px",
+  questCard: "text-align:left;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:6px",
+  questBusy: "opacity:.55;pointer-events:none",
+  slotGrid: "display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:12px",
 };
 
 let userId = null;
-let activeTab = "overview";
-/* 進行中的探索（劇情物件） */
-let activeExplore = null;
+/* 本地狀態（樂觀更新的單一真相來源） */
+let ST = { status: null, named: [], logs: [], tagCloud: [], statusErr: null };
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c =>
@@ -51,11 +64,12 @@ function toast(msg) {
   const el = document.createElement("div");
   el.className = "toast"; el.textContent = msg;
   root.appendChild(el); announce(msg);
-  setTimeout(() => el.remove(), 3000);
+  setTimeout(() => el.remove(), 3200);
 }
 function skeleton() {
-  view.innerHTML = `<div class="skeleton" style="height:140px"></div>
-    <div class="skeleton" style="height:20px;margin-top:12px"></div>`;
+  view.innerHTML = `<div class="skeleton" style="height:180px"></div>
+    <div class="skeleton" style="height:20px;margin-top:12px"></div>
+    <div class="skeleton" style="height:120px;margin-top:12px"></div>`;
 }
 function errorView(msg, retry) {
   view.innerHTML = `<div class="state-error">
@@ -65,155 +79,338 @@ function errorView(msg, retry) {
   document.getElementById("i-retry").onclick = retry;
 }
 
-/* ---- 分頁導覽 ---- */
-function tabBar() {
-  const tabs = [
-    ["overview", "島嶼總覽"],
-    ["explore", "探索"],
-    ["build", "建造"],
-    ["pet", "寵物"],
-  ];
-  return `<nav style="${S.tabs}" role="tablist" aria-label="島嶼世界分頁">` + tabs.map(([k, label]) =>
-    `<button role="tab" style="${S.tabBase};${k === activeTab ? S.tabNow : ""}"
-      aria-selected="${k === activeTab}" data-tab="${k}">${label}</button>`
-  ).join("") + `</nav>`;
+/* 領土 <10 初生小島；<30 成長；否則繁榮都市 */
+function heroImg(territory) {
+  const t = Number(territory) || 0;
+  const f = t >= 30 ? "island-3" : t >= 10 ? "island-2" : "island-1";
+  return `../assets/img/game/${f}.webp?v=3.0.0`;
 }
-function bindTabs(rerender) {
-  view.querySelectorAll("[data-tab]").forEach(btn => {
-    btn.onclick = () => { activeTab = btn.dataset.tab; rerender(); focusMain(); };
-  });
+function heroAlt(territory) {
+  const t = Number(territory) || 0;
+  return t >= 30 ? "繁榮都市島嶼" : t >= 10 ? "成長中的島嶼" : "初生小島";
 }
 
-/* ================= 總覽 ================= */
-async function renderOverview() {
+/* ================= 並行載入 ================= */
+async function loadAll() {
   skeleton();
-  announce("載入島嶼總覽");
-  let status = null, statusErr = null;
-  try {
-    const r = await get(`/islands/${userId}`);
-    status = r.island || r;
-  } catch (e) {
-    statusErr = e;
-    console.warn("[island] status failed:", e.code);
+  announce("載入島嶼世界");
+  const [statusR, namedR, logsR, tagsR] = await Promise.allSettled([
+    get(`/islands/${userId}`),
+    swr("world:islands", "/world/islands"),
+    swr("world:island-logs", `/islands/${userId}/logs?limit=10`),
+    swr("tags:tree", "/tags"),
+  ]);
+
+  if (statusR.status === "fulfilled") {
+    ST.status = statusR.value.island || statusR.value;
+    ST.statusErr = null;
+  } else {
+    ST.status = null;
+    ST.statusErr = statusR.reason;
+    console.warn("[island] status failed:", statusR.reason?.code);
   }
+  if (namedR.status === "fulfilled") {
+    const d = namedR.value.data;
+    ST.named = d?.islands || (Array.isArray(d) ? d : []);
+  } else console.warn("[island] named failed:", namedR.reason?.code);
+  if (logsR.status === "fulfilled") {
+    const d = logsR.value.data;
+    ST.logs = d?.logs || (Array.isArray(d) ? d : []);
+  } else console.warn("[island] logs failed:", logsR.reason?.code);
+  if (tagsR.status === "fulfilled") {
+    ST.tagCloud = buildTagCloud(tagsR.value.data);
+  } else console.warn("[island] tags failed:", tagsR.reason?.code);
+}
 
-  let named = [];
-  try {
-    const r = await swr("world:islands", "/world/islands");
-    named = r.data?.islands || (Array.isArray(r.data) ? r.data : []);
-  } catch (e) { console.warn("[island] named islands failed:", e.code); }
+/* 從標籤樹挑一組建議標籤（每維度取幾個，混排） */
+function buildTagCloud(data) {
+  const dims = data?.dimensions || [];
+  const picks = [];
+  const perDim = 4;
+  dims.forEach(dim => {
+    (dim.tags || []).slice(0, perDim).forEach(t => {
+      picks.push({ code: `${dim.code}:${t.name}`, label: t.name, dim: dim.name });
+    });
+  });
+  return picks.slice(0, 24);
+}
 
-  let logs = [];
-  try {
-    const r = await swr("world:island-logs", `/islands/${userId}/logs?limit=10`);
-    logs = r.data?.logs || (Array.isArray(r.data) ? r.data : []);
-  } catch (e) { console.warn("[island] logs failed:", e.code); }
+/* ================= 渲染 ================= */
+function heroHtml() {
+  const st = ST.status;
+  if (!st) return "";
+  return `<img src="${heroImg(st.territory)}" alt="${heroAlt(st.territory)}"
+    style="${S.hero}" loading="eager">`;
+}
 
-  const statusHtml = status ? `
-    <div class="card">
-      <h2>🏝️ ${escapeHtml(status.name || "無名島")}</h2>
-      <p style="${S.muted}">領土 ${escapeHtml(String(status.territory ?? 0))} 單位
-        · 今日開拓 ${escapeHtml(String(status.used_today ?? 0))} / ${escapeHtml(String(status.daily_cap ?? 5))}</p>
-      ${(status.occupied_tags?.length) ? `<p>已佔領標籤：` +
-        status.occupied_tags.map(t => `<span style="${S.tag}">${escapeHtml(t)}</span>`).join("") + `</p>` : ""}
-      ${status.resources ? `<p style="${S.muted};font-size:13px">資源：` +
-        Object.entries(status.resources).map(([k, v]) => `${escapeHtml(k)}×${escapeHtml(String(v))}`).join("、") + `</p>` : ""}
-      ${(status.badges?.length) ? `<p>徽章：` +
-        status.badges.map(b => `<span style="${S.tag}">${escapeHtml(typeof b === "string" ? b : b.name || "")}</span>`).join("") + `</p>` : ""}
+function dashboardHtml() {
+  const st = ST.status;
+  if (!st) {
+    return `<div class="state-empty" style="${S.card}">
+      <img src="../assets/img/empty-neon.webp?v=3.0.0" alt="空島插圖" style="width:120px">
+      <p>${ST.statusErr ? `島嶼狀態讀取失敗：${escapeHtml(ST.statusErr.message)}` : "你的島嶼還在星海中沉睡"}</p>
+      <button class="btn btn-primary" id="i-wake">開疆拓土，喚醒島嶼</button>
+    </div>`;
+  }
+  const used = Number(st.used_today) || 0;
+  const cap = Number(st.daily_cap) || 5;
+  const pct = Math.min(100, Math.round((used / cap) * 100));
+  const res = st.resources || {};
+  const resChips = Object.keys(res).length
+    ? Object.entries(res).map(([k, v]) =>
+        `<span style="${S.tag};cursor:default">${escapeHtml(k)} ×${escapeHtml(String(v))}</span>`).join("")
+    : `<span style="${S.muted};font-size:13px">開疆拓土可獲得資源</span>`;
+  return `<div class="card" style="${S.card}">
+    <h2 style="margin:0 0 4px">🏝️ ${escapeHtml(st.name || "無名島")}</h2>
+    <p style="font-size:28px;font-weight:700;margin:4px 0" aria-label="領土">
+      ${escapeHtml(String(st.territory ?? 0))} <span style="font-size:14px;font-weight:400;color:var(--muted)">單位領土</span></p>
+    <div aria-label="今日開拓進度">
+      <div style="display:flex;justify-content:space-between;font-size:13px;${S.muted}">
+        <span>今日開拓</span><span>${escapeHtml(String(used))} / ${escapeHtml(String(cap))}</span></div>
+      <div style="${S.barWrap}" role="progressbar" aria-valuenow="${pct}"
+        aria-valuemin="0" aria-valuemax="100" aria-label="今日開拓進度">
+        <div style="${S.barFill};width:${pct}%"></div></div>
     </div>
-    <div class="card">
-      <h3>開疆拓土</h3>
-      <p style="${S.muted};font-size:13px">選擇一種學習行動，為島嶼擴張領土。</p>
-      <div style="${S.actions}">${EXPAND_ACTIONS.map(a =>
-        `<button class="btn btn-ghost" data-expand="${a.key}">${a.label}</button>`).join("")}</div>
-    </div>
-    <div class="card">
-      <h3>佔領標籤</h3>
-      <p style="${S.muted};font-size:13px">例如 SUBJ:物理、SUBJ:數學。佔領後島嶼知識密度提升。</p>
-      <div style="display:flex;gap:8px">
-        <input id="i-tag-input" type="text" placeholder="SUBJ:物理" aria-label="標籤"
-          style="flex:1;${S.input}">
-        <button class="btn btn-primary" id="i-occupy-go">佔領</button>
-      </div>
-    </div>` : `
-    <div class="state-empty">
-      <img src="../assets/img/empty-neon.webp?v=3.0.0" alt="空島插圖">
-      <p>${statusErr ? `島嶼狀態讀取失敗：${escapeHtml(statusErr.message)}` : "你的島嶼還在星海中沉睡"}</p>
-      <button class="btn btn-primary" id="i-first-expand">開疆拓土，喚醒島嶼</button>
+    <div style="margin-top:12px" aria-label="資源"><div style="font-size:13px;${S.muted};margin-bottom:4px">資源</div>${resChips}</div>
+  </div>`;
+}
+
+function questsHtml() {
+  const st = ST.status;
+  const used = Number(st?.used_today) || 0;
+  const cap = Number(st?.daily_cap) || 5;
+  return `<div class="card" style="${S.card}">
+    <h3 style="margin-top:0">⚔️ 開疆拓土</h3>
+    <p style="${S.muted};font-size:13px;margin:0">選一個學習行動，島嶼立即擴張。點下去馬上有效果！</p>
+    <div style="${S.questGrid}" role="group" aria-label="開疆任務">` +
+    EXPAND_ACTIONS.map(a => {
+      const capped = used + a.delta > cap + 1e-9;
+      return `<button class="i-quest" data-expand="${a.key}" data-delta="${a.delta}"
+        ${capped || !st ? "disabled" : ""}
+        aria-label="${a.label}：${a.reward}${capped ? "（今日額度已滿）" : ""}"
+        style="${S.questCard}${capped || !st ? ";opacity:.45" : ""}">
+        <span style="font-size:28px" aria-hidden="true">${a.icon}</span>
+        <strong style="font-size:15px">${a.label}</strong>
+        <span style="font-size:12px;${S.muted}">${a.desc}</span>
+        <span style="font-size:12px;color:var(--accent,#4f8cff)">🎁 ${a.reward}</span>
+        ${capped ? `<span style="font-size:12px;color:var(--muted)">今日額度已滿</span>` : ""}
+      </button>`;
+    }).join("") + `</div></div>`;
+}
+
+function buildSlotsHtml() {
+  const named = ST.named;
+  if (!named.length) {
+    return `<div class="card" style="${S.card}">
+      <h3 style="margin-top:0">🏗️ 建築</h3>
+      <p style="${S.muted};font-size:13px">還沒有命名的島嶼。先到下方「我的島嶼」命名一座，才能蓋建築。</p>
     </div>`;
+  }
+  const selId = document.getElementById("i-build-island")?.value || named[0].id;
+  const isl = named.find(i => i.id === selId) || named[0];
+  const built = {};
+  (isl.buildings || []).forEach(b => { built[b.btype] = Number(b.level) || 0; });
+  return `<div class="card" style="${S.card}">
+    <h3 style="margin-top:0">🏗️ 建築</h3>
+    <label for="i-build-island" style="${S.label}">選擇島嶼</label>
+    <select id="i-build-island" style="${S.select}" aria-label="選擇島嶼">
+      ${named.map(it => `<option value="${escapeHtml(it.id)}" ${it.id === isl.id ? "selected" : ""}>${escapeHtml(it.name || "無名島")}</option>`).join("")}
+    </select>
+    <div style="${S.slotGrid}">` +
+    BUILDINGS.map(b => {
+      const lv = built[b.type] || 0;
+      const maxed = lv >= BUILD_MAX;
+      const cost = 50 * (lv + 1);
+      const pips = Array.from({ length: BUILD_MAX }, (_, i) =>
+        `<span aria-hidden="true" style="color:${i < lv ? "var(--accent,#4f8cff)" : "var(--line)"}">●</span>`).join("");
+      return `<div style="border:1px solid var(--line);border-radius:14px;padding:12px">
+        <div style="font-size:28px" aria-hidden="true">${b.icon}</div>
+        <strong>${b.type}</strong>
+        <span style="font-size:12px;${S.muted}"> Lv.${lv}/${BUILD_MAX}</span>
+        <div aria-label="${b.type}等級 ${lv}" style="font-size:10px;letter-spacing:2px">${pips}</div>
+        <p style="font-size:12px;${S.muted};margin:6px 0">${b.desc}</p>
+        ${maxed
+          ? `<span style="font-size:13px;color:var(--accent,#4f8cff)">★ 已滿級</span>`
+          : `<button class="btn ${lv === 0 ? "btn-primary" : "btn-ghost"}" data-build="${b.type}"
+              data-island="${escapeHtml(isl.id)}" data-lv="${lv}" style="width:100%;margin-top:6px">
+              ${lv === 0 ? "建造" : "升級"}（${cost} 星砂）</button>`}
+      </div>`;
+    }).join("") + `</div></div>`;
+}
 
-  const namedHtml = `
-    <div class="card">
-      <h3>我的島嶼</h3>
-      ${named.length ? `<div class="i-grid">` + named.map(it =>
-        `<div class="card"><h4>${escapeHtml(it.name || "無名島")}</h4>
-         <p style="${S.muted};font-size:13px">${escapeHtml(it.topic || "")}
-         ${it.buildings?.length ? ` · 建築 ${it.buildings.length}` : ""}</p></div>`).join("") + `</div>`
-      : `<p style="${S.muted}">還沒有命名的島嶼</p>`}
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <input id="i-island-name" type="text" placeholder="島嶼名稱" aria-label="島嶼名稱"
-          style="flex:1;min-width:140px;${S.input}">
-        <input id="i-island-topic" type="text" placeholder="主題（選填）" aria-label="島嶼主題"
-          style="flex:1;min-width:110px;${S.input}">
-        <button class="btn btn-primary" id="i-create-island">命名新島嶼</button>
-      </div>
-    </div>`;
+function tagsHtml() {
+  const occupied = new Set(ST.status?.occupied_tags || []);
+  const cloud = ST.tagCloud.length
+    ? ST.tagCloud.map(t => {
+        const on = occupied.has(t.code);
+        return `<button style="${S.tag}${on ? ";" + S.tagOn : ""}" data-tag="${escapeHtml(t.code)}"
+          aria-pressed="${on}" title="${escapeHtml(t.dim)}">${on ? "★ " : ""}${escapeHtml(t.label)}</button>`;
+      }).join("")
+    : `<span style="${S.muted};font-size:13px">標籤載入中…</span>`;
+  return `<div class="card" style="${S.card}">
+    <h3 style="margin-top:0">🚩 佔領標籤</h3>
+    <p style="${S.muted};font-size:13px;margin:0 0 8px">點標籤直接佔領，已佔領的會高亮。佔領提升島嶼知識密度。</p>
+    <div role="group" aria-label="標籤雲">${cloud}</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input id="i-tag-input" type="text" placeholder="自訂標籤，如 SUBJ:物理" aria-label="自訂標籤"
+        style="flex:1;${S.input}">
+      <button class="btn btn-primary" id="i-occupy-go">佔領</button>
+    </div></div>`;
+}
 
-  const logsHtml = `
-    <div class="card">
-      <h3>領土日誌</h3>
-      ${logs.length ? `<ul style="${S.logs}">` + logs.slice(0, 10).map(l =>
-        `<li style="${S.logRow}"><span>${escapeHtml(l.action || l.kind || l.text || JSON.stringify(l))}</span>
-         <span style="${S.muted};font-size:12px">${escapeHtml((l.created_at || "").slice(0, 10))}</span></li>`
-      ).join("") + `</ul>` : `<p style="${S.muted}">尚無領土紀錄</p>`}
-    </div>`;
+function namedHtml() {
+  const named = ST.named;
+  return `<div class="card" style="${S.card}">
+    <h3 style="margin-top:0">🗺️ 我的島嶼</h3>
+    ${named.length ? `<div class="i-grid">` + named.map(it =>
+      `<div class="card" style="margin:0"><h4 style="margin:0 0 4px">${escapeHtml(it.name || "無名島")}</h4>
+       <p style="${S.muted};font-size:13px;margin:0">${escapeHtml(it.topic || "")}
+       ${(it.buildings?.length) ? ` · 🏗️ ${it.buildings.map(b => `${escapeHtml(b.btype)} Lv.${b.level}`).join("、")}` : ""}</p></div>`
+    ).join("") + `</div>`
+    : `<p style="${S.muted};font-size:13px">還沒有命名的島嶼</p>`}
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <input id="i-island-name" type="text" placeholder="島嶼名稱" aria-label="島嶼名稱"
+        maxlength="20" style="flex:1;min-width:140px;${S.input}">
+      <input id="i-island-topic" type="text" placeholder="主題（選填）" aria-label="島嶼主題"
+        maxlength="20" style="flex:1;min-width:110px;${S.input}">
+      <button class="btn btn-primary" id="i-create-island">命名新島嶼</button>
+    </div></div>`;
+}
 
-  view.innerHTML = tabBar() + `<div role="tabpanel">` + statusHtml + namedHtml + logsHtml + `</div>`;
-  bindTabs(renderOverview);
+function logsHtml() {
+  const logs = ST.logs;
+  return `<div class="card" style="${S.card}">
+    <h3 style="margin-top:0">📜 領土日誌</h3>
+    ${logs.length ? `<ul style="${S.logs}">` + logs.slice(0, 10).map(l =>
+      `<li style="${S.logRow}"><span>${escapeHtml(l.action || l.kind || l.text || "")}</span>
+       <span style="${S.muted};font-size:12px">${escapeHtml((l.created_at || "").slice(0, 10))}</span></li>`
+    ).join("") + `</ul>` : `<p style="${S.muted};font-size:13px">尚無領土紀錄，開疆拓土來寫下第一筆</p>`}
+  </div>`;
+}
 
-  /* 開疆拓土 */
+function paint() {
+  view.innerHTML = heroHtml() + dashboardHtml() + questsHtml()
+    + buildSlotsHtml() + tagsHtml() + namedHtml() + logsHtml();
+  bindAll();
+  bindNamed();
+  focusMain();
+}
+
+/* ================= 互動綁定 ================= */
+function bindAll() {
+  /* 喚醒（無狀態時） */
+  document.getElementById("i-wake")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = "喚醒中…";
+    try {
+      const r = await post(`/islands/${userId}/expand`, { action: "complete_quest" }, { idempotent: true });
+      if (r.island) ST.status = r.island;
+      toast(r.reason || "島嶼已喚醒！");
+      paint();
+    } catch (err) {
+      toast(`喚醒失敗：${err.message}`);
+      btn.disabled = false; btn.textContent = "開疆拓土，喚醒島嶼";
+    }
+  });
+
+  /* 開疆拓土：樂觀更新 */
   view.querySelectorAll("[data-expand]").forEach(btn => {
     btn.onclick = async () => {
       const action = btn.dataset.expand;
-      btn.disabled = true;
+      const delta = Number(btn.dataset.delta) || 0;
+      const a = EXPAND_ACTIONS.find(x => x.key === action);
+      /* 快照以便回滾 */
+      const snap = JSON.parse(JSON.stringify(ST.status || {}));
+      /* 樂觀：先漲領土、進度條，卡片轉圈 */
+      if (ST.status) {
+        ST.status.territory = (Number(ST.status.territory) || 0) + delta;
+        ST.status.used_today = (Number(ST.status.used_today) || 0) + delta;
+        paint();
+        const fresh = view.querySelector(`[data-expand="${action}"]`);
+        if (fresh) { fresh.disabled = true; fresh.style.opacity = ".55"; }
+      } else {
+        btn.disabled = true;
+      }
+      announce(`${a?.label || "開疆"}中，領土擴張動畫播放`);
       try {
         const r = await post(`/islands/${userId}/expand`, { action }, { idempotent: true });
-        const isl = r.island || {};
-        toast(r.reason || `開疆成功！領土 ${isl.territory ?? ""}`);
-        renderOverview();
+        if (r.island) ST.status = r.island; /* 後端校正 */
+        toast(r.reason || `${a?.label || "開疆"}成功！`);
+        paint();
       } catch (e) {
+        ST.status = snap; /* 回滾 */
         toast(`開疆失敗：${e.message}`);
-        btn.disabled = false;
+        paint();
       }
     };
   });
-  document.getElementById("i-first-expand")?.addEventListener("click", async (e) => {
-    const btn = e.target; btn.disabled = true; btn.textContent = "喚醒中…";
-    try {
-      const r = await post(`/islands/${userId}/expand`, { action: "complete_quest" }, { idempotent: true });
-      toast(r.reason || "島嶼已喚醒！");
-      renderOverview();
-    } catch (err) {
-      toast(`喚醒失敗：${err.message}`); btn.disabled = false; btn.textContent = "開疆拓土，喚醒島嶼";
-    }
+
+  /* 建築島嶼切換 */
+  document.getElementById("i-build-island")?.addEventListener("change", paint);
+
+  /* 建造 / 升級：樂觀 */
+  view.querySelectorAll("[data-build]").forEach(btn => {
+    btn.onclick = async () => {
+      const btype = btn.dataset.build;
+      const islandId = btn.dataset.island;
+      const lv = Number(btn.dataset.lv) || 0;
+      btn.disabled = true;
+      const old = btn.textContent;
+      btn.textContent = "建造中…";
+      announce(`正在${lv === 0 ? "建造" : "升級"}${btype}`);
+      try {
+        const r = await post("/world/build", { island_id: islandId, btype }, { idempotent: true });
+        toast(r.reason || `${btype} Lv.${r.level} 完成！`);
+        /* 重整命名島嶼（建築等級） */
+        try {
+          const nr = await swr("world:islands", "/world/islands");
+          const d = nr.data;
+          ST.named = d?.islands || (Array.isArray(d) ? d : []);
+        } catch { /* 保持舊列表 */ }
+        paint();
+      } catch (e) {
+        toast(`建造失敗：${e.message}`);
+        btn.disabled = false; btn.textContent = old;
+      }
+    };
   });
 
-  /* 佔領標籤 */
-  document.getElementById("i-occupy-go")?.addEventListener("click", async () => {
+  /* 標籤雲佔領 */
+  view.querySelectorAll("[data-tag]").forEach(btn => {
+    btn.onclick = () => occupyTag(btn.dataset.tag, btn);
+  });
+  document.getElementById("i-occupy-go")?.addEventListener("click", () => {
     const tag = document.getElementById("i-tag-input").value.trim();
     if (!tag) { announce("請先輸入標籤"); return; }
-    const btn = document.getElementById("i-occupy-go");
-    btn.disabled = true;
-    try {
-      const r = await post(`/islands/${userId}/occupy`, { tag });
-      toast(r.reason || `已佔領「${tag}」`);
-      renderOverview();
-    } catch (e) {
-      toast(`佔領失敗：${e.message}`); btn.disabled = false;
-    }
+    occupyTag(tag, document.getElementById("i-occupy-go"));
   });
+}
 
-  /* 命名新島嶼（session_id 為必填，取書架最新戰役；無則用時間戳） */
+async function occupyTag(tag, btn) {
+  if (btn) btn.disabled = true;
+  /* 樂觀：先高亮 */
+  const tags = new Set(ST.status?.occupied_tags || []);
+  const had = tags.has(tag);
+  if (!had && ST.status) {
+    ST.status.occupied_tags = [...tags, tag];
+    paint();
+  }
+  try {
+    const r = await post(`/islands/${userId}/occupy`, { tag });
+    if (r.island) ST.status = r.island;
+    else if (ST.status && !had) ST.status.occupied_tags = [...new Set([...(ST.status.occupied_tags || []), tag])];
+    toast(r.reason || `已佔領「${tag}」🚩`);
+    paint();
+  } catch (e) {
+    /* 回滾樂觀高亮 */
+    if (ST.status && !had) ST.status.occupied_tags = [...tags];
+    toast(`佔領失敗：${e.message}`);
+    paint();
+  }
+}
+
+/* 命名新島嶼（session_id 必填，取書架最新戰役；無則時間戳） */
+function bindNamed() {
   document.getElementById("i-create-island")?.addEventListener("click", async () => {
     const name = document.getElementById("i-island-name").value.trim();
     const topic = document.getElementById("i-island-topic").value.trim();
@@ -223,288 +420,25 @@ async function renderOverview() {
     let session_id = `manual-${Date.now()}`;
     try {
       const hs = await swr("learn:sessions", "/learn/sessions").catch(() => null);
-      const first = hs?.data?.[0] || hs?.data?.items?.[0];
+      const arr = hs?.data?.sessions || hs?.data || [];
+      const first = Array.isArray(arr) ? arr[0] : arr?.items?.[0];
       const sid = first?.id || first?.sid || first?.session_id;
       if (sid) session_id = sid;
     } catch { /* 用預設值 */ }
     try {
-      const r = await post("/world/islands",
-        { name, topic, session_id }, { idempotent: true });
-      toast(`「${r.island?.name || name}」已在星海中浮現`);
-      renderOverview();
+      const r = await post("/world/islands", { name, topic, session_id }, { idempotent: true });
+      toast(`「${r.island?.name || name}」已在星海中浮現 🗺️`);
+      try {
+        const nr = await swr("world:islands", "/world/islands");
+        const d = nr.data;
+        ST.named = d?.islands || (Array.isArray(d) ? d : []);
+      } catch { /* 保持舊列表 */ }
+      paint();
     } catch (e) {
-      toast(`命名失敗：${e.message}`); btn.disabled = false; btn.textContent = "命名新島嶼";
+      toast(`命名失敗：${e.message}`);
+      btn.disabled = false; btn.textContent = "命名新島嶼";
     }
   });
-  focusMain();
-}
-
-/* ================= 探索 ================= */
-async function renderExplore() {
-  if (activeExplore) { renderExploreStory(); return; }
-  skeleton();
-  announce("載入探索區");
-  let zones = [];
-  try {
-    const r = await swr("world:zones", "/world/zones");
-    zones = r.data?.zones || (Array.isArray(r.data) ? r.data : []);
-  } catch (e) { console.warn("[island] zones failed:", e.code); }
-
-  let records = [];
-  try {
-    const r = await swr("world:explore-records", "/world/explore");
-    records = r.data?.explorations || (Array.isArray(r.data) ? r.data : []);
-  } catch (e) { console.warn("[island] explore records failed:", e.code); }
-
-  const zonesHtml = zones.length
-    ? `<div class="i-grid">` + zones.map(z =>
-        `<div class="card"><h3>${escapeHtml(z.name)}</h3>
-         <p style="${S.muted};font-size:13px">${escapeHtml(z.desc || "")}</p>
-         <p style="${S.muted};font-size:12px">${escapeHtml(String(z.stages ?? 0))} 個階段</p>
-         <button class="btn btn-primary" data-zone="${escapeHtml(z.name)}" style="margin-top:8px">開始探索</button></div>`
-      ).join("") + `</div>`
-    : `<div class="state-empty"><p>探索區域載入失敗</p>
-       <button class="btn btn-primary" id="i-zones-retry">重試</button></div>`;
-
-  const recordsHtml = `
-    <div class="card" style="margin-top:16px"><h3>我的探索紀錄</h3>
-    ${records.length ? `<ul style="${S.logs}">` + records.map(r =>
-      `<li style="${S.logRow}"><span>${escapeHtml(r.zone || "")} · 第 ${escapeHtml(String(r.stage ?? 0))} 階段` +
-        (r.status === "done" ? "（完成）" : r.status === "ongoing" ? "（進行中）" : "") + `</span>
-       <span style="${S.muted};font-size:12px">${escapeHtml((r.created_at || "").slice(0, 10))}</span>
-       ${r.status === "ongoing" ? `<button class="btn btn-ghost" data-resume="${escapeHtml(r.id)}">繼續</button>` : ""}</li>`
-    ).join("") + `</ul>` : `<p style="${S.muted}">尚無探索紀錄，選一個區域出發吧</p>`}
-    </div>`;
-
-  view.innerHTML = tabBar() + `<div role="tabpanel"><h2>探索區</h2>${zonesHtml}${recordsHtml}</div>`;
-  bindTabs(renderExplore);
-
-  document.getElementById("i-zones-retry")?.addEventListener("click", renderExplore);
-  view.querySelectorAll("[data-zone]").forEach(btn => {
-    btn.onclick = async () => {
-      const zone = btn.dataset.zone;
-      btn.disabled = true; btn.textContent = "啟程中…";
-      announce(`正在前往${zone}`);
-      try {
-        const r = await post("/world/explore", { zone }, { idempotent: true });
-        activeExplore = r;
-        toast(`抵達${zone}！`);
-        renderExploreStory();
-      } catch (e) {
-        toast(`啟程失敗：${e.message}`); btn.disabled = false; btn.textContent = "開始探索";
-      }
-    };
-  });
-  view.querySelectorAll("[data-resume]").forEach(btn => {
-    btn.onclick = async () => {
-      const eid = btn.dataset.resume;
-      btn.disabled = true;
-      try {
-        activeExplore = await get(`/world/explore/${eid}`);
-        renderExploreStory();
-      } catch (e) {
-        toast(`讀取探索進度失敗：${e.message}`); btn.disabled = false;
-      }
-    };
-  });
-  focusMain();
-}
-
-/* 探索劇情：顯示當前節點 → 選擇 → 推進 */
-function renderExploreStory() {
-  const ex = activeExplore;
-  const cur = ex.current || ex.next;
-  const stage = ex.stage ?? 0;
-  const total = ex.total_stages ?? ex.zone_info?.stages ?? 0;
-  const trail = ex.trail || [];
-
-  if (!cur) {
-    view.innerHTML = tabBar() + `<div role="tabpanel">
-      <div class="state-error"><p>探索劇情讀取異常</p>
-      <button class="btn btn-primary" id="i-explore-back">回探索區</button></div></div>`;
-    bindTabs(renderExplore);
-    document.getElementById("i-explore-back").onclick = () => { activeExplore = null; renderExplore(); };
-    return;
-  }
-
-  const choices = cur.choices || [];
-  view.innerHTML = tabBar() + `<div role="tabpanel">
-    <div class="card">
-      <p style="${S.muted};font-size:13px">${escapeHtml(ex.zone || "")} · 第 ${stage + 1} / ${total} 階段</p>
-      <h2>${escapeHtml(cur.title || "")}</h2>
-      <p>${escapeHtml(cur.text || "")}</p>
-      ${cur.hint ? `<p style="${S.hint}">💡 ${escapeHtml(cur.hint)}</p>` : ""}
-      <div style="${S.choices}" role="group" aria-label="劇情選擇">` +
-      choices.map((c, i) =>
-        `<button class="btn btn-ghost" style="${S.choice}" data-choice="${i}">${escapeHtml(c)}</button>`
-      ).join("") + `</div>
-      ${trail.length ? `<details style="margin-top:12px"><summary>已走過的路（${trail.length}）</summary><ul style="${S.logs}">` +
-        trail.map(t => `<li style="${S.logRow}"><span><strong>${escapeHtml(t.title || "")}</strong>：${escapeHtml(t.choice || "")}</span></li>`).join("") +
-        `</ul></details>` : ""}
-      <button class="btn btn-ghost" id="i-explore-back" style="margin-top:12px">暫停，先回探索區</button>
-    </div></div>`;
-  bindTabs(renderExplore);
-
-  view.querySelectorAll("[data-choice]").forEach(btn => {
-    btn.onclick = async () => {
-      const idx = +btn.dataset.choice;
-      view.querySelectorAll("[data-choice]").forEach(b => { b.disabled = true; });
-      btn.textContent = "抉擇中…";
-      announce("正在推進劇情");
-      try {
-        const r = await post(`/world/explore/${ex.id}/choose`, { choice_index: idx });
-        if (r.done) {
-          renderExploreDone(r);
-        } else {
-          activeExplore = { ...ex, ...r, current: r.next, stage: (ex.stage ?? 0) + 1 };
-          renderExploreStory();
-        }
-      } catch (e) {
-        toast(`推進失敗：${e.message}`);
-        renderExploreStory();
-      }
-    };
-  });
-  document.getElementById("i-explore-back").onclick = () => { activeExplore = null; renderExplore(); };
-  focusMain();
-}
-
-/* 探索完成：獎勵結算 */
-function renderExploreDone(result) {
-  const reward = result.reward || {};
-  const trail = result.trail || [];
-  activeExplore = null;
-  view.innerHTML = tabBar() + `<div role="tabpanel">
-    <div class="card">
-      <h2>🎉 探索完成！</h2>
-      <p>${escapeHtml(result.hint || "這趟旅程讓你成長了。")}</p>
-      ${reward.starsand ? `<p>獲得星砂：<strong>${escapeHtml(String(reward.starsand))}</strong></p>` : ""}
-      ${reward.pet ? `<p>🐾 寵物似乎也有所成長</p>` : ""}
-      ${trail.length ? `<h3>旅途回顧</h3><ul style="${S.logs}">` +
-        trail.map(t => `<li style="${S.logRow}"><span><strong>${escapeHtml(t.title || "")}</strong>：${escapeHtml(t.choice || "")}</span></li>`).join("") +
-        `</ul>` : ""}
-      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-        <button class="btn btn-primary" id="i-explore-again">再探索一次</button>
-        <button class="btn btn-ghost" id="i-explore-to-pet">看看寵物</button>
-      </div>
-    </div></div>`;
-  bindTabs(renderExplore);
-  announce("探索完成");
-  document.getElementById("i-explore-again").onclick = () => renderExplore();
-  document.getElementById("i-explore-to-pet").onclick = () => { activeTab = "pet"; renderPet(); };
-  focusMain();
-}
-
-/* ================= 建造 ================= */
-async function renderBuild() {
-  skeleton();
-  announce("載入建造");
-  let named = [];
-  try {
-    const r = await swr("world:islands", "/world/islands");
-    named = r.data?.islands || (Array.isArray(r.data) ? r.data : []);
-  } catch (e) { console.warn("[island] islands for build failed:", e.code); }
-
-  view.innerHTML = tabBar() + `<div role="tabpanel">
-    <div class="card">
-      <h2>建造 / 升級</h2>
-      <p style="${S.muted};font-size:13px">在你的島嶼上蓋建築。建築需要星砂（圖書館 50 起）。</p>
-      ${named.length ? `
-      <label for="i-build-island" style="${S.label}">選擇島嶼</label>
-      <select id="i-build-island" style="${S.select}">
-        ${named.map(it => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.name || "無名島")}</option>`).join("")}
-      </select>
-      <label for="i-build-type" style="${S.label}">建築類型</label>
-      <select id="i-build-type" style="${S.select}">
-        ${BUILD_TYPES.map(b => `<option value="${b}">${b}</option>`).join("")}
-      </select>
-      <button class="btn btn-primary" id="i-build-go" style="width:100%;margin-top:16px">開始建造</button>`
-      : `<div class="state-empty"><p>還沒有島嶼，先去總覽命名一座吧</p>
-         <button class="btn btn-primary" id="i-build-to-overview">去總覽</button></div>`}
-    </div></div>`;
-  bindTabs(renderBuild);
-
-  document.getElementById("i-build-to-overview")?.addEventListener("click", () => {
-    activeTab = "overview"; renderOverview();
-  });
-  document.getElementById("i-build-go")?.addEventListener("click", async () => {
-    const island_id = document.getElementById("i-build-island").value;
-    const btype = document.getElementById("i-build-type").value;
-    const btn = document.getElementById("i-build-go");
-    btn.disabled = true; btn.textContent = "建造中…";
-    announce(`正在建造${btype}`);
-    try {
-      const r = await post("/world/build", { island_id, btype }, { idempotent: true });
-      toast(r.reason || r.message || `${btype}建造完成！`);
-      renderBuild();
-    } catch (e) {
-      toast(`建造失敗：${e.message}`);
-      btn.disabled = false; btn.textContent = "開始建造";
-    }
-  });
-  focusMain();
-}
-
-/* ================= 寵物 ================= */
-async function renderPet() {
-  skeleton();
-  announce("載入寵物");
-  let pet = null, petErr = null;
-  try {
-    const r = await swr("world:pet", "/world/pet");
-    pet = r.data?.pet ?? r.data ?? null;
-    if (pet && typeof pet !== "object") pet = null;
-  } catch (e) {
-    petErr = e;
-    console.warn("[island] pet failed:", e.code);
-  }
-
-  const petHtml = pet ? `
-    <div class="card i-pet">
-      <h2>🐾 ${escapeHtml(pet.name || "小夥伴")}</h2>
-      <p style="${S.muted}">種類：${escapeHtml(pet.species || "未知")}
-        · Lv.${escapeHtml(String(pet.level ?? 1))}
-        · 經驗 ${escapeHtml(String(pet.exp ?? 0))}</p>
-      ${pet.mood != null ? `<p style="${S.muted}">心情值：${escapeHtml(String(pet.mood))}</p>` : ""}
-      <p style="${S.muted};font-size:13px">改名請到<a href="pet.html">寵物小屋</a></p>
-    </div>` : petErr ? `
-    <div class="state-error"><p>寵物讀取失敗：${escapeHtml(petErr.message)}</p>
-      <button class="btn btn-primary" id="i-pet-retry">重試</button></div>` : `
-    <div class="card i-pet">
-      <h2>寵物蛋</h2>
-      <p style="${S.muted}">你的寵物蛋還沒孵化。給它取個名字，迎接新夥伴吧！</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-        <input id="i-pet-name" type="text" placeholder="寵物名字（必填）" aria-label="寵物名字"
-          maxlength="20" style="flex:1;min-width:140px;${S.input}">
-        <input id="i-pet-species" type="text" placeholder="種類（選填）" aria-label="寵物種類"
-          maxlength="20" style="flex:1;min-width:110px;${S.input}">
-        <button class="btn btn-primary" id="i-hatch">孵化</button>
-      </div>
-    </div>`;
-
-  view.innerHTML = tabBar() + `<div role="tabpanel">${petHtml}</div>`;
-  bindTabs(renderPet);
-
-  document.getElementById("i-pet-retry")?.addEventListener("click", renderPet);
-  document.getElementById("i-hatch")?.addEventListener("click", async (e) => {
-    const btn = e.target;
-    const name = document.getElementById("i-pet-name").value.trim();
-    if (!name) { announce("請先給寵物取個名字"); document.getElementById("i-pet-name").focus(); return; }
-    const species = document.getElementById("i-pet-species").value.trim();
-    btn.disabled = true; btn.textContent = "孵化中…";
-    announce("寵物孵化中");
-    try {
-      const body = { name };
-      if (species) body.species = species;
-      const r = await post("/world/pet/hatch", body, { idempotent: true });
-      toast(`孵化成功！${r.pet?.name || name} 誕生了 🎉`);
-      renderPet();
-    } catch (err) {
-      toast(`孵化失敗：${err.message}`);
-      btn.disabled = false; btn.textContent = "孵化";
-    }
-  });
-  focusMain();
 }
 
 /* ---- 啟動 ---- */
@@ -526,5 +460,6 @@ async function renderPet() {
     errorView(`載入失敗：${e.message}`, init);
     return;
   }
-  renderOverview();
+  await loadAll();
+  paint();
 })();

@@ -1,5 +1,6 @@
-/* 費曼戰役：開戰 → 費曼解釋(AI糾錯) → 辯論攻防 → 穿插測驗 → 授勳
- * 完整學習閉環，全鏈路調真實後端，零假數據。
+/* 費曼戰役：開戰 → 穿插測驗(摸底) → 費曼解釋(AI糾錯) → 辯論攻防 → 授勳
+ * 後端強制順序：quiz → feynman → debate → finish（先測驗找出弱點，再解釋深化）
+ * 全鏈路調真實後端，零假數據。
  * 生命週期：init → loading → api → render / empty / error
  */
 import { swr, post, get } from "../core/api.js";
@@ -25,7 +26,7 @@ function escapeHtml(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function phaseBar(step) {
-  const phases = ["開戰", "費曼解釋", "辯論攻防", "穿插測驗", "授勳"];
+  const phases = ["開戰", "穿插測驗", "費曼解釋", "辯論攻防", "授勳"];
   return `<div class="q-phases" role="list" aria-label="戰役進度">` +
     phases.map((p, i) =>
       `<span role="listitem" class="q-phase ${i < step ? "done" : i === step ? "now" : ""}">${p}</span>`
@@ -38,7 +39,8 @@ async function renderLanding() {
   let history = [];
   try {
     const r = await swr("learn:sessions", "/learn/sessions");
-    history = r.data || r.items || [];
+    history = r.data?.sessions || r.data || [];
+    if (!Array.isArray(history)) history = [];
   } catch (e) {
     console.warn("[quiz] history failed:", e.code);
   }
@@ -55,7 +57,7 @@ async function renderLanding() {
   view.innerHTML = `<div class="q-landing">
     <img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="試煉徽章">
     <h2>費曼戰役</h2>
-    <p>選一個主題，用自己的話解釋它。<br>AI 會糾錯、跟你辯論、再出題驗收——完整走完才算掌握。</p>
+    <p>選一個主題，先測驗摸底，再用自己的話解釋。<br>AI 會糾錯、跟你辯論——完整走完才算掌握。</p>
     <div style="display:flex;gap:8px;max-width:520px;margin:0 auto">
       <input id="q-question" type="text" placeholder="例如：為什麼天空是藍色的？"
         aria-label="學習主題"
@@ -74,10 +76,10 @@ async function renderLanding() {
   };
 }
 
-/* ---- Phase 0: 開戰 ---- */
+/* ---- Phase 0: 開戰 → 直接出題（後端要求先 quiz） ---- */
 async function startBattle(question, hypothesis) {
   skeleton();
-  announce("開戰中");
+  announce("開戰中，AI 正在出題");
   try {
     const body = { question };
     if (hypothesis) body.hypothesis = hypothesis;
@@ -85,13 +87,95 @@ async function startBattle(question, hypothesis) {
     const sid = session.id || session.sid || session.session_id;
     if (!sid) throw new Error("後端未回傳會話 ID");
     await post(`/learn/sessions/${sid}/events`, { kind: "battle_start", payload: { question } }).catch(() => {});
-    renderFeynman(sid, question, 1);
+    startQuiz(sid, question, 1);
   } catch (e) {
     errorView(`開戰失敗：${e.message}（${e.code || "未知"}）`, () => startBattle(question, hypothesis));
   }
 }
 
-/* ---- Phase 1: 費曼解釋 → AI 糾錯 ---- */
+/* ---- Phase 1: 穿插測驗（摸底） ---- */
+async function startQuiz(sid, question, step) {
+  skeleton();
+  announce("AI 正在出題（摸底測驗）");
+  try {
+    // B1 冪等：如果已出題，直接取現有題目
+    let questions = [];
+    try {
+      const detail = await get(`/learn/sessions/${sid}`);
+      questions = detail.quiz?.questions || detail.questions || [];
+    } catch { /* 拿不到就重新出題 */ }
+    if (!questions.length) {
+      const quiz = await post(`/learn/sessions/${sid}/quiz`, {});
+      questions = quiz.questions || quiz.items || [];
+    }
+    if (!questions.length) {
+      errorView("AI 這次沒有出題，請換個主題再試", () => renderLanding());
+      return;
+    }
+    renderQuiz(sid, question, questions, step);
+  } catch (e) {
+    // 逾時但可能已生成：提示用戶檢查
+    if (e.code === "TIMEOUT") {
+      errorView("出題逾時（AI 生成較慢），請按重試看看題目是否已生成", () => startQuiz(sid, question, step));
+    } else {
+      errorView(`出題失敗：${e.message}`, () => startQuiz(sid, question, step));
+    }
+  }
+}
+
+function renderQuiz(sid, question, questions, step) {
+  const answers = new Array(questions.length).fill(null);
+  view.innerHTML = `${phaseBar(step)}
+    <div class="q-quiz-intro card">
+      <h2>摸底測驗</h2>
+      <p style="color:var(--muted)">先測測你目前的程度，AI 會針對你答錯的地方加強。</p>
+    </div>
+    <div id="q-quiz">` + questions.map((q, i) => {
+    const opts = q.options || q.choices || [];
+    return `<div class="card q-qcard"><h3>第 ${i + 1} 題 · ${escapeHtml(q.question || q.text || "")}</h3>` +
+      opts.map((opt, j) =>
+        `<button class="q-opt" data-q="${i}" data-o="${j}" aria-pressed="false">${escapeHtml(String(opt))}</button>`
+      ).join("") + `</div>`;
+  }).join("") + `<button class="btn btn-primary" id="q-submit" style="width:100%">交卷</button></div>`;
+
+  view.querySelectorAll(".q-opt").forEach(btn => {
+    btn.onclick = () => {
+      const qi = +btn.dataset.q;
+      view.querySelectorAll(`.q-opt[data-q="${qi}"]`).forEach(b => b.setAttribute("aria-pressed", "false"));
+      btn.setAttribute("aria-pressed", "true");
+      answers[qi] = +btn.dataset.o;
+    };
+  });
+
+  document.getElementById("q-submit").onclick = async () => {
+    if (answers.some(a => a === null)) { announce("還有題目沒作答"); return; }
+    skeleton();
+    try {
+      const result = await post(`/learn/sessions/${sid}/quiz/answers`, { answers });
+      renderQuizResult(sid, question, result, questions.length, step);
+    } catch (e) {
+      errorView(`交卷失敗：${e.message}`, () => renderQuiz(sid, question, questions, step));
+    }
+  };
+  focusMain();
+}
+
+function renderQuizResult(sid, question, result, total, step) {
+  const score = result.score ?? result.correct ?? 0;
+  const detail = result.detail || result.feedback || result.message || "";
+  view.innerHTML = `${phaseBar(step)}
+    <div class="q-result card">
+      <h2>摸底完成</h2>
+      <p class="q-score">${score} / ${total}</p>
+      ${detail ? `<p style="color:var(--muted)">${escapeHtml(detail)}</p>` : ""}
+      <p style="color:var(--muted)">接下來用自己的話解釋這個主題，AI 會幫你糾錯。</p>
+      <button class="btn btn-primary" id="q-to-feynman" style="width:100%;margin-top:12px">進入費曼解釋</button>
+    </div>`;
+  document.getElementById("q-to-feynman").onclick = () => renderFeynman(sid, question, step + 1);
+  focusMain();
+}
+
+/* ---- Phase 2: 費曼解釋 → AI 糾錯 ---- */
 function renderFeynman(sid, question, step) {
   view.innerHTML = `${phaseBar(step)}
     <div class="card q-feynman">
@@ -112,7 +196,11 @@ function renderFeynman(sid, question, step) {
       const r = await post(`/learn/sessions/${sid}/feynman`, { explanation });
       renderCorrection(sid, question, explanation, r, step);
     } catch (e) {
-      errorView(`AI 糾錯失敗：${e.message}`, () => renderFeynman(sid, question, step));
+      if (e.code === "HTTP_400" && e.message.includes("測驗")) {
+        errorView("請先完成摸底測驗", () => startQuiz(sid, question, 1));
+      } else {
+        errorView(`AI 糾錯失敗：${e.message}`, () => renderFeynman(sid, question, step));
+      }
     }
   };
   focusMain();
@@ -136,12 +224,12 @@ function renderCorrection(sid, question, explanation, correction, step) {
   focusMain();
 }
 
-/* ---- Phase 2: 辯論攻防（R1 → R2 → R3） ---- */
+/* ---- Phase 3: 辯論攻防（R1 → R2 → R3） ---- */
 function renderDebateStart(sid, question, explanation, step) {
   view.innerHTML = `${phaseBar(step)}
     <div class="card q-debate">
-      <h2>辯論攻防 · 第一回合</h2>
-      <p style="color:var(--muted)">AI 會針對你的解釋提出質疑。用 ≥15 字回應，反駁或補強都可以。</p>
+      <h2>辯論攻防</h2>
+      <p style="color:var(--muted)">AI 會針對你的解釋提出質疑。用自己的話回應（≥15 字），反駁或補強都可以。<br>小提示：用白話、舉例子，避免背書式的正式語言。</p>
       <button class="btn btn-primary" id="q-debate-go" style="width:100%">開戰</button>
     </div>`;
   document.getElementById("q-debate-go").onclick = async () => {
@@ -151,7 +239,15 @@ function renderDebateStart(sid, question, explanation, step) {
       const r = await post(`/learn/sessions/${sid}/debate/start`, { explanation });
       renderDebateRound(sid, question, r, 1, step);
     } catch (e) {
-      errorView(`辯論開戰失敗：${e.message}`, () => renderDebateStart(sid, question, explanation, step));
+      if (e.code === "TIMEOUT") {
+        errorView("辯論開戰逾時，可能已開戰。按重試繼續。", () => renderDebateStart(sid, question, explanation, step));
+      } else if (e.code === "HTTP_400" && e.message.includes("已經開戰")) {
+        // B2 冪等：已開戰則直接進入第一回合（用空質疑佔位，用戶可申訴重拿）
+        announce("辯論已開戰，嘗試繼續");
+        renderDebateRound(sid, question, { challenge: "（上一輪質疑逾時未顯示，請按申訴重判獲取）" }, 1, step);
+      } else {
+        errorView(`辯論開戰失敗：${e.message}`, () => renderDebateStart(sid, question, explanation, step));
+      }
     }
   };
   focusMain();
@@ -165,12 +261,12 @@ function renderDebateRound(sid, question, round, roundNum, step) {
       <h2>辯論攻防 · 第 ${roundNum} / ${total} 回合</h2>
       <div class="q-challenge"><strong>AI 質疑：</strong>${escapeHtml(challenge)}</div>
       ${roundNum > 1 && round.feedback ? `<div class="q-feedback"><strong>上一輪點評：</strong>${escapeHtml(round.feedback)}</div>` : ""}
-      <textarea id="q-rebut" rows="5" placeholder="寫下你的反駁或補強（≥15 字）…"
+      <textarea id="q-rebut" rows="5" placeholder="用自己的話反駁或補強（≥15 字）…"
         aria-label="辯論回應" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;font-size:14px;margin-top:12px"></textarea>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="btn btn-primary" id="q-respond" style="flex:1">送出回應</button>
         <button class="btn btn-ghost" id="q-appeal">申訴重判</button>
-        <button class="btn btn-ghost" id="q-concede">暫停挑戰</button>
+        <button class="btn btn-ghost" id="q-concede">跳過辯論</button>
       </div>
     </div>`;
 
@@ -199,10 +295,10 @@ function renderDebateRound(sid, question, round, roundNum, step) {
   };
   document.getElementById("q-concede").onclick = async () => {
     try {
-      await post(`/learn/sessions/${sid}/debate/concede`, {});
-      announce("已暫停辯論，直接進入測驗");
-      startQuiz(sid, question, step + 1);
-    } catch (e) { announce(`暫停失敗：${e.message}`); }
+      await post(`/learn/sessions/${sid}/debate/concede`, {}).catch(() => {});
+      announce("跳過辯論，進入授勳");
+      renderFinish(sid, question, step + 1);
+    } catch (e) { announce(`跳過失敗：${e.message}`); }
   };
   focusMain();
 }
@@ -213,71 +309,18 @@ function renderDebateDone(sid, question, result, step) {
     <div class="card q-debate-done">
       <h2>辯論結束</h2>
       <div class="q-feedback">${escapeHtml(verdict)}</div>
-      <button class="btn btn-primary" id="q-to-quiz" style="width:100%;margin-top:16px">進入穿插測驗</button>
+      <button class="btn btn-primary" id="q-to-finish" style="width:100%;margin-top:16px">授勳</button>
     </div>`;
-  document.getElementById("q-to-quiz").onclick = () => startQuiz(sid, question, step + 1);
+  document.getElementById("q-to-finish").onclick = () => renderFinish(sid, question, step + 1);
   focusMain();
 }
 
-/* ---- Phase 3: 穿插測驗 ---- */
-async function startQuiz(sid, question, step) {
-  skeleton();
-  announce("AI 正在出題");
-  try {
-    const quiz = await post(`/learn/sessions/${sid}/quiz`, {});
-    const questions = quiz.questions || quiz.items || [];
-    if (!questions.length) {
-      errorView("AI 這次沒有出題", () => startQuiz(sid, question, step));
-      return;
-    }
-    renderQuiz(sid, question, questions, step);
-  } catch (e) {
-    errorView(`出題失敗：${e.message}`, () => startQuiz(sid, question, step));
-  }
-}
-
-function renderQuiz(sid, question, questions, step) {
-  const answers = new Array(questions.length).fill(null);
-  view.innerHTML = `${phaseBar(step)}
-    <div id="q-quiz">` + questions.map((q, i) => {
-    const opts = q.options || q.choices || [];
-    return `<div class="card q-qcard"><h3>第 ${i + 1} 題 · ${escapeHtml(q.question || q.text || "")}</h3>` +
-      opts.map((opt, j) =>
-        `<button class="q-opt" data-q="${i}" data-o="${j}" aria-pressed="false">${escapeHtml(String(opt))}</button>`
-      ).join("") + `</div>`;
-  }).join("") + `<button class="btn btn-primary" id="q-submit" style="width:100%">交卷</button></div>`;
-
-  view.querySelectorAll(".q-opt").forEach(btn => {
-    btn.onclick = () => {
-      const qi = +btn.dataset.q;
-      view.querySelectorAll(`.q-opt[data-q="${qi}"]`).forEach(b => b.setAttribute("aria-pressed", "false"));
-      btn.setAttribute("aria-pressed", "true");
-      answers[qi] = +btn.dataset.o;
-    };
-  });
-
-  document.getElementById("q-submit").onclick = async () => {
-    if (answers.some(a => a === null)) { announce("還有題目沒作答"); return; }
-    skeleton();
-    try {
-      const result = await post(`/learn/sessions/${sid}/quiz/answers`, { answers });
-      renderResult(sid, question, result, questions.length, step);
-    } catch (e) {
-      errorView(`交卷失敗：${e.message}`, () => renderQuiz(sid, question, questions, step));
-    }
-  };
-  focusMain();
-}
-
-/* ---- Phase 4: 結算 + 授勳 ---- */
-async function renderResult(sid, question, result, total, step) {
-  const score = result.score ?? result.correct ?? 0;
-  const detail = result.detail || result.feedback || result.message || "";
+/* ---- Phase 4: 授勳 ---- */
+function renderFinish(sid, question, step) {
   view.innerHTML = `${phaseBar(step)}
     <div class="q-result">
-      <h2>試煉完成</h2>
-      <p class="q-score">${score} / ${total}</p>
-      ${detail ? `<p style="color:var(--muted)">${escapeHtml(detail)}</p>` : ""}
+      <h2>戰役完成</h2>
+      <p style="color:var(--muted)">為這場戰役命名一枚技能章，它將成為你的武器。</p>
       <input id="q-badge" type="text" placeholder="技能章名稱（選填，預設自動命名）" aria-label="技能章名稱"
         style="max-width:400px;width:100%;margin:12px auto 0;padding:10px 16px;border:1px solid var(--line);border-radius:var(--r-full);font-size:13px;display:block">
       <div style="margin-top:12px">
@@ -290,24 +333,32 @@ async function renderResult(sid, question, result, total, step) {
   document.getElementById("q-finish").onclick = async () => {
     const badgeName = document.getElementById("q-badge").value.trim()
       || `戰役·${question.slice(0, 12)}·${new Date().toISOString().slice(0, 10)}`;
+    skeleton();
+    announce("授勳中，AI 正在鍛造技能章");
     try {
       const fin = await post(`/learn/sessions/${sid}/finish`, { badge_name: badgeName });
       const reward = fin.stardust ?? fin.reward ?? 0;
-      const badge = fin.badge_name || badgeName;
+      const badge = fin.badge?.name || fin.badge_name || badgeName;
       announce(`授勳完成，獲得技能章「${badge}」與 ${reward} 星砂`);
-      view.querySelector(".q-result").insertAdjacentHTML("beforeend",
-        `<div class="card" style="margin-top:16px">
-           <h3>🏅 ${escapeHtml(badge)}</h3>
+      view.innerHTML = `${phaseBar(step)}
+        <div class="card" style="text-align:center">
+           <h2>🏅 ${escapeHtml(badge)}</h2>
            <p>獲得星砂：<strong>${reward}</strong></p>
+           <p style="color:var(--muted)">已加入你的複習計畫，明天會提醒你複習。</p>
            <div style="margin-top:12px">
              <a class="btn btn-primary" href="bookshelf.html">去書架看看</a>
+             <a class="btn btn-ghost" href="review.html" style="margin-left:8px">複習計畫</a>
              <button class="btn btn-ghost" id="q-again2" style="margin-left:8px">再戰一場</button>
            </div>
-         </div>`);
-      document.getElementById("q-finish").disabled = true;
+         </div>`;
       document.getElementById("q-again2").onclick = () => renderLanding();
+      focusMain();
     } catch (e) {
-      announce(`授勳失敗：${e.message}`);
+      if (e.code === "TIMEOUT") {
+        errorView("授勳逾時（AI 鍛造較慢），請稍後到書架查看技能章是否已生成", () => renderLanding());
+      } else {
+        errorView(`授勳失敗：${e.message}`, () => renderFinish(sid, question, step));
+      }
     }
   };
   focusMain();
