@@ -253,6 +253,54 @@ CREATE TABLE IF NOT EXISTS duel_answers (
     correct INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- 費曼戰役：學習會話
+CREATE TABLE IF NOT EXISTS learn_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    grade_band TEXT NOT NULL DEFAULT '高中',
+    topic TEXT NOT NULL DEFAULT '',
+    depth_level INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'asking',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+);
+
+-- 學習事件（假設/內容/測驗/解釋/AI回饋/授勳）
+CREATE TABLE IF NOT EXISTS learn_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES learn_sessions(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 主題掌握度（BKT-lite：mastery 為掌握機率估計）
+CREATE TABLE IF NOT EXISTS topic_mastery (
+    user_id TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    mastery REAL NOT NULL DEFAULT 0.0,
+    sessions_count INTEGER NOT NULL DEFAULT 0,
+    last_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, topic)
+);
+
+-- 技能章（= 武器）
+CREATE TABLE IF NOT EXISTS skill_badges (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    topic TEXT NOT NULL DEFAULT '',
+    depth INTEGER NOT NULL DEFAULT 1,
+    attack INTEGER NOT NULL DEFAULT 10,
+    defense INTEGER NOT NULL DEFAULT 10,
+    rarity TEXT NOT NULL DEFAULT '普通',
+    ai_comment TEXT NOT NULL DEFAULT '',
+    bond REAL NOT NULL DEFAULT 0.0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 SCHEMA_PG = """
@@ -380,6 +428,54 @@ CREATE TABLE IF NOT EXISTS duel_answers (
     round INTEGER NOT NULL,
     choice_index INTEGER NOT NULL,
     correct INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 費曼戰役：學習會話
+CREATE TABLE IF NOT EXISTS learn_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    grade_band TEXT NOT NULL DEFAULT '高中',
+    topic TEXT NOT NULL DEFAULT '',
+    depth_level INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'asking',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+-- 學習事件（假設/內容/測驗/解釋/AI回饋/授勳）
+CREATE TABLE IF NOT EXISTS learn_events (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES learn_sessions(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 主題掌握度（BKT-lite：mastery 為掌握機率估計）
+CREATE TABLE IF NOT EXISTS topic_mastery (
+    user_id TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    mastery REAL NOT NULL DEFAULT 0.0,
+    sessions_count INTEGER NOT NULL DEFAULT 0,
+    last_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, topic)
+);
+
+-- 技能章（= 武器）
+CREATE TABLE IF NOT EXISTS skill_badges (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    topic TEXT NOT NULL DEFAULT '',
+    depth INTEGER NOT NULL DEFAULT 1,
+    attack INTEGER NOT NULL DEFAULT 10,
+    defense INTEGER NOT NULL DEFAULT 10,
+    rarity TEXT NOT NULL DEFAULT '普通',
+    ai_comment TEXT NOT NULL DEFAULT '',
+    bond REAL NOT NULL DEFAULT 0.0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """
