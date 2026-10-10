@@ -76,23 +76,57 @@ def test_change_password(client):
     assert login.status_code == 200
 
 
-def test_forgot_password(client):
-    _reg(client, name="健忘者", email="forget@x.yy")
-    # Email 不符
+def test_security_question_flow(client):
+    # 註冊時設定安全問題
+    r = client.post("/api/v1/auth/register",
+                    json={"name": "健忘者", "password": "pass1234",
+                          "sec_question": "讓你最心動的一個名字是？", "sec_answer": "小瑤"})
+    assert r.status_code == 201, r.text
+    assert r.json()["has_sec_qa"] is True
+    # 查詢安全問題
+    q = client.get("/api/v1/auth/security-question", params={"name": "健忘者"})
+    assert q.status_code == 200
+    assert q.json()["question"] == "讓你最心動的一個名字是？"
+    # 答案錯誤
     bad = client.post("/api/v1/auth/forgot",
-                      json={"name": "健忘者", "email": "wrong@x.yy", "new_password": "newpass2"})
+                      json={"name": "健忘者", "answer": "阿哲", "new_password": "newpass2"})
     assert bad.status_code == 400
-    # 成功重設
+    # 答案正確（大小寫/空白寬容）
     ok = client.post("/api/v1/auth/forgot",
-                     json={"name": "健忘者", "email": "forget@x.yy", "new_password": "newpass2"})
+                     json={"name": "健忘者", "answer": "  小瑤 ", "new_password": "newpass2"})
     assert ok.status_code == 200, ok.text
     login = client.post("/api/v1/auth/login", json={"name": "健忘者", "password": "newpass2"})
     assert login.status_code == 200
-    # 沒填 Email 的帳號不能用忘記密碼
-    _reg(client, name="無信者")
-    noemail = client.post("/api/v1/auth/forgot",
-                          json={"name": "無信者", "email": "", "new_password": "newpass3"})
-    assert noemail.status_code == 400
+    # 沒設定安全問題的帳號
+    _reg(client, name="無問者")
+    noq = client.get("/api/v1/auth/security-question", params={"name": "無問者"})
+    assert noq.status_code == 404
+    noq2 = client.post("/api/v1/auth/forgot",
+                       json={"name": "無問者", "answer": "x", "new_password": "newpass3"})
+    assert noq2.status_code == 400
+    # 登入後可更新安全問題
+    token = login.json()["token"]
+    h = {"Authorization": f"Bearer {token}"}
+    upd = client.put("/api/v1/auth/security-qa",
+                     json={"sec_question": "你最喜歡的食物是？", "sec_answer": "拉麵"},
+                     headers=h)
+    assert upd.status_code == 200, upd.text
+    q2 = client.get("/api/v1/auth/security-question", params={"name": "健忘者"})
+    assert q2.json()["question"] == "你最喜歡的食物是？"
+
+
+def test_forgot_rate_limit(client):
+    client.post("/api/v1/auth/register",
+                json={"name": "被猜者", "password": "pass1234",
+                      "sec_question": "Q？", "sec_answer": "secret"})
+    for _ in range(5):
+        r = client.post("/api/v1/auth/forgot",
+                        json={"name": "被猜者", "answer": "wrong", "new_password": "newpass9"})
+        assert r.status_code == 400
+    locked = client.post("/api/v1/auth/forgot",
+                         json={"name": "被猜者", "answer": "wrong", "new_password": "newpass9"})
+    assert locked.status_code == 400
+    assert "15 分鐘" in locked.json()["detail"]
 
 
 def test_export(client):
@@ -128,4 +162,4 @@ def test_delete_account(client):
     # token 失效、帳號消失
     assert client.get("/api/v1/auth/me", headers=h).status_code == 401
     login = client.post("/api/v1/auth/login", json={"name": "刪除者", "password": "pass1234"})
-    assert login.status_code == 400
+    assert login.status_code == 401  # 帳號已刪除：登入失敗與其他登入失敗同為 401

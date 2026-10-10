@@ -63,7 +63,9 @@ app.add_middleware(
 class AuthIn(BaseModel):
     name: str = Field(description="暱稱（1–20 字，唯一）")
     password: str = Field(description="密碼（至少 4 字元）")
-    email: str = Field(default="", description="Email（選填，用於忘記密碼時重設）")
+    email: str = Field(default="", description="Email（選填）")
+    sec_question: str = Field(default="", description="安全問題（選填，忘記密碼時用）")
+    sec_answer: str = Field(default="", description="安全問題答案（選填）")
 
 
 def _bearer_token(request: Request) -> str:
@@ -92,7 +94,8 @@ def _own_island(request: Request, user_id: str) -> dict:
 @app.post("/api/v1/auth/register", summary="註冊帳號", status_code=201)
 def auth_register(body: AuthIn):
     try:
-        result = auth_mod.register(body.name, body.password, body.email)
+        result = auth_mod.register(body.name, body.password, body.email,
+                                   body.sec_question, body.sec_answer)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "token": result["token"],
@@ -388,8 +391,13 @@ class ChangePwIn(BaseModel):
 
 class ForgotIn(BaseModel):
     name: str = Field(description="暱稱")
-    email: str = Field(description="註冊時填寫的 Email")
+    answer: str = Field(description="安全問題的答案")
     new_password: str = Field(description="新密碼（至少 4 字元）")
+
+
+class SecQaIn(BaseModel):
+    sec_question: str = Field(description="安全問題")
+    sec_answer: str = Field(description="安全問題答案")
 
 
 class DeleteIn(BaseModel):
@@ -418,13 +426,34 @@ def auth_change_password(body: ChangePwIn, request: Request):
     return {"ok": True, "reason": "密碼已更新，其他裝置的登入已失效，請用新密碼重新登入。"}
 
 
-@app.post("/api/v1/auth/forgot", summary="忘記密碼（暱稱＋Email 重設）")
+@app.get("/api/v1/auth/security-question", summary="查詢安全問題")
+def auth_sec_question(name: str):
+    try:
+        q = auth_mod.get_security_question(name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not q:
+        raise HTTPException(404, "找不到這個暱稱，或此帳號尚未設定安全問題。")
+    return {"ok": True, "question": q}
+
+
+@app.post("/api/v1/auth/forgot", summary="忘記密碼（安全問題重設）")
 def auth_forgot(body: ForgotIn):
     try:
-        auth_mod.reset_password_by_email(body.name, body.email, body.new_password)
+        auth_mod.reset_password_by_answer(body.name, body.answer, body.new_password)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "reason": "密碼已重設，請用新密碼登入。"}
+
+
+@app.put("/api/v1/auth/security-qa", summary="設定安全問題")
+def auth_set_secqa(body: SecQaIn, request: Request):
+    user = _current_user(request)
+    try:
+        q = auth_mod.set_security_qa(user["id"], body.sec_question, body.sec_answer)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "question": q, "reason": "安全問題已更新。"}
 
 
 @app.delete("/api/v1/auth/me", summary="刪除帳號（不可復原）")
