@@ -16,11 +16,39 @@ import json
 import os
 import re
 import sqlite3
+import threading
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 _QMARK = re.compile(r"\?")
+
+# 連線池：避免每次請求新建連線（Postgres TCP+TLS 握手是 2-5 秒延遲的主因）
+_pg_pool = None
+_pg_pool_lock = threading.Lock()
+_sqlite_local = threading.local()
+
+
+def _get_pg_pool():
+    """Postgres 連線池（懶載入，執行緒安全）。"""
+    global _pg_pool
+    if _pg_pool is None:
+        with _pg_pool_lock:
+            if _pg_pool is None:
+                try:
+                    from psycopg_pool import ConnectionPool
+                    from psycopg.rows import dict_row
+                    _pg_pool = ConnectionPool(
+                        database_url(),
+                        min_size=2,
+                        max_size=10,
+                        kwargs={"row_factory": dict_row},
+                        timeout=30,
+                    )
+                except ImportError:
+                    # 沒有 psycopg_pool 就退回直連（開發環境）
+                    _pg_pool = False
+    return _pg_pool if _pg_pool else None
 
 
 def database_url() -> str:
@@ -101,17 +129,60 @@ def _db_path() -> Path:
 
 def get_conn() -> Conn:
     if is_postgres():
+        pool = _get_pg_pool()
+        if pool:
+            # 從池子拿連線（用完自動歸還）
+            return _PooledConn(pool)
         from psycopg import connect as pg_connect
         from psycopg.rows import dict_row
 
         raw = pg_connect(database_url(), row_factory=dict_row)
         return Conn(raw, True)
-    path = _db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    raw = sqlite3.connect(path)
-    raw.row_factory = sqlite3.Row
-    raw.execute("PRAGMA foreign_keys = ON")
-    return Conn(raw, False)
+    # SQLite：執行緒區域單連線（避免重複開檔）
+    conn = getattr(_sqlite_local, "conn", None)
+    if conn is None:
+        path = _db_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        raw = sqlite3.connect(path, check_same_thread=False)
+        raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA foreign_keys = ON")
+        # 效能：WAL 模式 + 同步放寬（單機部署可接受）
+        try:
+            raw.execute("PRAGMA journal_mode = WAL")
+            raw.execute("PRAGMA synchronous = NORMAL")
+        except Exception:
+            pass
+        conn = Conn(raw, False)
+        # 標記為共享連線，__exit__ 時不 commit（由呼叫方控制）
+        conn._shared = True
+        _sqlite_local.conn = conn
+    return conn
+
+
+class _PooledConn(Conn):
+    """從 psycopg_pool 拿的連線：with 離開時歸還池子而非關閉。"""
+
+    def __init__(self, pool):
+        self._pool = pool
+        self._ctx = None
+        self._raw = None
+        self._pg = True
+
+    def __enter__(self) -> "Conn":
+        self._ctx = self._pool.connection()
+        self._raw = self._ctx.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if exc_type is None:
+                self._raw.commit()
+            else:
+                self._raw.rollback()
+        finally:
+            self._ctx.__exit__(exc_type, exc, tb)
+            self._raw = None
+        return False
 
 
 def insert_id(conn: Conn, sql: str, params=()) -> int:
