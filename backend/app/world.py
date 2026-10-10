@@ -153,18 +153,32 @@ def build(user_id: str, island_id: str, btype: str) -> dict:
 
 # ---------------- 交易市集 ----------------
 
-def list_market(status: str = "open", limit: int = 50) -> list[dict]:
+def list_market(status: str = "open", limit: int = 50,
+                category: str = "") -> list[dict]:
+    """交易市集。category 可按武器主分類過濾（攻擊型/防禦型/輔助型/經濟型）。"""
     with db.get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM market_listings WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-            (status, limit)).fetchall()
-    return [dict(r) for r in rows]
+        if category:
+            rows = conn.execute(
+                "SELECT * FROM market_listings WHERE status = ? AND archetype = ?"
+                " ORDER BY created_at DESC LIMIT ?",
+                (status, category, limit)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM market_listings WHERE status = ?"
+                " ORDER BY created_at DESC LIMIT ?",
+                (status, limit)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["tags"] = db.jloads(d.get("tags", "[]"), [])
+        out.append(d)
+    return out
 
 
 def publish_listing(seller_id: str, item_type: str, item_id: str,
                     price: int = 0, trade_kind: str = "sell",
                     want_text: str = "") -> dict:
-    """上架：武器(skill_badges) 或 島嶼(learn_islands)。"""
+    """上架：武器(skill_badges) 或 島嶼(learn_islands)。武器上架時快照分類＋標籤。"""
     if item_type not in ("badge", "island"):
         raise ValueError("只能交易武器或島嶼。")
     if trade_kind not in ("sell", "barter"):
@@ -181,15 +195,31 @@ def publish_listing(seller_id: str, item_type: str, item_id: str,
             " AND status = 'open'", (item_type, item_id)).fetchone()
         if dup:
             raise ValueError("已經上架了。")
+        archetype, tags_json = "", "[]"
+        snap_attack, snap_defense, snap_bond = 0, 0, 0.0
+        if item_type == "badge":
+            b = conn.execute(
+                "SELECT archetype, tags, attack, defense, bond FROM skill_badges WHERE id = ?",
+                (item_id,)).fetchone()
+            if b:
+                archetype = b["archetype"] or ""
+                tags_json = b["tags"] or "[]"
+                snap_attack, snap_defense = int(b["attack"] or 0), int(b["defense"] or 0)
+                snap_bond = float(b["bond"] or 0)
         lid = "mkt_" + uuid.uuid4().hex[:12]
         conn.execute(
             "INSERT INTO market_listings (id, seller_id, item_type, item_id, price,"
-            " trade_kind, want_text) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            " trade_kind, want_text, archetype, tags, snap_attack, snap_defense, snap_bond)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (lid, seller_id, item_type, item_id, max(0, int(price)),
-             trade_kind, (want_text or "").strip()[:100]))
+             trade_kind, (want_text or "").strip()[:100], archetype, tags_json,
+             snap_attack, snap_defense, snap_bond))
         conn.commit()
     return {"id": lid, "item_type": item_type, "trade_kind": trade_kind,
-            "price": max(0, int(price))}
+            "price": max(0, int(price)),
+            "archetype": archetype, "tags": db.jloads(tags_json, []),
+            "snap_attack": snap_attack, "snap_defense": snap_defense,
+            "snap_bond": snap_bond}
 
 
 def buy_listing(buyer_id: str, listing_id: str) -> dict:
@@ -433,6 +463,14 @@ def generate_weekly(user_id: str, week: str = "") -> dict:
                              if score > 0 else "本週新內容"})
     review = _build_review(user_id, week)
     attr = 3 + review.get("battles", 0)  # 基礎3點＋每場戰役1點
+    # 經濟型武器持有加成：每週多 1 屬性點（產出／交易增益的回饋）
+    with db.get_conn() as conn:
+        econ = conn.execute(
+            "SELECT 1 FROM skill_badges WHERE user_id = ? AND archetype = '經濟型'"
+            " LIMIT 1", (user_id,)).fetchone()
+    has_econ = bool(econ)
+    if has_econ:
+        attr += 1
     wid = "wk_" + uuid.uuid4().hex[:12]
     with db.get_conn() as conn:
         conn.execute(
@@ -531,9 +569,19 @@ def spend_attr_points(user_id: str, badge_id: str, points: int,
         else:
             conn.execute("UPDATE skill_badges SET bond = MIN(1.0, bond + ?) WHERE id = ?",
                          (points * 0.1, badge_id))
+        # 默契變化可能改變分類（例如 bond 衝高 → 經濟型／輔助型）：重算 archetype/tags
+        from app.learn import classify_badge
+        nb = conn.execute(
+            "SELECT attack, defense, bond, rarity FROM skill_badges WHERE id = ?",
+            (badge_id,)).fetchone()
+        arch, tags = classify_badge(nb["attack"], nb["defense"], nb["bond"],
+                                    nb["rarity"])
+        conn.execute("UPDATE skill_badges SET archetype = ?, tags = ? WHERE id = ?",
+                     (arch, json.dumps(tags, ensure_ascii=False), badge_id))
         conn.commit()
         nb = conn.execute("SELECT attack, defense, bond FROM skill_badges WHERE id = ?",
                           (badge_id,)).fetchone()
     return {"ok": True, "route": route, "points_left": have - points,
             "attack": nb["attack"], "defense": nb["defense"],
-            "bond": round(nb["bond"], 2)}
+            "bond": round(nb["bond"], 2),
+            "archetype": arch, "tags": tags}
