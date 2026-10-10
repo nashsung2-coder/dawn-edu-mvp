@@ -178,10 +178,12 @@
       '<span><span class="t-tag">' + esc(t.tag) + '</span><br><span class="t-title">' + esc(t.title) + "</span></span></button>"
     ).join("");
     $("topicList").querySelectorAll(".topic-item").forEach((b) =>
-      b.onclick = () => toast("課題頁（v2 既有戰役）即將接入 3.0 殼"));
+      b.onclick = () => window.Dawn && Dawn.goSub("trial"));
     $("lootRow").innerHTML = DEMO_LOOT.map((l) =>
       '<button class="loot-card"><span class="li">' + l.icon + "</span>" + esc(l.name) + "</button>"
     ).join("");
+    $("lootRow").querySelectorAll('.loot-card').forEach((b) =>
+      b.onclick = () => window.Dawn && Dawn.goSub('dex'));
     const d = new Date();
     $("flowDate").textContent = (d.getMonth() + 1) + "/" + d.getDate();
   }
@@ -193,11 +195,11 @@
       toast("已切換到「" + names[b.dataset.mode] + "」模組");
     };
   });
-  $("flowCta").onclick = () => toast("閉門造車（辯論台）即將接入 3.0 殼");
-  $("mainTopic").onclick = () => toast("課題頁（v2 既有戰役）即將接入 3.0 殼");
+  $("flowCta").onclick = () => window.Dawn && Dawn.goSub("debate");
+  $("mainTopic").onclick = () => window.Dawn && Dawn.goSub("trial");
   $("flowBell").onclick = () => toast("🔔 目前沒有新通知");
-  ["flowSandChip", "cosmosSandChip"].forEach((id) => {
-    const el = $(id); if (el) el.onclick = () => go("home");
+  ["flowSandChip", "cosmosSandChip", "homeSandChip", "homeMoteChip"].forEach((id) => {
+    const el = $(id); if (el) el.onclick = () => window.Dawn && Dawn.goSub("wallet");
   });
 
   /* ---------- 宇宙首頁 ---------- */
@@ -258,7 +260,7 @@
   $("cosmosCta").onclick = () => {
     const sel = document.querySelector(".planet.sel");
     if (!sel) { toast("先選一顆星球 🎯"); return; }
-    toast("曲速引擎啟動…（戰鬥頁即將接入）");
+    if (window.Dawn) Dawn.goSub("battle");
   };
   $("cosmosGear").onclick = () => go("home");
   // 預設選推薦星球
@@ -275,7 +277,12 @@
     f.onclick = () => toast("🛋️ 「" + f.dataset.f + "」：移動／收納／詳情（即將上線）");
   });
   document.querySelectorAll("[data-q]").forEach((b) => {
-    b.onclick = () => toast({ chat: "💬 聊天即將上線", forum: "🗣️ 討論空間即將上線", friends: "👥 好友即將上線", achv: "🏆 成就即將上線", build: "🏠 建造模式即將上線" }[b.dataset.q] || "即將上線");
+    b.onclick = () => {
+      const D = window.Dawn;
+      if (b.dataset.q === "forum" || b.dataset.q === "chat") { if (D) D.goSub("forum"); }
+      else if (b.dataset.q === "achv") { if (D) D.goSub("dex"); }
+      else toast("即將上線");
+    };
   });
 
   /* 錢包 */
