@@ -93,6 +93,7 @@ function mulberry32(seed) {
     if (btn.dataset.tab === "island") loadIsland();
     if (btn.dataset.tab === "textbook") buildTextbook();
     if (btn.dataset.tab === "radar") Game.refresh();
+    if (btn.dataset.tab === "account") buildAccount();
   });
 })();
 
@@ -108,6 +109,7 @@ function gotoTab(name) {
   if (name === "island") loadIsland();
   if (name === "textbook") buildTextbook();
   if (name === "radar") Game.refresh();
+  if (name === "account") buildAccount();
 }
 
 /* ============================================================
@@ -395,6 +397,7 @@ function renderAuthBar() {
       exploreState.favorites.clear();
       renderExplore();
       loadIsland();
+      if ($("page-account").classList.contains("active")) buildAccount();
       toast("已登出，星海會記得你，下次見");
     };
     bar.appendChild(pts);
@@ -430,30 +433,64 @@ function closeAuthModal() {
 
 function syncAuthModeUI() {
   const isLogin = authMode === "login";
-  $("authTitle").textContent = isLogin ? "歡迎回來，拓荒者" : "在星海中留下你的名字";
-  $("authSubmit").textContent = isLogin ? "登入" : "註冊並啟程";
+  const isForgot = authMode === "forgot";
+  $("authTitle").textContent = isForgot ? "重設密碼"
+    : isLogin ? "歡迎回來，拓荒者" : "在星海中留下你的名字";
+  $("authSubmit").textContent = isForgot ? "重設密碼"
+    : isLogin ? "登入" : "註冊並啟程";
+  // Email 欄：註冊（選填）與忘記密碼（必填）時顯示
+  $("authEmailWrap").style.display = isLogin ? "none" : "";
+  $("authEmail").placeholder = isForgot ? "註冊時填寫的 Email" : "忘記密碼時用來重設";
+  // 密碼欄標籤
+  $("authPassLabel").textContent = isForgot ? "新密碼" : "密碼";
+  $("authPass").setAttribute("autocomplete", isForgot ? "new-password" : isLogin ? "current-password" : "new-password");
+  // 連結
+  $("forgotLink").style.display = isLogin ? "" : "none";
+  $("backToLogin").style.display = isForgot ? "" : "none";
+  document.querySelectorAll(".auth-tab").forEach((x) =>
+    x.classList.toggle("active", !isForgot && x.dataset.mode === authMode)
+  );
+  $("authNote").innerHTML = isForgot
+    ? "輸入暱稱與註冊時填寫的 Email，<br>吻合即可設定新密碼。"
+    : "你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。";
 }
 
 async function submitAuth() {
   const name = $("authName").value.trim();
   const pw = $("authPass").value;
+  const email = $("authEmail").value.trim();
   const err = $("authErr");
   err.textContent = "";
   err.classList.remove("show");
   const fail = (m) => { err.textContent = m; err.classList.add("show"); };
   if (!name) { fail("請輸入暱稱。"); return; }
-  if (pw.length < 4) { fail("密碼至少需要 4 個字元。"); return; }
+  if (pw.length < 4) { fail(authMode === "forgot" ? "新密碼至少需要 4 個字元。" : "密碼至少需要 4 個字元。"); return; }
+  if (authMode === "forgot" && !email) { fail("請輸入註冊時填寫的 Email。"); return; }
   const btn = $("authSubmit");
   const btnOrig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = "喚醒伺服器中…";
+  btn.textContent = authMode === "forgot" ? "重設中…" : "喚醒伺服器中…";
   try {
+    if (authMode === "forgot") {
+      const data = await api("/api/v1/auth/forgot", {
+        method: "POST",
+        body: JSON.stringify({ name, email, new_password: pw }),
+        timeout: 30000,
+      });
+      closeAuthModal();
+      toast(data.reason || "密碼已重設，請用新密碼登入。");
+      authMode = "login";
+      syncAuthModeUI();
+      return;
+    }
     let data = null, lastErr = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const body = { name, password: pw };
+        if (authMode === "register" && email) body.email = email;
         data = await api("/api/v1/auth/" + authMode, {
           method: "POST",
-          body: JSON.stringify({ name, password: pw }),
+          body: JSON.stringify(body),
           timeout: 30000,
         });
         break;
@@ -475,6 +512,7 @@ async function submitAuth() {
     await loadFavorites();
     renderExplore();
     if ($("page-island").classList.contains("active")) loadIsland();
+    if ($("page-account").classList.contains("active")) buildAccount();
     if (authMode === "register") {
       // 首次註冊：情境式引路儀式
       setTimeout(openOnboarding, 600);
@@ -503,6 +541,8 @@ function initAuth() {
     };
   });
   $("authSubmit").onclick = submitAuth;
+  $("forgotLink").onclick = () => { authMode = "forgot"; syncAuthModeUI(); };
+  $("backToLogin").onclick = () => { authMode = "login"; syncAuthModeUI(); };
   $("authClose").onclick = closeAuthModal;
   $("authModal").addEventListener("click", (e) => {
     if (e.target === $("authModal")) closeAuthModal();
@@ -2168,6 +2208,160 @@ async function refreshMe() {
 }
 
 /* ============================================================
+ * 帳號管理
+ * ============================================================ */
+async function buildAccount() {
+  const gate = $("accountGate"), body = $("accountBody");
+  if (!Auth.user || !Auth.token) {
+    gate.style.display = "block";
+    body.style.display = "none";
+    return;
+  }
+  gate.style.display = "none";
+  body.style.display = "";
+  let me = Auth.user;
+  try {
+    const d = await api("/api/v1/auth/me");
+    if (d.user) {
+      me = d.user;
+      Auth.user = me;
+      try { localStorage.setItem("dawn_user", JSON.stringify(me)); } catch (e) {}
+    }
+  } catch (e) { /* 離線：用本機資料 */ }
+  const roleName = me.persona && me.persona.role_name;
+  const created = String(me.created_at || "").slice(0, 10);
+  $("acctProfile").innerHTML =
+    '<div class="acct-row"><span>暱稱</span><b>' + me.name + "</b></div>" +
+    '<div class="acct-row"><span>Email</span><b>' + (me.email || "未設定") + "</b></div>" +
+    (roleName ? '<div class="acct-row"><span>角色</span><b>' + roleName + "</b></div>" : "") +
+    (created ? '<div class="acct-row"><span>加入星海</span><b>' + created + "</b></div>" : "");
+  $("acctEmail").value = me.email || "";
+  // 重置刪除流程
+  $("deleteStep2").style.display = "none";
+  $("deleteStep1").style.display = "";
+  $("acctDeletePw").value = "";
+  renderAuthBar();
+}
+
+async function saveAcctEmail() {
+  const v = $("acctEmail").value.trim();
+  const btn = $("acctEmailSave");
+  btn.disabled = true;
+  try {
+    const d = await api("/api/v1/auth/me", {
+      method: "PATCH", body: JSON.stringify({ email: v }),
+    });
+    if (Auth.user) {
+      Auth.user.email = d.email;
+      try { localStorage.setItem("dawn_user", JSON.stringify(Auth.user)); } catch (e) {}
+    }
+    toast(v ? "Email 已更新。" : "Email 已清空。");
+    buildAccount();
+  } catch (e) {
+    toast(e.message || "更新失敗");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function changeAcctPassword() {
+  const oldPw = $("acctOldPw").value;
+  const newPw = $("acctNewPw").value;
+  if (newPw.length < 4) { toast("新密碼至少需要 4 個字元。"); return; }
+  const btn = $("acctPwSave");
+  btn.disabled = true;
+  try {
+    const d = await api("/api/v1/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+    });
+    $("acctOldPw").value = "";
+    $("acctNewPw").value = "";
+    toast(d.reason || "密碼已更新。");
+    // 密碼已輪換：舊 token 失效，重新登入
+    Auth.clear();
+    Game.refresh();
+    openAuthModal("login");
+  } catch (e) {
+    toast(e.message || "修改失敗");
+    btn.disabled = false;
+  }
+}
+
+async function exportHistory() {
+  const btn = $("acctExport");
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "打包中…";
+  try {
+    const d = await api("/api/v1/export");
+    const uid = Auth.user.id;
+    let duels = [], battleLog = [];
+    try { duels = JSON.parse(localStorage.getItem("dawn_duels_" + uid) || "[]"); } catch (e) {}
+    try { battleLog = JSON.parse(localStorage.getItem("dawn_battlelog_" + uid) || "[]"); } catch (e) {}
+    d.local = { duels, battle_log: battleLog };
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "dawn-edu-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast("學習歷程已下載。");
+  } catch (e) {
+    toast(e.message || "匯出失敗");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+async function deleteAccount() {
+  const pw = $("acctDeletePw").value;
+  if (!pw) { toast("請輸入密碼確認。"); return; }
+  const btn = $("acctDeleteConfirm");
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "刪除中…";
+  try {
+    await api("/api/v1/auth/me", {
+      method: "DELETE", body: JSON.stringify({ password: pw }),
+    });
+    Auth.clear();
+    Game.refresh();
+    exploreState.favorites.clear();
+    try {
+      ["dawn_duels_", "dawn_battlelog_", "dawn_battle_"].forEach((p) =>
+        localStorage.removeItem(p + Auth.user.id));
+    } catch (e) {}
+    toast("帳號已刪除。星海會記得你曾來過。");
+    gotoTab("explore");
+  } catch (e) {
+    toast(e.message || "刪除失敗");
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function initAccount() {
+  $("accountLogin").onclick = () => openAuthModal("login");
+  $("acctEmailSave").onclick = saveAcctEmail;
+  $("acctPwSave").onclick = changeAcctPassword;
+  $("acctExport").onclick = exportHistory;
+  $("acctDeleteBtn").onclick = () => {
+    $("deleteName").textContent = Auth.user ? Auth.user.name : "";
+    $("deleteStep1").style.display = "none";
+    $("deleteStep2").style.display = "";
+  };
+  $("acctDeleteCancel").onclick = () => {
+    $("deleteStep2").style.display = "none";
+    $("deleteStep1").style.display = "";
+    $("acctDeletePw").value = "";
+  };
+  $("acctDeleteConfirm").onclick = deleteAccount;
+}
+
+/* ============================================================
  * 初始化
  * ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
@@ -2183,4 +2377,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initQA();
   initGame();
   initOnboarding();
+  initAccount();
 });
