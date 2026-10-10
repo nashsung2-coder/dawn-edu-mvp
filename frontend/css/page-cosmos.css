@@ -1,0 +1,102 @@
+遊歷宇宙首頁 data-page="cosmos" ｜ 星際艦橋風 · 全螢幕沉浸
+ * ============================================================ */
+#page-cosmos{ background:oklch(.10 .02 265); }
+.starfield{ position:absolute; inset:0; overflow:hidden; }
+.starfield .layer{ position:absolute; inset:-20%; pointer-events:none; }
+.star{ position:absolute; border-radius:var(--r-full); background:oklch(1 0 1); animation:twinkle var(--tw,3s) ease-in-out infinite; }
+@keyframes twinkle{ 0%,100%{ opacity:.25;} 50%{ opacity:1;} }
+.nebula{
+  position:absolute; border-radius:50%; filter:blur(60px); opacity:.35; pointer-events:none;
+  animation:drift 26s ease-in-out infinite alternate;
+}
+@keyframes drift{ from{ transform:translate(0,0) scale(1);} to{ transform:translate(30px,-20px) scale(1.12);} }
+
+/* 飛船 */
+.ship{
+  position:absolute; left:50%; bottom:34%; transform:translateX(-50%);
+  font-size:44px; filter:drop-shadow(0 0 18px oklch(.72 .16 195));
+  animation:hover 4s ease-in-out infinite; z-index:2;
+}
+@keyframes hover{ 0%,100%{ transform:translateX(-50%) translateY(0);} 50%{ transform:translateX(-50%) translateY(-10px);} }
+.ship .trail{
+  position:absolute; left:50%; top:100%; width:6px; height:56px; transform:translateX(-50%);
+  background:linear-gradient(oklch(.72 .16 195), transparent); border-radius:3px; opacity:.7;
+}
+
+/* 星球 */
+.planet{
+  position:absolute; border:0; background:none; cursor:pointer; padding:0;
+  width:64px; height:64px; min-width:64px; min-height:64px; z-index:2;
+  transition:transform var(--dur-med) var(--ease);
+}
+.planet .p-body{
+  width:56px; height:56px; margin:4px; border-radius:var(--r-full);
+  box-shadow:inset -8px -6px 0 oklch(0 0 0/.35), 0 0 24px oklch(1 0 0/.12);
+}
+.planet.sel .p-body{ transform:scale(1.15); }
+.planet .p-ring{
+  position:absolute; inset:0; border-radius:var(--r-full); pointer-events:none;
+  border:2px solid oklch(.72 .16 45); opacity:0;
+}
+.planet.recommended .p-ring{ animation:sonar 2.4s ease-out infinite; }
+@keyframes sonar{ 0%{ opacity:.6; transform:scale(1);} 100%{ opacity:0; transform:scale(1.6);} }
+.planet .p-name{
+  position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  font-size:var(--fs-11); color:var(--text-2); white-space:nowrap; margin-top:2px;
+  font-family:var(--font-body);
+}
+
+/* HUD 疊層 */
+.cosmos-hud{ position:absolute; inset:0; z-index:5; pointer-events:none; }
+.cosmos-hud > *{ pointer-events:auto; }
+.hud-top{
+  display:flex; align-items:center; gap:10px; padding:10px 16px 0;
+}
+.energy{ display:flex; align-items:center; gap:8px; }
+.energy .bar{ width:110px; height:12px; border-radius:6px; background:oklch(1 0 0/.12); overflow:hidden; }
+.energy .bar i{ display:block; height:100%; width:72%; border-radius:6px;
+  background:linear-gradient(90deg, oklch(.72 .16 195), oklch(.72 .16 150)); }
+.energy .num{ font-size:var(--fs-11); color:var(--text-2); }
+.coords{ flex:1; text-align:center; font-family:var(--font-mono); font-size:var(--fs-11); color:var(--text-2); }
+.bridge-bar{
+  margin:8px 16px 0; padding:8px 14px; border-radius:var(--r-md);
+  background:oklch(0 0 0/.4); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border:1px solid oklch(1 0 0/.08); font-size:var(--fs-12);
+  display:flex; align-items:center; gap:10px;
+}
+.bridge-bar b{ font-size:var(--fs-14); }
+.bridge-bar .val{ font-family:var(--font-mono); color:var(--page-accent); }
+/* 艦橋操作艙：三模組切換 */
+.ops-row{ display:flex; gap:8px; margin:8px 16px 0; }
+.ops-row button{
+  flex:1; border:1px solid oklch(1 0 0/.14); background:oklch(0 0 0/.4);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  color:var(--text-2); border-radius:var(--r-md); font-family:var(--font-body);
+  font-size:var(--fs-12); font-weight:700; min-height:44px; cursor:pointer;
+}
+.ops-row button.on{ border-color:var(--page-accent); color:var(--page-accent); box-shadow:0 0 12px oklch(.72 .16 195/.25); }
+
+/* 目標卡 */
+.target-card{
+  position:absolute; left:16px; right:16px; bottom:calc(56px + 44px + 16px); z-index:6;
+  background:oklch(.14 .03 265/.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid oklch(1 0 0/.12); border-radius:var(--r-lg); padding:14px 16px;
+  transform:translateY(20px); opacity:0; pointer-events:none;
+  transition:transform var(--dur-med) var(--ease), opacity var(--dur-med);
+}
+.target-card.show{ transform:none; opacity:1; pointer-events:auto; }
+.target-card h3{ margin:0 0 4px; font-size:var(--fs-16); font-family:var(--font-display); }
+.target-card .diff-row{ display:flex; gap:6px; align-items:center; font-size:var(--fs-12); color:var(--text-2); margin-bottom:8px; }
+.target-card .loot{ font-size:var(--fs-12); display:flex; gap:12px; }
+.target-card .loot b{ font-family:var(--font-mono); }
+.cosmos-cta{
+  position:absolute; left:16px; right:16px; bottom:calc(44px + 16px); z-index:6;
+}
+.cosmos-cta .btn-primary{ background:oklch(.72 .16 45); }
+/* 精簡底部導航（宇宙頁壓縮版） */
+#page-cosmos #tabbar{ height:calc(44px + var(--tabbar-safe)); }
+#page-cosmos #tabbar button{ min-height:44px; font-size:var(--fs-10); }
+#page-cosmos #tabbar button .t-ico{ font-size:18px; }
+
+/* ============================================================
+ * 
