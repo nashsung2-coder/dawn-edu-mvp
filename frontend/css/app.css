@@ -11,7 +11,20 @@ body{
   line-height:var(--lh-normal);
   overscroll-behavior-y:none;
 }
-#entryAnim{ position:fixed; inset:0; z-index:200; display:none; }
+#entryAnim{ position:fixed; inset:0; z-index:200; display:none; background:#000; }
+#entryAnim.show{ display:block; animation:entryIn .45s var(--ease); }
+@keyframes entryIn{ from{ opacity:0;} to{ opacity:1;} }
+#entryAnim.hide{ animation:entryOut .35s var(--ease) forwards; }
+@keyframes entryOut{ to{ opacity:0; transform:translateY(-4%);} }
+#entryVideo{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.entry-skip{
+  position:absolute; left:50%; bottom:calc(var(--tabbar-safe, 20px) + 36px); transform:translateX(-50%);
+  z-index:2; padding:12px 28px; border-radius:var(--r-full);
+  background:oklch(1 0 0/.14); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid oklch(1 0 0/.25); color:#fff; font-size:var(--fs-15); font-weight:700;
+  cursor:pointer; min-height:48px; animation:skipFloat 2.4s ease-in-out infinite;
+}
+@keyframes skipFloat{ 0%,100%{ transform:translateX(-50%) translateY(0);} 50%{ transform:translateX(-50%) translateY(-8px);} }
 
 /* ---------- App 殼 ---------- */
 #app{ position:fixed; inset:0; overflow:hidden; }
@@ -227,220 +240,7 @@ body{
 .loot-card .li{ font-size:26px; }
 
 /* ============================================================
- * 遊歷宇宙首頁 data-page="cosmos" ｜ 星際艦橋風 · 全螢幕沉浸
- * ============================================================ */
-#page-cosmos{ background:oklch(.10 .02 265); }
-.starfield{ position:absolute; inset:0; overflow:hidden; }
-.starfield .layer{ position:absolute; inset:-20%; pointer-events:none; }
-.star{ position:absolute; border-radius:var(--r-full); background:oklch(1 0 1); animation:twinkle var(--tw,3s) ease-in-out infinite; }
-@keyframes twinkle{ 0%,100%{ opacity:.25;} 50%{ opacity:1;} }
-.nebula{
-  position:absolute; border-radius:50%; filter:blur(60px); opacity:.35; pointer-events:none;
-  animation:drift 26s ease-in-out infinite alternate;
-}
-@keyframes drift{ from{ transform:translate(0,0) scale(1);} to{ transform:translate(30px,-20px) scale(1.12);} }
-
-/* 飛船 */
-.ship{
-  position:absolute; left:50%; bottom:34%; transform:translateX(-50%);
-  font-size:44px; filter:drop-shadow(0 0 18px oklch(.72 .16 195));
-  animation:hover 4s ease-in-out infinite; z-index:2;
-}
-@keyframes hover{ 0%,100%{ transform:translateX(-50%) translateY(0);} 50%{ transform:translateX(-50%) translateY(-10px);} }
-.ship .trail{
-  position:absolute; left:50%; top:100%; width:6px; height:56px; transform:translateX(-50%);
-  background:linear-gradient(oklch(.72 .16 195), transparent); border-radius:3px; opacity:.7;
-}
-
-/* 星球 */
-.planet{
-  position:absolute; border:0; background:none; cursor:pointer; padding:0;
-  width:64px; height:64px; min-width:64px; min-height:64px; z-index:2;
-  transition:transform var(--dur-med) var(--ease);
-}
-.planet .p-body{
-  width:56px; height:56px; margin:4px; border-radius:var(--r-full);
-  box-shadow:inset -8px -6px 0 oklch(0 0 0/.35), 0 0 24px oklch(1 0 0/.12);
-}
-.planet.sel .p-body{ transform:scale(1.15); }
-.planet .p-ring{
-  position:absolute; inset:0; border-radius:var(--r-full); pointer-events:none;
-  border:2px solid oklch(.72 .16 45); opacity:0;
-}
-.planet.recommended .p-ring{ animation:sonar 2.4s ease-out infinite; }
-@keyframes sonar{ 0%{ opacity:.6; transform:scale(1);} 100%{ opacity:0; transform:scale(1.6);} }
-.planet .p-name{
-  position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  font-size:var(--fs-11); color:var(--text-2); white-space:nowrap; margin-top:2px;
-  font-family:var(--font-body);
-}
-
-/* HUD 疊層 */
-.cosmos-hud{ position:absolute; inset:0; z-index:5; pointer-events:none; }
-.cosmos-hud > *{ pointer-events:auto; }
-.hud-top{
-  display:flex; align-items:center; gap:10px; padding:10px 16px 0;
-}
-.energy{ display:flex; align-items:center; gap:8px; }
-.energy .bar{ width:110px; height:12px; border-radius:6px; background:oklch(1 0 0/.12); overflow:hidden; }
-.energy .bar i{ display:block; height:100%; width:72%; border-radius:6px;
-  background:linear-gradient(90deg, oklch(.72 .16 195), oklch(.72 .16 150)); }
-.energy .num{ font-size:var(--fs-11); color:var(--text-2); }
-.coords{ flex:1; text-align:center; font-family:var(--font-mono); font-size:var(--fs-11); color:var(--text-2); }
-.bridge-bar{
-  margin:8px 16px 0; padding:8px 14px; border-radius:var(--r-md);
-  background:oklch(0 0 0/.4); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-  border:1px solid oklch(1 0 0/.08); font-size:var(--fs-12);
-  display:flex; align-items:center; gap:10px;
-}
-.bridge-bar b{ font-size:var(--fs-14); }
-.bridge-bar .val{ font-family:var(--font-mono); color:var(--page-accent); }
-/* 艦橋操作艙：三模組切換 */
-.ops-row{ display:flex; gap:8px; margin:8px 16px 0; }
-.ops-row button{
-  flex:1; border:1px solid oklch(1 0 0/.14); background:oklch(0 0 0/.4);
-  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-  color:var(--text-2); border-radius:var(--r-md); font-family:var(--font-body);
-  font-size:var(--fs-12); font-weight:700; min-height:44px; cursor:pointer;
-}
-.ops-row button.on{ border-color:var(--page-accent); color:var(--page-accent); box-shadow:0 0 12px oklch(.72 .16 195/.25); }
-
-/* 目標卡 */
-.target-card{
-  position:absolute; left:16px; right:16px; bottom:calc(56px + 44px + 16px); z-index:6;
-  background:oklch(.14 .03 265/.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-  border:1px solid oklch(1 0 0/.12); border-radius:var(--r-lg); padding:14px 16px;
-  transform:translateY(20px); opacity:0; pointer-events:none;
-  transition:transform var(--dur-med) var(--ease), opacity var(--dur-med);
-}
-.target-card.show{ transform:none; opacity:1; pointer-events:auto; }
-.target-card h3{ margin:0 0 4px; font-size:var(--fs-16); font-family:var(--font-display); }
-.target-card .diff-row{ display:flex; gap:6px; align-items:center; font-size:var(--fs-12); color:var(--text-2); margin-bottom:8px; }
-.target-card .loot{ font-size:var(--fs-12); display:flex; gap:12px; }
-.target-card .loot b{ font-family:var(--font-mono); }
-.cosmos-cta{
-  position:absolute; left:16px; right:16px; bottom:calc(44px + 16px); z-index:6;
-}
-.cosmos-cta .btn-primary{ background:oklch(.72 .16 45); }
-/* 精簡底部導航（宇宙頁壓縮版） */
-#page-cosmos #tabbar{ height:calc(44px + var(--tabbar-safe)); }
-#page-cosmos #tabbar button{ min-height:44px; font-size:var(--fs-10); }
-#page-cosmos #tabbar button .t-ico{ font-size:18px; }
-
-/* ============================================================
- * 家 data-page="home" ｜ 溫馨沙盒風 · 淺色底（全 App 唯一）
- * ============================================================ */
-#page-home .idbar .lv-badge{ border-color:oklch(0 0 0/.18); }
-/* 等距房間示意 */
-.room{
-  position:relative; height:300px; margin:4px 0 8px; border-radius:var(--r-xl);
-  background:
-    linear-gradient(180deg, oklch(.93 .02 70) 0%, oklch(.90 .025 70) 100%);
-  border:1px solid oklch(0 0 0/.06); overflow:hidden;
-  box-shadow:var(--shadow-1);
-}
-.room .floor{
-  position:absolute; left:12%; right:12%; top:38%; bottom:8%;
-  transform:skewX(-18deg) rotateX(0deg);
-  background:
-    repeating-linear-gradient(90deg, oklch(.88 .03 70) 0 34px, oklch(.85 .032 70) 34px 68px);
-  border-radius:12px; border:2px solid oklch(.78 .04 70);
-}
-.room .wall-l, .room .wall-r{
-  position:absolute; top:6%; bottom:30%; width:34%;
-  background:linear-gradient(180deg, oklch(.95 .015 70), oklch(.90 .02 70));
-  border:1px solid oklch(0 0 0/.05);
-}
-.room .wall-l{ left:4%; transform:skewY(-8deg); border-radius:12px 0 0 0; }
-.room .wall-r{ right:4%; transform:skewY(8deg); border-radius:0 12px 0 0; }
-.room .rug{
-  position:absolute; left:38%; top:62%; width:24%; height:16%;
-  background:oklch(.72 .16 55/.5); border-radius:50%;
-  border:2px dashed oklch(.6 .12 55);
-}
-.room .furniture{
-  position:absolute; border:0; background:none; cursor:pointer; padding:0;
-  min-width:48px; min-height:48px; font-size:34px;
-  filter:drop-shadow(0 4px 6px oklch(0 0 0/.2));
-  transition:transform var(--dur-fast);
-}
-.room .furniture:active{ transform:scale(1.1); }
-.room .furniture .tag{
-  position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  font-size:var(--fs-11); color:var(--text-2); white-space:nowrap; font-family:var(--font-body);
-}
-/* 寵物：待機呼吸 */
-.pet{
-  position:absolute; left:56%; top:56%; font-size:46px; cursor:pointer;
-  border:0; background:none; padding:8px; min-width:56px; min-height:56px;
-  animation:petBreathe 4s ease-in-out infinite;
-  filter:drop-shadow(0 6px 8px oklch(0 0 0/.25));
-}
-@keyframes petBreathe{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.03);} }
-.pet-bubble{
-  position:absolute; left:52%; top:44%; z-index:3; max-width:220px;
-  background:oklch(.99 .006 70); border:1px solid oklch(0 0 0/.1);
-  border-radius:var(--r-md); padding:8px 12px; font-size:var(--fs-12);
-  box-shadow:var(--shadow-2); display:none;
-}
-.pet-bubble.show{ display:block; animation:menuIn var(--dur-fast) var(--ease); }
-/* 寵物狀態膠囊 */
-.pet-status{
-  display:flex; align-items:center; gap:10px; padding:10px 14px; margin-bottom:12px;
-}
-.pet-status .mood{ flex:1; }
-.pet-status .mood .bar{ height:8px; border-radius:4px; background:oklch(0 0 0/.08); overflow:hidden; margin-top:4px; }
-.pet-status .mood .bar i{ display:block; height:100%; width:78%; background:var(--page-accent); border-radius:4px; }
-/* 快捷入口 4 格 */
-.quick-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-.quick-grid button{
-  border:1px solid oklch(0 0 0/.08); background:oklch(.99 .006 70);
-  border-radius:var(--r-lg); cursor:pointer; padding:12px 4px;
-  display:flex; flex-direction:column; align-items:center; gap:6px;
-  font-family:var(--font-body); font-size:var(--fs-12); font-weight:700; color:var(--text-1);
-  min-height:80px; box-shadow:var(--shadow-1);
-}
-.quick-grid button:active{ transform:scale(.94); }
-.quick-grid .qi{ font-size:26px; }
-/* 建造卡 */
-.build-card{ display:flex; align-items:center; gap:14px; padding:14px 16px; margin-bottom:16px; }
-.build-card .thumb{
-  width:64px; height:64px; border-radius:var(--r-md); flex:none;
-  background:linear-gradient(140deg, oklch(.85 .05 70), oklch(.72 .16 55));
-  display:flex; align-items:center; justify-content:center; font-size:30px;
-}
-.build-card .bt{ flex:1; }
-.build-card .bt b{ display:block; font-size:var(--fs-14); }
-.build-card .bt span{ font-size:var(--fs-12); color:var(--text-2); }
-.build-card .btn{ min-height:44px; padding:0 18px; background:var(--page-accent); color:oklch(.99 0 70); border:0; border-radius:var(--r-full); font-weight:700; cursor:pointer; font-size:var(--fs-14); }
-
-/* 錢包面板（底部升起 sheet） */
-.sheet-mask{
-  position:absolute; inset:0; z-index:80; background:oklch(0 0 0/.45);
-  display:none; align-items:flex-end;
-}
-.sheet-mask.show{ display:flex; }
-.sheet{
-  width:100%; max-height:78%; overflow-y:auto;
-  background:oklch(.96 .012 70); border-radius:var(--r-xl) var(--r-xl) 0 0;
-  padding:20px 20px calc(20px + var(--tabbar-safe));
-  animation:sheetUp var(--dur-med) var(--ease); color:oklch(.28 .014 70);
-}
-@keyframes sheetUp{ from{ transform:translateY(60%);} to{ transform:none;} }
-.sheet h3{ margin:0 0 4px; font-family:var(--font-display); font-size:var(--fs-20); }
-.sheet .wallet-row{
-  display:flex; align-items:center; gap:12px; padding:14px 0;
-  border-bottom:1px solid oklch(0 0 0/.08);
-}
-.sheet .wallet-row .cdot{ width:16px; height:16px; border-radius:var(--r-full); flex:none; }
-.sheet .wallet-row b{ flex:1; font-size:var(--fs-14); }
-.sheet .wallet-row .num{ font-size:var(--fs-20); font-weight:700; }
-.sheet .x-rate{ font-size:var(--fs-12); color:oklch(.52 .012 70); margin:12px 0; font-family:var(--font-mono); }
-.sheet .x-ctl{ display:flex; gap:10px; align-items:center; margin-bottom:8px; }
-.sheet input[type=range]{ flex:1; accent-color:oklch(.72 .16 55); height:44px; }
-.sheet .x-out{ font-family:var(--font-mono); font-size:var(--fs-14); min-width:88px; text-align:right; }
-
-/* ---------- 登入 modal（簡化版） ---------- */
+ * /* ---------- 登入 modal（簡化版） ---------- */
 .modal-mask{
   position:fixed; inset:0; z-index:100; background:oklch(0 0 0/.6);
   display:none; align-items:center; justify-content:center; padding:24px;
