@@ -1,357 +1,53 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#1a1f2e">
-<title>曙光教育 · 3.0</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/page-cosmos.css">
-<link rel="stylesheet" href="css/page-home.css">
-<link rel="stylesheet" href="css/pages.css">
-<link rel="stylesheet" href="css/layout.css">
-<link rel="stylesheet" href="css/gateway.css">
-<script src="config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>曙光教育 3.0</title>
+<meta name="description" content="選擇你的版本：電腦/平板，或手機。">
+<link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
+<style>
+  #chooser { min-height: 100dvh; display: grid; grid-template-columns: 1fr 1fr; }
+  .ch-half {
+    position: relative; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: var(--sp-6);
+    padding: var(--sp-12); text-decoration: none; overflow: hidden;
+    transition: flex .4s var(--ease);
+  }
+  .ch-half::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+  .ch-desktop::before { background: url("assets/img/home-zen-bg.webp") center / cover; opacity: .45; }
+  .ch-mobile::before { background: url("assets/img/home-neon-bg.webp") center / cover; opacity: .55; }
+  .ch-half > * { position: relative; }
+  .ch-desktop { background: #F4EFE6; color: #2B2620; }
+  .ch-mobile { background: #0B0E2A; color: #EAF6FF; }
+  .ch-half:hover { flex: 1.15; }
+  .ch-half h2 { font-size: var(--fs-32); letter-spacing: .15em; }
+  .ch-half p { opacity: .7; font-size: var(--fs-14); }
+  .ch-img { width: 160px; height: 160px; object-fit: cover; border-radius: 50%; border: 3px solid currentColor; opacity: .95; }
+  .ch-logo {
+    position: absolute; top: var(--sp-8); left: 50%; transform: translateX(-50%);
+    z-index: 2; text-align: center; pointer-events: none;
+  }
+  .ch-logo h1 { font-size: var(--fs-24); letter-spacing: .3em; color: #2B2620; mix-blend-mode: multiply; }
+  @media (max-width: 768px) {
+    #chooser { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .ch-half:hover { flex: 1; }
+  }
+</style>
 </head>
-<body data-layout="mobile" data-view="flow">
-
-<!-- 30秒進入動畫掛載點：心流版/宇宙版 Canvas 將掛載於此 -->
-
-
-
-<!-- ============ Gateway 分裂首頁：一體兩面 ============ -->
-<div id="gateway">
-  <!-- 左：學習（禪意） -->
-  <section class="zone-learn" data-zone="learn" aria-label="學習">
-    <div class="learn-inner">
-      <header class="learn-head">
-        <div class="learn-user">
-          <div class="avatar" id="gwAvatar">曜</div>
-          <div class="who"><b id="gwName">旅人</b><small>Lv.<span id="gwLv">1</span> · 曙光旅人</small></div>
-        </div>
-        <div class="learn-quiet"><span id="gwFellows">此刻 128 位同學也在靜修</span><br><span>今日已專注 <b id="gwFocusMin">0</b> 分鐘</span></div>
-      </header>
-      <div class="learn-hero">
-        <p class="learn-kicker">今日修煉</p>
-        <h1 id="gwHeroTitle">繼續上次的<em>數學函數試煉</em></h1>
-        <p class="sub" id="gwHeroSub">上次停在 62% · 約 8 分鐘可完成</p>
-        <button class="learn-cta" data-gosub="trial">進入今日修煉 →</button>
-      </div>
-      <nav class="learn-nav" aria-label="學習系統">
-        <button data-gosub="trial"><span class="glyph">⚔️</span>試煉場</button>
-        <button data-gosub="debate"><span class="glyph">🎙️</span>辯論台</button>
-        <button data-gosub="dex"><span class="glyph">📖</span>圖鑑</button>
-      </nav>
-      <div class="learn-progress">
-        <div class="lbl"><span>今日學習軌跡</span><span id="gwTrailPct">0%</span></div>
-        <div class="bar"><i id="gwTrailBar" style="width:0%"></i></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 中線膜 -->
-  <div class="membrane" id="membrane" role="separator" aria-label="結界">
-    <div class="m-ripple" id="mRipple"></div>
-    <button class="m-lantern" id="mLantern" title="回家" aria-label="回家">🏮</button>
-    <span class="m-hint">選一邊</span>
-  </div>
-
-  <!-- 右：遊戲（霓虹） -->
-  <section class="zone-game" data-zone="game" aria-label="遊戲">
-    <canvas class="game-particles" id="gameParticles" aria-hidden="true"></canvas>
-    <div class="game-stars"></div><div class="game-nebula"></div>
-    <div class="game-inner">
-      <header class="game-head">
-        <div class="game-wallet">
-          <span class="coin">⭐ <span data-w-sands>0</span></span>
-          <span class="coin" style="color:var(--game-neon)">✨ <span data-w-particles>0</span></span>
-        </div>
-      </header>
-      <div class="game-hero">
-        <p class="game-kicker">星海戰況</p>
-        <h1>指揮官，<em>KX-447</em><br>等待出擊</h1>
-        <p class="sub">3 顆未知星球 · 今日首勝獎勵 ×2</p>
-        <button class="game-cta" data-gosub="battle">出發作戰 →</button>
-      </div>
-      <div class="game-grid">
-        <button class="game-card" data-gosub="battle"><span class="gi">🚀</span><b>星球戰役</b><small>征服未知星球</small></button>
-        <button class="game-card" data-gosub="market"><span class="gi">🏪</span><b>星際市集</b><small>武器防具補給</small></button>
-        <button class="game-card" data-gosub="forum"><span class="gi">🗣️</span><b>討論空間</b><small>旅人情報交換</small></button>
-        <button class="game-card" data-gosub="wallet"><span class="gi">💰</span><b>錢包</b><small>星砂與微粒</small></button>
-      </div>
-    </div>
-  </section>
-
-  <!-- 手機傳送門切換 -->
-  <nav class="g-switch" aria-label="世界切換">
-    <button data-gzone="learn" class="on">📖 學習</button>
-    <button data-gzone="game">🚀 遊戲</button>
-  </nav>
+<body>
+<div class="ch-logo"><h1>曙光教育</h1></div>
+<div id="chooser" role="main">
+  <a class="ch-half ch-desktop" href="desktop.html" aria-label="進入電腦平板版">
+    <img class="ch-img" src="assets/img/chooser-desktop.webp?v=3.0.0" alt="電腦版插圖：水墨筆電與山水">
+    <h2>電腦 / 平板</h2>
+    <p>左右分屏 · 左岸靜修右岸星海</p>
+  </a>
+  <a class="ch-half ch-mobile" href="mobile.html" aria-label="進入手機版">
+    <img class="ch-img" src="assets/img/chooser-mobile.webp?v=3.0.0" alt="手機版插圖：深空中的手機">
+    <h2>手機</h2>
+    <p>上下分屏 · 單手可及</p>
+  </a>
 </div>
-
-<section class="page subpage" id="page-trial" data-panel="flow" data-page="trial">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>⚔️ 試煉場</h2>
-      <div class="subcoin"><span>✨ <b data-w-particles>0</b></span></div></header>
-    <div class="subbody" id="trialBody"></div>
-  </section>
-<section class="page subpage" id="page-dex" data-panel="flow" data-page="dex">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>📖 知識圖鑑</h2></header>
-    <div class="subbody" id="dexBody"></div>
-  </section>
-<section class="page subpage" id="page-debate" data-panel="overlay" data-page="debate">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🎙️ 辯論台</h2></header>
-    <div class="subbody" id="debateBody"></div>
-  </section>
-<section class="page subpage" id="page-battle" data-panel="cosmos" data-page="battle">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🚀 星球戰役</h2>
-      <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
-    <div class="subbody" id="battleBody"></div>
-  </section>
-<section class="page subpage" id="page-market" data-panel="cosmos" data-page="market">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🏪 星際市集</h2>
-      <div class="subcoin"><span>⭐ <b data-w-sands>0</b></span></div></header>
-    <div class="subbody" id="marketBody"></div>
-  </section>
-<section class="page subpage" id="page-forum" data-panel="overlay" data-page="forum">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>🗣️ 討論空間</h2></header>
-    <div class="subbody" id="forumBody"></div>
-  </section>
-<section class="page subpage" id="page-wallet" data-panel="overlay" data-page="wallet">
-    <header class="subhead"><button class="backbtn" data-back aria-label="返回">‹</button><h2>💰 錢包</h2></header>
-    <div class="subbody" id="walletBody"></div>
-  </section>
-<div id="app-shell" class="shell-hidden">
-  <!-- 桌面頂欄：logo / 世界切換 / 家 / 錢包 / 帳號 -->
-  <header id="topbar">
-    <div class="tb-logo">曙光教育 <span>3.0</span></div>
-    <nav class="tb-views" aria-label="世界切換">
-      <button data-tview="flow" class="on"><i>📖</i>心流</button>
-      <button data-tview="cosmos"><i>🚀</i>宇宙</button>
-      <button data-tview="home"><i>🏠</i>家</button>
-    </nav>
-    <div class="tb-right">
-      <button class="coin-chip sand" id="tbSand"><span class="dot"></span><span class="num" data-w-sands>0</span></button>
-      <button class="coin-chip mote" id="tbMote"><span class="dot"></span><span class="num" data-w-particles>0</span></button>
-      <div class="avatar-wrap">
-        <button class="avatar" id="tbAvatar" aria-label="帳戶選單">曜</button>
-        <div class="acct-menu" id="tbAcctMenu"></div>
-      </div>
-    </div>
-  </header>
-  <main id="panel-flow" aria-label="心流">
-  <!-- ============ 心流學習首頁 ============ -->
-  <section class="page" id="page-flow" data-page="flow">
-    <div class="page-scroll">
-      <header class="idbar">
-        <div class="avatar-wrap">
-          <button class="avatar" id="flowAvatar" aria-label="帳戶選單">曜</button>
-          <div class="acct-menu" id="flowAcctMenu"></div>
-        </div>
-        <span class="lv-badge">Lv.<span id="flowLv">1</span></span>
-        <span class="spacer"></span>
-        <button class="coin-chip sand" id="flowSandChip"><span class="dot"></span><span class="num" id="flowSand">0</span> 星砂</button>
-        <button class="icon-btn" id="flowBell" aria-label="通知">🔔</button>
-      </header>
-
-      <div class="brief">
-        <div class="kicker">今日作戰 · <span id="flowDate"></span></div>
-        <div class="ai-line" id="flowBriefLine">AI 參謀：「先挑一個讓你手癢的問題，剩下的交給我。」</div>
-      </div>
-
-      <div class="mode-capsule" id="modeCapsule" role="tablist" aria-label="學習模組">
-        <button data-mode="exam" role="tab">📝 考試衝刺</button>
-        <button data-mode="curious" role="tab" class="on">🔭 好奇逛逛</button>
-        <button data-mode="deep" role="tab">📚 深入研究</button>
-      </div>
-
-      <div class="card main-topic" id="mainTopic" role="button" tabindex="0" aria-label="主課題">
-        <div class="pills">
-          <span class="kp-pill" id="mainTopicTag">物理 · 熱學</span>
-          <span class="diff" aria-label="難度 2"><i class="f"></i><i class="f"></i><i></i></span>
-        </div>
-        <h2 id="mainTopicTitle">為什麼從泳池起來，有風吹來特別冷？</h2>
-        <div class="sub" id="mainTopicSub">3 份史料 · 1 個爭點 · 約 12 分鐘</div>
-        <div class="progress"><i id="mainTopicProg" style="width:35%"></i></div>
-        <div class="foot">
-          <span class="small">上次停在：穿插測驗</span>
-          <span class="small" style="color:var(--page-accent)">繼續 →</span>
-        </div>
-      </div>
-
-      <div class="flow-steps" aria-label="心流三步驟">
-        <div class="step cur">📖 讀檔</div>
-        <div class="step">⚔️ 辯論</div>
-        <div class="step">🗡️ 取武</div>
-      </div>
-
-      <h3 style="font-size:var(--fs-14); margin:0 0 10px;">其他課題</h3>
-      <div class="topic-list" id="topicList"></div>
-
-      <h3 style="font-size:var(--fs-14); margin:4px 0 10px;">最近取得</h3>
-      <div class="loot-row" id="lootRow"></div>
-      <div style="height:12px"></div>
-    </div>
-    <div class="page-cta">
-      <button class="btn btn-primary" id="flowCta">進入閉門造車 →</button>
-    </div>
-  </section>
-
-  </main>
-  <aside id="panel-cosmos" aria-label="宇宙">
-  <!-- ============ 遊歷宇宙首頁 ============ -->
-  <section class="page" id="page-cosmos" data-page="cosmos">
-    <div class="starfield" id="starfield" aria-hidden="true"></div>
-
-    <button class="planet" id="planet1" style="left:12%; top:26%;" data-p="kx447">
-      <span class="p-body" style="background:radial-gradient(circle at 35% 35%, oklch(.62 .14 45), oklch(.42 .1 40));"></span>
-      <span class="p-ring"></span><span class="p-name">鐵鏽帶 · KX-447</span>
-    </button>
-    <button class="planet recommended" id="planet2" style="left:58%; top:20%;" data-p="mist">
-      <span class="p-body" style="background:radial-gradient(circle at 35% 35%, oklch(.6 .12 200), oklch(.38 .09 210));"></span>
-      <span class="p-ring"></span><span class="p-name">迷霧星 · ML-09</span>
-    </button>
-    <button class="planet" id="planet3" style="left:34%; top:44%;" data-p="ember">
-      <span class="p-body" style="background:radial-gradient(circle at 35% 35%, oklch(.58 .13 25), oklch(.36 .09 20));"></span>
-      <span class="p-ring"></span><span class="p-name">餘燼星 · EM-31</span>
-    </button>
-
-    <div class="ship" aria-hidden="true">🚀<span class="trail"></span></div>
-
-    <div class="cosmos-hud">
-      <div class="hud-top">
-        <div class="energy"><div class="bar"><i></i></div><span class="num">72</span></div>
-        <div class="coords">X:447 Y:09 Z:31</div>
-        <button class="coin-chip sand" id="cosmosSandChip" style="min-height:32px"><span class="dot"></span><span class="num" id="cosmosSand">0</span></button>
-        <button class="icon-btn" id="cosmosGear" aria-label="設定" style="width:44px;height:44px">⚙️</button>
-      </div>
-      <div class="bridge-bar"><b>曙光號 · Mk.II</b><span class="small">戰力 <span class="val">1,240</span></span><span class="small">心靈 <span class="val">68</span></span></div>
-      <div class="ops-row" id="opsRow">
-        <button data-op="atk" class="on">🎯 遠端攻擊</button>
-        <button data-op="explore">🔭 星球探索</button>
-        <button data-op="forge">🧠 論文鍛鍊</button>
-      </div>
-    </div>
-
-    <div class="target-card" id="targetCard" aria-live="polite">
-      <h3 id="tcName">迷霧星 · ML-09</h3>
-      <div class="diff-row"><span>難度</span><span class="diff"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span><span>距離 2.4 光年</span></div>
-      <div class="loot"><span>💰 <b>120</b> 星砂</span><span>🔷 <b>8</b> 記憶微粒</span><span>🛡️ 鈦殼裝甲</span></div>
-    </div>
-    <div class="cosmos-cta">
-      <button class="btn btn-primary" id="cosmosCta">出擊 →</button>
-    </div>
-  </section>
-
-  </aside>
-  <section id="panel-home" aria-label="家">
-  <!-- ============ 家 ============ -->
-  <section class="page" id="page-home" data-page="home">
-    <div class="page-scroll">
-      <header class="idbar">
-        <div class="avatar-wrap">
-          <button class="avatar" id="homeAvatar" aria-label="帳戶選單">曜</button>
-          <div class="acct-menu" id="homeAcctMenu"></div>
-        </div>
-        <span class="lv-badge">曙光小築 · Lv.7</span>
-        <span class="spacer"></span>
-        <button class="coin-chip sand" id="homeSandChip"><span class="dot"></span><span class="num" id="homeSand">0</span></button>
-        <button class="coin-chip mote" id="homeMoteChip"><span class="dot"></span><span class="num" id="homeMote">0</span></button>
-      </header>
-
-      <div class="room" id="room" aria-label="我的房間">
-        <div class="wall-l"></div><div class="wall-r"></div>
-        <div class="floor"></div>
-        <div class="rug"></div>
-        <button class="furniture" style="left:16%; top:52%;" data-f="書架">📚<span class="tag">書架</span></button>
-        <button class="furniture" style="left:70%; top:48%;" data-f="熔爐">🔥<span class="tag">鍛造爐</span></button>
-        <button class="pet" id="petBtn" aria-label="寵物">🦊</button>
-        <div class="pet-bubble" id="petBubble">你回來啦！今天要去打 KX-447 嗎？</div>
-      </div>
-
-      <div class="card pet-status">
-        <span style="font-size:24px">🦊</span>
-        <div class="mood"><b style="font-size:var(--fs-14)">小火</b> <span class="small">· 心情不錯</span>
-          <div class="bar"><i></i></div>
-        </div>
-        <span class="small">飽食 78%</span>
-      </div>
-
-      <div class="quick-grid">
-        <button data-q="chat"><span class="qi">💬</span>聊天</button>
-        <button data-q="forum"><span class="qi">🗣️</span>討論空間</button>
-        <button data-q="friends"><span class="qi">👥</span>好友</button>
-        <button data-q="achv"><span class="qi">🏆</span>成就</button>
-      </div>
-
-      <div class="card build-card">
-        <div class="thumb">🏠</div>
-        <div class="bt"><b>佈置你的家</b><span>2 塊空地待建設 · 建造給被動加成</span></div>
-        <button class="btn" data-q="build">前往</button>
-      </div>
-      <div style="height:8px"></div>
-    </div>
-
-    <!-- 錢包面板 -->
-    <div class="sheet-mask" id="walletMask">
-      <div class="sheet" role="dialog" aria-label="錢包">
-        <h3>💰 學習帳本</h3>
-        <p class="small">紀錄永不遺失 · 每一筆都有來源</p>
-        <div class="wallet-row">
-          <span class="cdot" style="background:var(--sand)"></span><b>星砂</b><span class="num" id="wSand">0</span>
-        </div>
-        <div class="wallet-row">
-          <span class="cdot" style="background:var(--mote)"></span><b>記憶微粒</b><span class="num" id="wMote">0</span>
-        </div>
-        <p class="x-rate">匯率 1 星砂 ≈ 100 記憶微粒（本週浮動 ±5%）</p>
-        <div class="x-ctl">
-          <input type="range" id="xRange" min="0" max="1000" value="0" step="10" aria-label="兌換數量">
-          <span class="x-out" id="xOut">→ 0 星砂</span>
-        </div>
-        <button class="btn btn-primary" id="xBtn" style="background:var(--page-accent)">兌換記憶微粒 → 星砂</button>
-        <button class="btn btn-ghost" id="walletClose" style="margin-top:10px; color:oklch(.28 .014 70); border-color:oklch(0 0 0/.2)">關閉</button>
-      </div>
-    </div>
-  </section>
-  </section><!-- /panel-home -->
-
-  <!-- ============ 深層系統頁（獨立子頁） ============ -->
-  <div id="overlay-root"></div>
-  <!-- subpage moved -->
-  <!-- subpage moved -->
-  <!-- subpage moved -->
-  <!-- subpage moved -->
-  <!-- subpage moved -->
-  <!-- subpage moved -->
-  <!-- subpage moved -->
-
-</div>
-
-<!-- 登入 modal（簡化版） -->
-<div class="modal-mask" id="authMask">
-  <div class="modal" role="dialog" aria-label="登入">
-    <h3>歡迎回來，旅人</h3>
-    <p class="small">登入後，星砂與學習進度會跟著你走。</p>
-    <div class="fld"><label>暱稱</label><input id="authName" autocomplete="username" placeholder="你的名字"></div>
-    <div class="fld"><label>密碼</label><input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
-    <div class="err" id="authErr"></div>
-    <div class="row">
-      <button class="btn btn-ghost" id="authCancel" style="flex:1">取消</button>
-      <button class="btn btn-primary" id="authGo" style="flex:2; min-height:48px">登入</button>
-    </div>
-    <p class="small" style="margin-top:12px">還沒有帳號？<button id="authToReg" style="background:none;border:0;color:var(--sand);font-weight:700;cursor:pointer;font-size:var(--fs-12)">註冊一個 →</button></p>
-  </div>
-</div>
-
-<div id="toast" role="status"></div>
-
-<script src="js/sys-core.js"></script>
-<script src="js/gateway.js"></script>
-<script src="js/sys-learn.js"></script>
-<script src="js/sys-world.js"></script>
-<script src="js/app.js"></script>
 </body>
 </html>
