@@ -1,0 +1,107 @@
+/* 複習任務：禪區樣式。只用裸名 token，不寫死顏色。 */
+
+body { background: var(--bg); color: var(--ink); }
+
+.r-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.r-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.r-header h1 { font-size: var(--fs-24); }
+.r-sub { color: var(--muted); font-size: var(--fs-13); }
+
+#r-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+
+/* 著陸 */
+.r-landing { text-align: center; padding: var(--sp-12) 0; }
+.r-landing img { width: 160px; margin: 0 auto var(--sp-6); border-radius: 50%; }
+.r-landing h2 { font-size: var(--fs-20); margin-bottom: var(--sp-2); }
+.r-landing > p { color: var(--muted); margin-bottom: var(--sp-6); }
+
+.r-stats {
+  display: flex; gap: var(--sp-4); justify-content: center;
+  margin: var(--sp-6) 0; flex-wrap: wrap;
+}
+.r-stat {
+  min-width: 110px; padding: var(--sp-4) var(--sp-6);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--card); display: flex; flex-direction: column; gap: var(--sp-1);
+}
+.r-stat strong { font-size: var(--fs-24); font-weight: 800; }
+.r-stat span { color: var(--muted); font-size: var(--fs-13); }
+
+.r-tier { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); margin-bottom: var(--sp-6); color: var(--muted); font-size: var(--fs-13); }
+.r-tier-badge {
+  padding: var(--sp-1) var(--sp-4); border-radius: var(--r-full);
+  font-size: var(--fs-13); font-weight: 700;
+  border: 1px solid var(--line);
+}
+.r-tier-badge.basic { background: var(--bg-soft); }
+.r-tier-badge.plus { border-color: var(--accent); color: var(--accent); }
+
+.r-start { margin-top: var(--sp-4); font-size: var(--fs-16); padding: var(--sp-4) var(--sp-12); }
+
+.r-upcoming { margin-top: var(--sp-12); text-align: left; }
+.r-upcoming h2 { font-size: var(--fs-16); margin-bottom: var(--sp-3); }
+.r-urow {
+  display: flex; justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line);
+  font-size: var(--fs-14);
+}
+.r-urow span:last-child { color: var(--muted); }
+
+/* 複習卡 */
+.r-progress {
+  height: 8px; border-radius: var(--r-full);
+  background: var(--bg-soft); overflow: hidden; margin-bottom: var(--sp-3);
+}
+.r-progress-fill {
+  height: 100%; background: var(--accent); border-radius: var(--r-full);
+  transition: width .3s var(--ease);
+}
+.r-count { text-align: center; color: var(--muted); font-size: var(--fs-13); margin-bottom: var(--sp-4); }
+
+.r-card { text-align: center; padding: var(--sp-8) var(--sp-6); }
+.r-topic { color: var(--muted); font-size: var(--fs-13); margin-bottom: var(--sp-2); }
+.r-question { font-size: var(--fs-20); margin-bottom: var(--sp-6); line-height: 1.6; }
+.r-hint {
+  padding: var(--sp-4) var(--sp-6); margin-bottom: var(--sp-4);
+  border-left: 3px solid var(--accent); background: var(--bg-soft);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  text-align: left; font-size: var(--fs-14); line-height: 1.7;
+}
+
+/* 自評按鈕 */
+.r-grade-title { margin: var(--sp-6) 0 var(--sp-3); font-weight: 700; }
+.r-grades {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2);
+  max-width: 480px; margin: 0 auto;
+}
+.r-grade {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-2);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--card); font-size: var(--fs-13);
+  transition: border-color .2s var(--ease), transform .15s var(--ease);
+}
+.r-grade:hover { border-color: var(--accent); transform: translateY(-2px); }
+.r-grade:disabled { opacity: .6; transform: none; }
+.r-grade:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.r-grade strong { font-size: var(--fs-20); }
+.r-grade span { color: var(--muted); font-size: var(--fs-12); }
+/* 0-2 偏冷色調邊框、3-5 偏暖，僅用透明度差異，不寫死顏色 */
+.r-grade.g0, .r-grade.g1, .r-grade.g2 { border-style: dashed; }
+
+.r-next { margin: var(--sp-6) 0 var(--sp-3); color: var(--muted); }
+#r-next-btn { font-size: var(--fs-16); padding: var(--sp-3) var(--sp-10); }
+
+/* 完成 */
+.r-done { text-align: center; padding: var(--sp-12) 0; }
+.r-done img { width: 160px; margin: 0 auto var(--sp-6); border-radius: 50%; }
+.r-done h2 { font-size: var(--fs-24); margin-bottom: var(--sp-2); }
+.r-done > p { color: var(--muted); margin-bottom: var(--sp-4); }
+
+@media (max-width: 480px) {
+  .r-grades { grid-template-columns: repeat(2, 1fr); }
+}
