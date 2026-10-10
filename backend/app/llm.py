@@ -181,7 +181,35 @@ def _rule_followup(question: str) -> str:
 
 def generate_quiz(question: str, topic: str, grade_band: str,
                   depth: int, n: int = 3) -> list[dict]:
-    """穿插測驗：生成 n 題選擇題。回傳 [{question, options[4], answer_index, concept}]。"""
+    """穿插測驗：生成 n 題選擇題。回傳 [{question, options[4], answer_index, concept}]。
+    
+    快取策略：先查 question_cache，同主題+年級+深度直接回傳（秒出）；
+    未命中才調 LLM，生成後寫入快取供下次用。
+    """
+    import hashlib
+    import uuid
+    from app import db
+    
+    # 快取鍵：主題+年級+深度+n
+    cache_key = hashlib.sha256(
+        f"{topic}|{grade_band}|{depth}|{n}".encode()).hexdigest()[:32]
+    try:
+        with db.get_conn() as conn:
+            row = conn.execute(
+                "SELECT questions FROM question_cache WHERE cache_key = ?",
+                (cache_key,)).fetchone()
+            if row:
+                cached = db.jloads(row["questions"] if isinstance(row, dict) else row[0], [])
+                if cached and len(cached) >= n:
+                    # 命中：更新 hit_count 並回傳
+                    conn.execute(
+                        "UPDATE question_cache SET hit_count = hit_count + 1 WHERE cache_key = ?",
+                        (cache_key,))
+                    return cached[:n]
+    except Exception:
+        pass  # 快取失敗不影響主流程
+    
+    # 未命中：調 LLM 或規則生成
     if has_llm():
         msgs = [
             {"role": "system",
@@ -195,8 +223,43 @@ def generate_quiz(question: str, topic: str, grade_band: str,
         out = _nim_call(msgs, max_tokens=1600, temperature=0.5)
         items = _extract_json_arr(out)
         if items:
-            return [_norm_quiz(q) for q in items[:n] if isinstance(q, dict)]
-    return [_rule_quiz(question, topic, i) for i in range(n)]
+            result = [_norm_quiz(q) for q in items[:n] if isinstance(q, dict)]
+            # 寫入快取
+            _cache_questions(cache_key, topic, grade_band, depth, result)
+            return result
+    result = [_rule_quiz(question, topic, i) for i in range(n)]
+    _cache_questions(cache_key, topic, grade_band, depth, result)
+    return result
+
+
+def _cache_questions(cache_key: str, topic: str, grade_band: str,
+                     depth: int, questions: list[dict]) -> None:
+    """寫入題庫快取（失敗靜默）。"""
+    import json
+    import uuid
+    from app import db
+    try:
+        with db.get_conn() as conn:
+            qjson = json.dumps(questions, ensure_ascii=False)
+            if db.is_postgres():
+                conn.execute(
+                    """INSERT INTO question_cache
+                       (id, topic, grade_band, depth, cache_key, questions)
+                       VALUES (%s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (cache_key) DO NOTHING""",
+                    ("qc_" + uuid.uuid4().hex[:12], topic, grade_band, depth,
+                     cache_key, qjson),
+                )
+            else:
+                conn.execute(
+                    """INSERT OR IGNORE INTO question_cache
+                       (id, topic, grade_band, depth, cache_key, questions)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    ("qc_" + uuid.uuid4().hex[:12], topic, grade_band, depth,
+                     cache_key, qjson),
+                )
+    except Exception:
+        pass
 
 
 def _norm_quiz(q: dict) -> dict:

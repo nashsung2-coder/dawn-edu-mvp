@@ -376,6 +376,20 @@ CREATE TABLE IF NOT EXISTS review_cards (
 CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
     ON review_cards(user_id, next_review_at);
 
+-- 題庫快取：LLM 生成的題目存起來，下次同主題直接用（解決 35 秒等待）
+CREATE TABLE IF NOT EXISTS question_cache (
+    id TEXT PRIMARY KEY,
+    topic TEXT NOT NULL,
+    grade_band TEXT NOT NULL DEFAULT '高中',
+    depth INTEGER NOT NULL DEFAULT 1,
+    cache_key TEXT NOT NULL,
+    questions TEXT NOT NULL DEFAULT '[]',
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (cache_key)
+);
+CREATE INDEX IF NOT EXISTS idx_qcache_topic ON question_cache(topic, grade_band, depth);
+
 -- 技能章（= 武器）
 CREATE TABLE IF NOT EXISTS skill_badges (
     id TEXT PRIMARY KEY,
@@ -648,6 +662,20 @@ CREATE TABLE IF NOT EXISTS review_cards (
 );
 CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
     ON review_cards(user_id, next_review_at);
+
+-- 題庫快取（Postgres 版）
+CREATE TABLE IF NOT EXISTS question_cache (
+    id TEXT PRIMARY KEY,
+    topic TEXT NOT NULL,
+    grade_band TEXT NOT NULL DEFAULT '高中',
+    depth INTEGER NOT NULL DEFAULT 1,
+    cache_key TEXT NOT NULL,
+    questions TEXT NOT NULL DEFAULT '[]',
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (cache_key)
+);
+CREATE INDEX IF NOT EXISTS idx_qcache_topic ON question_cache(topic, grade_band, depth);
 
 -- 技能章（= 武器）
 CREATE TABLE IF NOT EXISTS skill_badges (
