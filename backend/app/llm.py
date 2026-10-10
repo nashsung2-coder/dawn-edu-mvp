@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 
 NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -35,20 +37,31 @@ def has_llm() -> bool:
     return bool(_all_keys())
 
 
-# 記住哪把 key 可用，避免每次都重試壞 key
-_working_key: str | None = None
+# 多 key 分流狀態：key -> {"invalid": bool, "cool_until": timestamp}
+# invalid = 401/403（key 壞了，本次進程不再用）
+# cool_until = 429（被限流，冷卻 N 秒後再用）
+_key_state: dict[str, dict] = {}
+_rr_index = 0
+_COOLDOWN_S = 60
 
 
 def _nim_call(messages: list[dict], max_tokens: int = 1200,
               temperature: float = 0.7) -> str | None:
-    """打 NIM chat completions。多 key 時依序嘗試，記住可用的那把。
+    """打 NIM chat completions。多 key 時 round-robin 分流；
+    遇到 429 該 key 冷卻 60 秒、401/403 直接淘汰，自動換下一把。
     全部失敗回 None（呼叫端降級為規則式）。"""
-    global _working_key
+    global _rr_index
     keys = _all_keys()
     if not keys:
         return None
-    ordered = ([_working_key] if _working_key in keys else []) + \
-              [k for k in keys if k != _working_key]
+    now = time.time()
+    usable = [k for k in keys
+              if not _key_state.get(k, {}).get("invalid")
+              and _key_state.get(k, {}).get("cool_until", 0) <= now]
+    pool = usable or keys  # 全在冷卻就硬試
+    start = _rr_index % len(pool)
+    _rr_index += 1
+    ordered = pool[start:] + pool[:start]
     body = json.dumps({
         "model": DEFAULT_MODEL,
         "messages": messages,
@@ -66,11 +79,15 @@ def _nim_call(messages: list[dict], max_tokens: int = 1200,
             with urllib.request.urlopen(req, timeout=90) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             msg = data["choices"][0]["message"]
-            text = msg.get("content") or msg.get("reasoning_content") or ""
-            text = text.strip()
+            text = (msg.get("content") or msg.get("reasoning_content") or "").strip()
             if text:
-                _working_key = key
                 return text
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                _key_state.setdefault(key, {})["cool_until"] = now + _COOLDOWN_S
+            elif e.code in (401, 403):
+                _key_state.setdefault(key, {})["invalid"] = True
+            continue
         except Exception:
             continue
     return None
