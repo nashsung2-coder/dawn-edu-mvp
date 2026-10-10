@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>掌握度儀表板 · 曙光教育 3.0</title>
+<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<link rel="stylesheet" href="../assets/css/pages/mastery.css?v=3.0.0">
+</head>
+<body class="theme-zen">
+<header class="m-header">
+  <a class="btn btn-ghost" href="../desktop.html" data-device-home aria-label="回首頁">‹ 首頁</a>
+  <img src="../assets/img/emblem-mastery.webp?v=3.0.0" alt="掌握度儀表徽章" class="m-emblem">
+  <div>
+    <h1>掌握度儀表板</h1>
+    <p class="m-sub" id="m-userline">載入中…</p>
+  </div>
+</header>
+
+<main id="m-main">
+  <div id="m-view"></div>
+</main>
+
+<div id="toast-root" aria-live="polite"></div>
+<script type="module" src="../assets/js/pages/mastery.js?v=3.0.0"></script>
+<script>
+  /* 返回鍵：回到記住的裝置版本首頁，而非裝置選擇頁 */
+  try {
+    var d = localStorage.getItem("dawn.device");
+    var link = document.querySelector("[data-device-home]");
+    if (link) link.href = (d === "mobile") ? "../mobile.html" : "../desktop.html";
+  } catch (e) {}
+</script>
+</body>
+</html>
