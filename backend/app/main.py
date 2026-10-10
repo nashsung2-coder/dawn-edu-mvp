@@ -13,6 +13,7 @@ from app import db
 from app import economy
 from app import learn as learn_mod
 from app import llm as llm_mod
+from app import world as world_mod
 from app.game import (
     compare_radar,
     create_duel,
@@ -643,9 +644,23 @@ def learn_feynman(sid: str, body: FeynmanIn, request: Request):
 def learn_finish(sid: str, body: FinishIn, request: Request):
     user = _current_user(request)
     try:
-        return {"ok": True, **learn_mod.finish_session(sid, user["id"], body.badge_name)}
+        result = learn_mod.finish_session(sid, user["id"], body.badge_name)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
+    # 戰役完成 → 寵物孵化／成長（強度=學習投入函數）
+    pet_info = None
+    try:
+        pet = world_mod.get_pet(user["id"])
+        if not pet:
+            pet_info = {"hatched": True,
+                        "pet": world_mod.hatch_pet(user["id"])}
+        else:
+            pet_info = {"hatched": False,
+                        "pet": world_mod.pet_gain_exp(user["id"], 60, "完成費曼戰役")}
+    except Exception:
+        pass
+    result["pet"] = pet_info
+    return {"ok": True, **result}
 
 
 @app.get("/api/v1/learn/badges", summary="我的技能章（武器庫）")
@@ -665,6 +680,197 @@ def learn_textbook(request: Request):
     user = _current_user(request)
     return {"ok": True, "chapters": learn_mod.textbook_chapters(user["id"]),
             "llm": llm_mod.has_llm()}
+
+
+# ---------------- 遊戲世界：寵物／島嶼／市集／探索／每週 ----------------
+class PetNameIn(BaseModel):
+    name: str = Field(description="寵物名字")
+    species: str = Field(default="", description="種類（選填）")
+
+
+@app.get("/api/v1/world/pet", summary="我的寵物")
+def world_pet(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "pet": world_mod.get_pet(user["id"])}
+
+
+@app.post("/api/v1/world/pet/hatch", summary="孵化寵物", status_code=201)
+def world_pet_hatch(body: PetNameIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "pet": world_mod.hatch_pet(user["id"], body.name, body.species)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/world/pet/rename", summary="寵物改名")
+def world_pet_rename(body: PetNameIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "pet": world_mod.rename_pet(user["id"], body.name)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class IslandIn(BaseModel):
+    session_id: str = Field(description="來源戰役")
+    name: str = Field(default="", description="島嶼名")
+    topic: str = Field(default="", description="主題")
+
+
+@app.get("/api/v1/world/islands", summary="我的島嶼")
+def world_islands(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "islands": world_mod.list_islands(user["id"])}
+
+
+@app.post("/api/v1/world/islands", summary="命名新島嶼", status_code=201)
+def world_island_create(body: IslandIn, request: Request):
+    user = _current_user(request)
+    return {"ok": True,
+            "island": world_mod.create_island(user["id"], body.session_id,
+                                              body.name, body.topic)}
+
+
+class BuildIn(BaseModel):
+    island_id: str = Field(description="島嶼 ID")
+    btype: str = Field(description="建築類型：圖書館/訓練場/瞭望塔")
+
+
+@app.post("/api/v1/world/build", summary="蓋房／升級")
+def world_build(body: BuildIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **world_mod.build(user["id"], body.island_id, body.btype)}
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+class ListingIn(BaseModel):
+    item_type: str = Field(description="badge（武器）/ island（島嶼）")
+    item_id: str = Field(description="物品 ID")
+    price: int = Field(default=0, description="星砂定價")
+    trade_kind: str = Field(default="sell", description="sell / barter")
+    want_text: str = Field(default="", description="以物易物想換什麼")
+
+
+@app.get("/api/v1/world/market", summary="交易市集")
+def world_market():
+    return {"ok": True, "listings": world_mod.list_market()}
+
+
+@app.post("/api/v1/world/market", summary="上架物品", status_code=201)
+def world_market_publish(body: ListingIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **world_mod.publish_listing(
+            user["id"], body.item_type, body.item_id,
+            body.price, body.trade_kind, body.want_text)}
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/world/market/{lid}/buy", summary="購買")
+def world_market_buy(lid: str, request: Request):
+    user = _current_user(request)
+    try:
+        return world_mod.buy_listing(user["id"], lid)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/v1/world/market/{lid}", summary="下架")
+def world_market_cancel(lid: str, request: Request):
+    user = _current_user(request)
+    try:
+        return world_mod.cancel_listing(user["id"], lid)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+class ExploreIn(BaseModel):
+    zone: str = Field(description="探索區域")
+
+
+class ChoiceIn(BaseModel):
+    choice_index: int = Field(description="選項索引")
+
+
+@app.get("/api/v1/world/zones", summary="探索區域")
+def world_zones():
+    return {"ok": True, "zones": [
+        {"name": z, "desc": v["desc"], "stages": v["stages"]}
+        for z, v in world_mod.ZONES.items()]}
+
+
+@app.post("/api/v1/world/explore", summary="開始探索", status_code=201)
+def world_explore_start(body: ExploreIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **world_mod.start_exploration(user["id"], body.zone)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/world/explore", summary="我的探索紀錄")
+def world_explore_list(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "explorations": world_mod.list_explorations(user["id"])}
+
+
+@app.get("/api/v1/world/explore/{eid}", summary="探索進度")
+def world_explore_get(eid: str, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **world_mod.get_exploration(eid, user["id"])}
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/v1/world/explore/{eid}/choose", summary="劇情選擇")
+def world_explore_choose(eid: str, body: ChoiceIn, request: Request):
+    user = _current_user(request)
+    try:
+        return world_mod.explore_choice(eid, user["id"], body.choice_index)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/world/weekly", summary="產生本週精選＋盤點")
+def world_weekly(request: Request, week: str = Query("")):
+    user = _current_user(request)
+    return {"ok": True, **world_mod.generate_weekly(user["id"], week)}
+
+
+@app.get("/api/v1/world/weekly", summary="本週精選")
+def world_weekly_get(request: Request, week: str = Query("")):
+    user = _current_user(request)
+    d = world_mod.get_weekly(user["id"], week)
+    if not d:
+        raise HTTPException(404, "本週還沒產生精選，先 POST 產生。")
+    return {"ok": True, **d}
+
+
+class AttrSpendIn(BaseModel):
+    badge_id: str = Field(description="武器 ID")
+    points: int = Field(description="投入點數")
+    route: str = Field(default="attack", description="attack / defense / bond")
+
+
+@app.get("/api/v1/world/attr-points", summary="我的自由屬性點")
+def world_attr_points(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "points": world_mod.get_attr_points(user["id"])}
+
+
+@app.post("/api/v1/world/attr-points/spend", summary="屬性點加乘武器")
+def world_attr_spend(body: AttrSpendIn, request: Request):
+    user = _current_user(request)
+    try:
+        return world_mod.spend_attr_points(user["id"], body.badge_id,
+                                           body.points, body.route)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/", summary="健康檢查")

@@ -16,15 +16,16 @@ import os
 import urllib.request
 
 NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-# 預設模型：免費額度友善、可換
-DEFAULT_MODEL = os.environ.get("NIM_MODEL", "meta/llama-3.1-8b-instruct")
+# 預設模型：2026-10-10 實測可用（免費 key）。gpt-oss-20b 是推理模型，
+# 要給足 max_tokens（思考會吃掉額度），content 為 null 時改讀 reasoning_content。
+DEFAULT_MODEL = os.environ.get("NIM_MODEL", "openai/gpt-oss-20b")
 
 
 def has_llm() -> bool:
     return bool(os.environ.get("NVIDIA_API_KEY"))
 
 
-def _nim_call(messages: list[dict], max_tokens: int = 800,
+def _nim_call(messages: list[dict], max_tokens: int = 1200,
               temperature: float = 0.7) -> str | None:
     """打 NIM chat completions。失敗回 None（呼叫端降級）。"""
     key = os.environ.get("NVIDIA_API_KEY")
@@ -43,9 +44,11 @@ def _nim_call(messages: list[dict], max_tokens: int = 800,
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
+        with urllib.request.urlopen(req, timeout=90) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"].strip()
+        msg = data["choices"][0]["message"]
+        text = msg.get("content") or msg.get("reasoning_content") or ""
+        return text.strip() or None
     except Exception:
         return None
 
@@ -77,7 +80,7 @@ def feynman_feedback(question: str, student_explain: str,
         for h in history[-4:]:
             msgs.append({"role": "user", "content": h.get("q", "")})
             msgs.append({"role": "assistant", "content": h.get("a", "")})
-        out = _nim_call(msgs, max_tokens=500)
+        out = _nim_call(msgs, max_tokens=900)
         if out:
             return {"feedback": out, "followup": "", "llm": True}
     # 規則式降級：結構化引導
@@ -118,7 +121,7 @@ def generate_quiz(question: str, topic: str, grade_band: str,
              "content": f"學習問題：{question}\n主題：{topic}\n年級段：{grade_band}\n"
                         f"深度等級：{depth}（1=入門，數字越大越深）\n請出 {n} 題。只回 JSON，不要其他文字。"},
         ]
-        out = _nim_call(msgs, max_tokens=900, temperature=0.5)
+        out = _nim_call(msgs, max_tokens=1600, temperature=0.5)
         if out:
             try:
                 start = out.find("[")
@@ -174,7 +177,7 @@ def name_skill_badge(question: str, topic: str, depth: int,
              "content": f"學習問題：{question}\n主題：{topic}\n深度：Lv{depth}\n"
                         f"請命名並寫一句評語。只回 JSON。"},
         ]
-        out = _nim_call(msgs, max_tokens=200, temperature=0.9)
+        out = _nim_call(msgs, max_tokens=700, temperature=0.9)
         if out:
             try:
                 start = out.find("{")
