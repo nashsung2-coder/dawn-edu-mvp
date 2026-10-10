@@ -64,11 +64,15 @@ def _validate_password(password: str) -> str:
     return password
 
 
-def register(name: str, password: str, email: str = "") -> dict:
-    """註冊新帳號（Email 選填）。成功回傳 {id, name, email, token}；失敗拋 ValueError。"""
+def register(name: str, password: str, email: str = "",
+             sec_question: str = "", sec_answer: str = "") -> dict:
+    """註冊新帳號（Email、安全問題選填）。成功回傳 {id, name, email, token}。"""
     name = _validate_name(name)
     password = _validate_password(password)
     email = _validate_email(email)
+    has_qa = bool((sec_question or "").strip() or (sec_answer or "").strip())
+    if has_qa:
+        sec_question, sec_answer = _validate_sec_qa(sec_question, sec_answer)
     with db.get_conn() as conn:
         exists = conn.execute("SELECT id FROM users WHERE name = ?", (name,)).fetchone()
         if exists:
@@ -78,11 +82,15 @@ def register(name: str, password: str, email: str = "") -> dict:
         user_id = "u_" + uuid.uuid4().hex[:12]
         token, thash = _new_token()
         conn.execute(
-            "INSERT INTO users (id, name, pw_hash, token_hash, email) VALUES (?, ?, ?, ?, ?)",
-            (user_id, name, hash_password(password), thash, email),
+            "INSERT INTO users (id, name, pw_hash, token_hash, email, sec_question, sec_answer_hash)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, name, hash_password(password), thash, email,
+             sec_question if has_qa else "",
+             _answer_hash(user_id, sec_answer) if has_qa else ""),
         )
         conn.commit()
-    return {"id": user_id, "name": name, "email": email, "token": token}
+    return {"id": user_id, "name": name, "email": email, "token": token,
+            "has_sec_qa": has_qa}
 
 
 def login(name: str, password: str) -> dict:
@@ -124,7 +132,7 @@ def get_user_by_token(token: str) -> dict | None:
         return None
     with db.get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, email, persona, created_at FROM users "
+            "SELECT id, name, email, persona, created_at, sec_question FROM users "
             "WHERE token_hash = ? AND token_hash != ''",
             (_token_hash(token),),
         ).fetchone()
@@ -132,7 +140,8 @@ def get_user_by_token(token: str) -> dict | None:
             return None
         return {"id": row["id"], "name": row["name"], "email": row["email"] or "",
                 "persona": db.jloads(row["persona"], {}),
-                "created_at": row["created_at"] or ""}
+                "created_at": row["created_at"] or "",
+                "sec_question": row["sec_question"] or ""}
 
 
 def set_persona(user_id: str, persona: dict) -> dict:
@@ -316,3 +325,102 @@ def export_user_data(user_id: str) -> dict:
         "territory_logs": [dict(r) for r in logs],
         "favorites": [dict(r) for r in favs],
     }
+
+
+# ---------------- 安全問題（忘記密碼用） ----------------
+# 答案正規化後以 user_id 加鹽做 SHA-256，不存明文。
+# 連續答錯 5 次鎖 15 分鐘（in-memory，MVP 級別）。
+
+_forgot_attempts: dict = {}
+_FORGOT_MAX = 5
+_FORGOT_WINDOW = 900  # 15 分鐘
+
+
+def _normalize_answer(answer: str) -> str:
+    return (answer or "").strip().lower()
+
+
+def _answer_hash(user_id: str, answer: str) -> str:
+    import hashlib
+    return hashlib.sha256(f"{user_id}:{_normalize_answer(answer)}".encode("utf-8")).hexdigest()
+
+
+def _validate_sec_qa(question: str, answer: str) -> tuple:
+    question = (question or "").strip()
+    answer = (answer or "").strip()
+    if not question:
+        raise ValueError("請選擇或輸入安全問題。")
+    if len(question) > 60:
+        raise ValueError("安全問題太長了，請在 60 字以內。")
+    if not answer:
+        raise ValueError("請輸入安全問題的答案。")
+    if len(answer) > 60:
+        raise ValueError("答案太長了，請在 60 字以內。")
+    return question, answer
+
+
+def set_security_qa(user_id: str, question: str, answer: str) -> str:
+    """設定／更新安全問題。回傳問題文字。"""
+    question, answer = _validate_sec_qa(question, answer)
+    with db.get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE users SET sec_question = ?, sec_answer_hash = ? WHERE id = ?",
+            (question, _answer_hash(user_id, answer), user_id),
+        )
+        conn.commit()
+        try:
+            ok = cur.rowcount > 0
+        except Exception:
+            ok = True
+        if not ok:
+            raise KeyError("user not found")
+    return question
+
+
+def get_security_question(name: str) -> str | None:
+    """依暱稱取安全問題（未設定回傳 None）。"""
+    name = _validate_name(name)
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT sec_question FROM users WHERE name = ?", (name,)
+        ).fetchone()
+        if not row:
+            return None
+        return row["sec_question"] or None
+
+
+def _forgot_check_rate(name: str) -> None:
+    import time
+    now = time.time()
+    count, start = _forgot_attempts.get(name, (0, now))
+    if now - start > _FORGOT_WINDOW:
+        count, start = 0, now
+    if count >= _FORGOT_MAX:
+        raise ValueError("嘗試次數太多，請 15 分鐘後再試。")
+    _forgot_attempts[name] = (count + 1, start)
+
+
+def reset_password_by_answer(name: str, answer: str, new_password: str) -> None:
+    """忘記密碼：安全問題答案正確即重設。"""
+    name = _validate_name(name)
+    new_password = _validate_password(new_password)
+    _forgot_check_rate(name)
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, sec_question, sec_answer_hash FROM users WHERE name = ?", (name,)
+        ).fetchone()
+        if not row:
+            raise ValueError("找不到這個暱稱。")
+        if not row["sec_question"]:
+            raise ValueError("此帳號尚未設定安全問題，請登入後到「帳號」頁設定。")
+        import hmac
+        if not hmac.compare_digest(
+            _answer_hash(row["id"], answer), row["sec_answer_hash"] or ""
+        ):
+            raise ValueError("安全問題的答案不正確。")
+        conn.execute(
+            "UPDATE users SET pw_hash = ?, token_hash = '' WHERE id = ?",
+            (hash_password(new_password), row["id"]),
+        )
+        conn.commit()
+    _forgot_attempts.pop(name, None)

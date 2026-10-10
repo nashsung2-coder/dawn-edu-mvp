@@ -163,6 +163,8 @@ CREATE TABLE IF NOT EXISTS users (
     pw_hash TEXT NOT NULL DEFAULT '',
     token_hash TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL DEFAULT '',
+    sec_question TEXT NOT NULL DEFAULT '',
+    sec_answer_hash TEXT NOT NULL DEFAULT '',
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -290,6 +292,8 @@ CREATE TABLE IF NOT EXISTS users (
     pw_hash TEXT NOT NULL DEFAULT '',
     token_hash TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL DEFAULT '',
+    sec_question TEXT NOT NULL DEFAULT '',
+    sec_answer_hash TEXT NOT NULL DEFAULT '',
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -390,6 +394,7 @@ def init_db() -> None:
     _migrate_users_auth_columns()
     _migrate_users_game_columns()
     _migrate_users_email_column()
+    _migrate_users_secqa_columns()
 
 
 def _migrate_users_auth_columns() -> None:
@@ -431,6 +436,21 @@ def _migrate_users_email_column() -> None:
             existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
             if "email" not in existing:
                 conn.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+
+
+def _migrate_users_secqa_columns() -> None:
+    """為已存在的 users 表補上安全問題欄位（冪等，雙模式相容）。"""
+    cols = (("sec_question", "TEXT NOT NULL DEFAULT ''"),
+            ("sec_answer_hash", "TEXT NOT NULL DEFAULT ''"))
+    with get_conn() as conn:
+        if is_postgres():
+            for name, ddl in cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {ddl}")
+        else:
+            existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+            for name, ddl in cols:
+                if name not in existing:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
 
 
 def table_empty(table: str) -> bool:
