@@ -78,38 +78,17 @@ function mulberry32(seed) {
   requestAnimationFrame(frame);
 })();
 
-/* ---------------- 分頁切換 ---------------- */
-(function initTabs() {
-  const nav = $("mainNav");
-  nav.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-tab]");
-    if (!btn) return;
-    nav.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    document.querySelectorAll(".tab-page").forEach((p) => p.classList.remove("active"));
-    $("page-" + btn.dataset.tab).classList.add("active");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    btn.scrollIntoView({ inline: "center", block: "nearest" });
-    if (btn.dataset.tab === "island") { loadIsland(); WorldUI.loadPet(); WorldUI.loadLearnIslands(); }
-    if (btn.dataset.tab === "textbook") buildTextbook();
-    if (btn.dataset.tab === "radar") Game.refresh();
-    if (btn.dataset.tab === "account") buildAccount();
-    if (btn.dataset.tab === "learn") WorldUI.initLearn();
-    if (btn.dataset.tab === "journey") WorldUI.initJourney();
-    if (btn.dataset.tab === "market") WorldUI.initMarket();
-    if (btn.dataset.tab === "weekly") WorldUI.initWeekly();
-  });
-})();
+/* ---------------- 分頁切換（v2：4 主分頁＋子頁 Segmented） ---------------- */
+const SUB2GROUP = {
+  explore: "study", learn: "study", textbook: "study",
+  qa: "trial", radar: "trial", duel: "trial",
+  island: "world", journey: "world", market: "world", weekly: "world",
+  account: "me", armory: "me",
+};
+const GROUP_FIRST_SUB = { study: "explore", trial: "qa", world: "island", me: "account" };
+const groupLastSub = {}; // 記住每組最後看的子頁
 
-function gotoTab(name) {
-  document.querySelectorAll("#mainNav button").forEach((b) =>
-    b.classList.toggle("active", b.dataset.tab === name)
-  );
-  document.querySelectorAll(".tab-page").forEach((p) => p.classList.remove("active"));
-  $("page-" + name).classList.add("active");
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  const tabBtn = document.querySelector('#mainNav button[data-tab="' + name + '"]');
-  if (tabBtn) tabBtn.scrollIntoView({ inline: "center", block: "nearest" });
+function runSubInit(name) {
   if (name === "island") { loadIsland(); WorldUI.loadPet(); WorldUI.loadLearnIslands(); }
   if (name === "textbook") buildTextbook();
   if (name === "radar") Game.refresh();
@@ -118,7 +97,64 @@ function gotoTab(name) {
   if (name === "journey") WorldUI.initJourney();
   if (name === "market") WorldUI.initMarket();
   if (name === "weekly") WorldUI.initWeekly();
+  if (name === "armory" && WorldUI.initArmory) WorldUI.initArmory();
 }
+
+function showSub(name) {
+  const group = SUB2GROUP[name];
+  if (!group) return;
+  groupLastSub[group] = name;
+  document.querySelectorAll("#mainNav button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.tab === group)
+  );
+  document.querySelectorAll(".tab-page").forEach((p) =>
+    p.classList.toggle("active", p.id === "group-" + group)
+  );
+  const seg = $("seg-" + group);
+  if (seg) seg.querySelectorAll("button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.sub === name)
+  );
+  document.querySelectorAll(".sub-page").forEach((p) =>
+    p.classList.toggle("active", p.id === "page-" + name)
+  );
+}
+
+function gotoTab(name) {
+  // 相容舊呼叫：子頁名 → 所在主分組
+  if (!SUB2GROUP[name]) return;
+  showSub(name);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  runSubInit(name);
+}
+
+function gotoGroup(group) {
+  const sub = groupLastSub[group] || GROUP_FIRST_SUB[group];
+  gotoTab(sub);
+}
+
+(function initTabs() {
+  const nav = $("mainNav");
+  nav.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-tab]");
+    if (!btn) return;
+    const group = btn.dataset.tab;
+    if (btn.classList.contains("active")) {
+      // 點已選中的主分頁 → 捲到子頁快捷（簡化版）
+      const seg = $("seg-" + group);
+      if (seg) seg.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    gotoGroup(group);
+  });
+  // 子頁 Segmented Control 委派
+  document.querySelectorAll(".segmented").forEach((seg) => {
+    seg.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-sub]");
+      if (!btn || btn.classList.contains("active")) return;
+      gotoTab(btn.dataset.sub);
+    });
+  });
+})();
 
 /* ============================================================
  * 分頁 1：探究（交集搜尋）
@@ -376,7 +412,9 @@ async function api(path, opts) {
     if (!r.ok) throw { status: r.status, message: data.detail || ("請求失敗（" + r.status + "）") };
     return data;
   } catch (e) {
-    if (e && e.name === "AbortError") throw { status: 0, message: "連線逾時" };
+    // v2 狀態設計：斷線／超時一律遊戲化文案，不跳冷冰冰的錯誤
+    if (e && (e.name === "AbortError" || e instanceof TypeError))
+      throw { status: 0, message: "傳送門暫時關閉（網路連線中斷）——檢查連線後再試一次" };
     throw e;
   } finally {
     clearTimeout(timer);
@@ -418,6 +456,52 @@ function renderAuthBar() {
     btn.onclick = () => openAuthModal("login");
     bar.appendChild(btn);
   }
+  renderHomeBoard();
+}
+
+/* ---------------- 首頁任務中心（v2） ---------------- */
+let _weeklyTeaser = null; // {title, summary} 快取
+
+async function renderHomeBoard() {
+  const logged = !!(Auth.user && Auth.token);
+  const brand = $("brandHero"), board = $("homeBoard");
+  if (!brand || !board) return;
+  brand.style.display = logged ? "none" : "";
+  if (!logged) { board.style.display = "none"; return; }
+  board.style.display = "";
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem("dawn_last_battle") || "null"); } catch (e) {}
+  if (!_weeklyTeaser) {
+    try {
+      const d = await api("/api/v1/world/weekly", { method: "POST" });
+      if (d.items && d.items.length)
+        _weeklyTeaser = { title: d.items[0].title, summary: d.items[0].summary };
+    } catch (e) { /* 靜默：沒有 banner 也不擋任務板 */ }
+  }
+  const t = _weeklyTeaser;
+  board.innerHTML =
+    '<div class="board-head"><h2>今日任務板</h2><span class="small">' +
+    new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" }) +
+    "</span></div>" +
+    '<div class="task-list">' +
+    '<button class="task-card" data-home-goto="learn"><span class="task-ico">戰</span>' +
+    '<span class="task-main"><b>繼續學習</b><p>' +
+    (last ? "上次：「" + last.topic + "」——回去把它打完" : "開始你的第一場費曼戰役") +
+    "</p></span><span class='task-go'>→</span></button>" +
+    '<button class="task-card" data-home-goto="duel"><span class="task-ico">決</span>' +
+    '<span class="task-main"><b>下一場對決</b><p>5 回合觀念交鋒，來場 Boss 戰</p></span>' +
+    "<span class='task-go'>→</span></button>" +
+    '<button class="task-card" data-home-goto="weekly"><span class="task-ico">選</span>' +
+    '<span class="task-main"><b>每日精選</b><p>看看本週為你策展的內容</p></span>' +
+    "<span class='task-go'>→</span></button>" +
+    "</div>" +
+    (t ? '<button class="board-banner" data-home-goto="weekly"><span class="bk">本週精選</span><b>' +
+      t.title.replace(/</g, "&lt;") + "</b><p>" +
+      String(t.summary || "").replace(/</g, "&lt;").slice(0, 120) +
+      "</p></button>" : "");
+  board.querySelectorAll("[data-home-goto]").forEach((b) => {
+    b.onclick = () => gotoTab(b.dataset.homeGoto);
+  });
 }
 
 let authMode = "login";
@@ -739,7 +823,7 @@ async function renderExplore() {
       b.textContent = "✓ 已加入";
       // 飛行動效：從按鈕飛往導覽列的島嶼分頁
       const r1 = b.getBoundingClientRect();
-      const navBtn = document.querySelector('#mainNav button[data-tab="island"]');
+      const navBtn = document.querySelector('#mainNav button[data-tab="world"]');
       const r2 = navBtn.getBoundingClientRect();
       const dot = document.createElement("div");
       dot.className = "fly-dot";
@@ -1334,6 +1418,10 @@ function duelDomainOptions() {
 }
 
 function initDuel() {
+  // v2 試煉場 Roguelike 流程條：節點可點跳轉
+  document.querySelectorAll(".trial-flow .flow-node").forEach((n) => {
+    n.onclick = () => gotoTab(n.dataset.goto);
+  });
   const oppSel = $("duelOpponent");
   oppSel.innerHTML = "";
   PIONEERS.filter((p) => !p.isMe).forEach((p) => {
@@ -1956,7 +2044,7 @@ async function buildTextbook() {
       '<span class="trophy-emblem book-emblem" role="img" aria-label="曙光之境"></span>' +
       '<div class="book-kicker">曙光之境 · 慢荒宇宙</div>' +
       (roleName ? '<div class="book-role">' + roleName + "</div>" : "") +
-      '<h1 class="book-title">' + Auth.user.name + " 的專屬課本</h1>" +
+      '<h1 class="book-title">' + Auth.user.name + " 的知識圖鑑</h1>" +
       '<div class="book-sub">根據你的學習軌跡自動編纂 · ' + today + '</div>' +
       '<div class="book-stats">' +
         '<div><b>' + territory + '</b><span>領土</span></div>' +
