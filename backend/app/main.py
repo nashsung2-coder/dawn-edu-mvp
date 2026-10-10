@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
     db.init_db()
     if db.table_empty("tag_dimensions"):
         run_seed()
+    try:
+        learn_mod.backfill_badge_taxonomy()  # 舊武器回填分類＋標籤（冪等）
+    except Exception:
+        pass
     yield
 
 
@@ -577,6 +581,14 @@ class FinishIn(BaseModel):
     badge_name: str = Field(default="", description="自訂技能章名（選填）")
 
 
+class DebateStartIn(BaseModel):
+    explanation: str = Field(description="學生對概念的解釋（≥15 字，用自己的話）")
+
+
+class DebateRespondIn(BaseModel):
+    text: str = Field(description="反駁／補強／R3 最終陳述")
+
+
 @app.post("/api/v1/learn/sessions", summary="開始一場費曼戰役", status_code=201)
 def learn_start(body: LearnStartIn, request: Request):
     user = _current_user(request)
@@ -640,6 +652,70 @@ def learn_feynman(sid: str, body: FeynmanIn, request: Request):
         raise HTTPException(400, str(e))
 
 
+def _attach_pet(user_id: str, result: dict, reason: str = "完成費曼戰役") -> dict:
+    """戰役完成 → 寵物孵化／成長（強度=學習投入函數）。"""
+    pet_info = None
+    try:
+        pet = world_mod.get_pet(user_id)
+        if not pet:
+            pet_info = {"hatched": True,
+                        "pet": world_mod.hatch_pet(user_id)}
+        else:
+            pet_info = {"hatched": False,
+                        "pet": world_mod.pet_gain_exp(user_id, 60, reason)}
+    except Exception:
+        pass
+    result["pet"] = pet_info
+    return result
+
+
+@app.post("/api/v1/learn/sessions/{sid}/debate/start", summary="辯論開戰 R1")
+def debate_start(sid: str, body: DebateStartIn, request: Request):
+    user = _current_user(request)
+    try:
+        result = learn_mod.debate_start(sid, user["id"], body.explanation)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    if result.get("finish"):
+        _attach_pet(user["id"], result["finish"], "完成費曼辯論")
+    return {"ok": True, **result}
+
+
+@app.post("/api/v1/learn/sessions/{sid}/debate/respond", summary="辯論回應 R2/R3")
+def debate_respond(sid: str, body: DebateRespondIn, request: Request):
+    user = _current_user(request)
+    try:
+        result = learn_mod.debate_respond(sid, user["id"], body.text)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    if result.get("finish"):
+        _attach_pet(user["id"], result["finish"], "完成費曼辯論")
+    return {"ok": True, **result}
+
+
+@app.post("/api/v1/learn/sessions/{sid}/debate/concede", summary="暫停挑戰")
+def debate_concede(sid: str, request: Request):
+    user = _current_user(request)
+    try:
+        result = learn_mod.debate_concede(sid, user["id"])
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    _attach_pet(user["id"], result["finish"], "完成費曼辯論")
+    return {"ok": True, **result}
+
+
+@app.post("/api/v1/learn/sessions/{sid}/debate/appeal", summary="申訴：重判上一輪（每輪限一次）")
+def debate_appeal(sid: str, request: Request):
+    user = _current_user(request)
+    try:
+        result = learn_mod.debate_appeal(sid, user["id"])
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    if result.get("finish"):
+        _attach_pet(user["id"], result["finish"], "完成費曼辯論")
+    return {"ok": True, **result}
+
+
 @app.post("/api/v1/learn/sessions/{sid}/finish", summary="完成戰役：授勳")
 def learn_finish(sid: str, body: FinishIn, request: Request):
     user = _current_user(request)
@@ -647,19 +723,7 @@ def learn_finish(sid: str, body: FinishIn, request: Request):
         result = learn_mod.finish_session(sid, user["id"], body.badge_name)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
-    # 戰役完成 → 寵物孵化／成長（強度=學習投入函數）
-    pet_info = None
-    try:
-        pet = world_mod.get_pet(user["id"])
-        if not pet:
-            pet_info = {"hatched": True,
-                        "pet": world_mod.hatch_pet(user["id"])}
-        else:
-            pet_info = {"hatched": False,
-                        "pet": world_mod.pet_gain_exp(user["id"], 60, "完成費曼戰役")}
-    except Exception:
-        pass
-    result["pet"] = pet_info
+    _attach_pet(user["id"], result)
     return {"ok": True, **result}
 
 
@@ -763,8 +827,8 @@ class ListingIn(BaseModel):
 
 
 @app.get("/api/v1/world/market", summary="交易市集")
-def world_market():
-    return {"ok": True, "listings": world_mod.list_market()}
+def world_market(category: str = Query("", description="按武器主分類過濾：攻擊型/防禦型/輔助型/經濟型")):
+    return {"ok": True, "listings": world_mod.list_market(category=category)}
 
 
 @app.post("/api/v1/world/market", summary="上架物品", status_code=201)
