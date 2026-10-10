@@ -95,7 +95,7 @@ async function startBattle() {
                depth_level: d.depth_level, stage: "reading" };
     try {
       localStorage.setItem("dawn_last_battle",
-        JSON.stringify({ topic: d.topic, question: q, at: Date.now() }));
+        JSON.stringify({ sid: d.id, topic: d.topic, question: q, at: Date.now() }));
     } catch (e) {}
     $("learnStart").style.display = "none";
     renderReading(d);
@@ -125,9 +125,11 @@ function renderReading(d) {
 
 async function loadQuiz() {
   const st = $("learnStage");
-  const done = await showWaiting(st);
+  const done = await showWaiting(st, "AI 正在翻閱星海圖書館，為你出題…（約需 1 分鐘）");
   try {
-    const d = await api("/api/v1/learn/sessions/" + battle.id + "/quiz", { method: "POST" });
+    // AI 出題慢（推理模型 50 秒～數分鐘），給足超時；失敗不清空戰役狀態
+    const d = await api("/api/v1/learn/sessions/" + battle.id + "/quiz",
+      { method: "POST", timeout: 360000 });
     done();
     battle.quiz = d.questions;
     let html = battleHeader("第二幕 · 穿插測驗") +
@@ -145,7 +147,14 @@ async function loadQuiz() {
     $("quizSubmit").onclick = submitQuiz;
   } catch (e) {
     done();
-    toast(e.message || "載入測驗失敗");
+    // 失敗不清空戰役：顯示錯誤＋重試按鈕，保留返回閱讀的路
+    st.innerHTML = battleHeader("第二幕 · 穿插測驗") +
+      '<div class="callout">測驗生成失敗：' + esc(e.message || "連線超時") + '。</div>' +
+      '<p class="sub">AI 出題需要一點時間（約 1 分鐘）。戰役還在，不用重來。</p>' +
+      '<div class="qa-box"><button class="btn primary" id="quizRetry">重試出題</button>' +
+      '<button class="btn" id="quizBack">回閱讀</button></div>';
+    $("quizRetry").onclick = loadQuiz;
+    $("quizBack").onclick = () => renderReading({});
   }
 }
 
@@ -514,15 +523,51 @@ function resetBattle() {
   loadMastery();
 }
 
+/* 斷點續戰：從任務板或戰役紀錄回到未完成的戰役 */
+async function resumeBattle(sid) {
+  if (!sid) { gotoTab("learn"); return; }
+  gotoTab("learn");
+  const st = $("learnStage");
+  st.style.display = "";
+  st.innerHTML = '<p class="small">正在找回戰役…</p>';
+  try {
+    const s = await api("/api/v1/learn/sessions/" + sid);
+    if (s.status === "done") {
+      st.innerHTML = '<div class="callout">這場戰役已經結束了，開一場新的吧。</div>';
+      $("learnStart").style.display = "";
+      try { localStorage.removeItem("dawn_last_battle"); } catch (e) {}
+      loadLearnHistory();
+      return;
+    }
+    battle = { id: s.id, question: s.question, topic: s.topic,
+               depth_level: s.depth_level, stage: s.status };
+    $("learnStart").style.display = "none";
+    if (s.status === "quiz") loadQuiz();
+    else if (s.status === "feynman" || s.status === "debate") renderFeynman();
+    else renderReading({});
+  } catch (e) {
+    st.innerHTML = '<div class="callout">找回戰役失敗：' + esc(e.message || "連線問題") +
+      '。</div><button class="btn" id="resumeBack">回學習頁</button>';
+    $("resumeBack").onclick = () => { st.style.display = "none"; $("learnStart").style.display = ""; };
+  }
+}
+
 async function loadLearnHistory() {
   const el = $("learnHistory");
   try {
     const d = await api("/api/v1/learn/sessions?limit=10");
     if (!d.sessions.length) { el.innerHTML = '<p class="small">還沒有戰役紀錄。</p>'; return; }
     el.innerHTML = '<ul class="book-list">' + d.sessions.map((s) =>
-      "<li>" + esc(s.question) + ' <span class="small">（' + esc(s.topic) +
-      " Lv" + s.depth_level + " · " + esc(s.status) + "）</span></li>"
+      s.status === "done"
+        ? "<li>" + esc(s.question) + ' <span class="small">（' + esc(s.topic) +
+          " Lv" + s.depth_level + " · 已完成）</span></li>"
+        : '<li><button class="link-btn" data-resume="' + esc(s.id) + '">' + esc(s.question) +
+          '</button> <span class="small">（' + esc(s.topic) +
+          " Lv" + s.depth_level + " · " + esc(s.status) + "，點我繼續）</span></li>"
     ).join("") + "</ul>";
+    el.querySelectorAll("[data-resume]").forEach((b) => {
+      b.onclick = () => resumeBattle(b.dataset.resume);
+    });
   } catch (e) { el.innerHTML = ""; }
 }
 
