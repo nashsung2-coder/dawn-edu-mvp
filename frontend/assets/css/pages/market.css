@@ -1,0 +1,18 @@
+/* 市集頁：霓虹區樣式 */
+body { background: var(--bg); color: var(--ink); }
+.m-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.m-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.m-header h1 { font-size: var(--fs-24); }
+.m-sub { color: var(--accent); font-size: var(--fs-14); font-weight: 700; font-variant-numeric: tabular-nums; }
+#m-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+.m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--sp-4); }
+.m-item { text-align: center; }
+.m-item h3 { font-size: var(--fs-16); margin: var(--sp-2) 0; }
+.m-price { color: var(--accent); font-weight: 800; font-size: var(--fs-20); font-variant-numeric: tabular-nums; }
+.m-item .btn { margin-top: var(--sp-3); width: 100%; }
+.m-item .btn:disabled { opacity: .5; cursor: wait; }
+.m-seller { font-size: var(--fs-12); color: var(--muted); }
