@@ -56,10 +56,10 @@ def daily_battles_used(user_id: str) -> int:
     """今日已開戰次數。"""
     with db.get_conn() as conn:
         row = conn.execute(
-            """SELECT COUNT(*) FROM learn_sessions
+            """SELECT COUNT(*) AS count FROM learn_sessions
                WHERE user_id = ? AND date(created_at) = date('now')""",
             (user_id,)).fetchone()
-    return row[0] if row else 0
+    return row["count"] if row else 0
 
 
 def start_session(user_id: str, question: str, grade_band: str = "高中",

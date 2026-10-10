@@ -137,13 +137,13 @@ def review_stats(user_id: str) -> dict:
     now = _now_iso()
     with db.get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM review_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
+            "SELECT COUNT(*) AS count FROM review_cards WHERE user_id = ?", (user_id,)).fetchone()["count"]
         due = conn.execute(
-            "SELECT COUNT(*) FROM review_cards WHERE user_id = ? AND next_review_at <= ?",
-            (user_id, now)).fetchone()[0]
+            "SELECT COUNT(*) AS count FROM review_cards WHERE user_id = ? AND next_review_at <= ?",
+            (user_id, now)).fetchone()["count"]
         done = conn.execute(
-            "SELECT COUNT(*) FROM review_cards WHERE user_id = ? AND repetitions > 0",
-            (user_id,)).fetchone()[0]
+            "SELECT COUNT(*) AS count FROM review_cards WHERE user_id = ? AND repetitions > 0",
+            (user_id,)).fetchone()["count"]
     return {
         "total_cards": total,
         "due_count": due,
