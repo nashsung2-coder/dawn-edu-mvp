@@ -90,10 +90,14 @@ function mulberry32(seed) {
     $("page-" + btn.dataset.tab).classList.add("active");
     window.scrollTo({ top: 0, behavior: "smooth" });
     btn.scrollIntoView({ inline: "center", block: "nearest" });
-    if (btn.dataset.tab === "island") loadIsland();
+    if (btn.dataset.tab === "island") { loadIsland(); WorldUI.loadPet(); WorldUI.loadLearnIslands(); }
     if (btn.dataset.tab === "textbook") buildTextbook();
     if (btn.dataset.tab === "radar") Game.refresh();
     if (btn.dataset.tab === "account") buildAccount();
+    if (btn.dataset.tab === "learn") WorldUI.initLearn();
+    if (btn.dataset.tab === "journey") WorldUI.initJourney();
+    if (btn.dataset.tab === "market") WorldUI.initMarket();
+    if (btn.dataset.tab === "weekly") WorldUI.initWeekly();
   });
 })();
 
@@ -106,10 +110,14 @@ function gotoTab(name) {
   window.scrollTo({ top: 0, behavior: "smooth" });
   const tabBtn = document.querySelector('#mainNav button[data-tab="' + name + '"]');
   if (tabBtn) tabBtn.scrollIntoView({ inline: "center", block: "nearest" });
-  if (name === "island") loadIsland();
+  if (name === "island") { loadIsland(); WorldUI.loadPet(); WorldUI.loadLearnIslands(); }
   if (name === "textbook") buildTextbook();
   if (name === "radar") Game.refresh();
   if (name === "account") buildAccount();
+  if (name === "learn") WorldUI.initLearn();
+  if (name === "journey") WorldUI.initJourney();
+  if (name === "market") WorldUI.initMarket();
+  if (name === "weekly") WorldUI.initWeekly();
 }
 
 /* ============================================================
@@ -1888,6 +1896,13 @@ async function buildTextbook() {
   }
   gate.style.display = "none";
   body.innerHTML = '<div class="panel"><div class="small" style="color:var(--text-3)">正在翻閱星海，為你編纂專屬課本…</div></div>';
+  // 學習筆記章節（卷首）
+  let notesHtml = "";
+  try {
+    if (window.WorldUI && WorldUI.buildNotesChapter) {
+      notesHtml = await WorldUI.buildNotesChapter();
+    }
+  } catch (e) { notesHtml = ""; }
   let logs = [], isl = null;
   try {
     const d = await api("/api/v1/islands/" + Auth.user.id + "/logs?limit=100");
@@ -1951,10 +1966,12 @@ async function buildTextbook() {
       "</div>" +
     "</div>" +
     '<div class="panel"><h2 class="h2">目錄</h2><ol class="book-toc">' +
+      (notesHtml ? "<li>我的筆記 —— 每一場費曼戰役的學習筆記</li>" : "") +
       "<li>島嶼成長史 —— 你的每一次開疆拓土</li>" +
       "<li>收藏星圖 —— 你親手收下的主題</li>" +
       "<li>對決戰績 —— 每一場觀念交鋒</li>" +
     "</ol></div>" +
+    notesHtml +
     '<div class="panel"><h2 class="h2"><span class="ch-num">壹</span>島嶼成長史</h2>' + ch1 + "</div>" +
     '<div class="panel"><h2 class="h2"><span class="ch-num">貳</span>收藏星圖</h2>' + ch2 + "</div>" +
     '<div class="panel"><h2 class="h2"><span class="ch-num">參</span>對決戰績</h2>' + ch3 + "</div>" +
