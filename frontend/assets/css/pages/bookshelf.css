@@ -1,0 +1,53 @@
+/* 我的書架：書本陳列風格 */
+
+#bs-stats { display: flex; gap: 16px; justify-content: center; padding: 20px; }
+.bs-stat { text-align: center; }
+.bs-stat-n { display: block; font-size: 28px; font-weight: 700; color: var(--ink); }
+.bs-stat-l { font-size: 13px; color: var(--muted); }
+
+.bs-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px; padding: 8px 20px 40px; max-width: 900px; margin: 0 auto;
+}
+.bs-book {
+  position: relative; background: var(--card); border: 1px solid var(--line);
+  border-left: 6px solid var(--rarity, #9aa0a6); border-radius: 4px 12px 12px 4px;
+  padding: 20px 16px; text-align: left; cursor: pointer; color: inherit;
+  transition: transform .15s; min-height: 160px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.bs-book:hover { transform: translateY(-3px); }
+.bs-book-title { font-size: 17px; font-weight: 700; }
+.bs-book-meta { font-size: 13px; color: var(--muted); }
+.bs-book-badge {
+  font-size: 12px; border: 1px solid; border-radius: 999px;
+  padding: 2px 10px; align-self: flex-start;
+}
+.bs-book-mastery { font-size: 12px; color: var(--accent); margin-top: auto; }
+
+.bs-detail-card {
+  max-width: 720px; margin: 0 auto 60px; padding: 28px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  position: relative;
+}
+.bs-close { position: absolute; top: 16px; right: 16px; }
+.bs-detail-card h2 { font-size: 24px; margin-bottom: 4px; padding-right: 60px; }
+.bs-detail-sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+.bs-badge-card {
+  border: 1px solid; border-radius: 12px; padding: 16px; margin-bottom: 20px;
+  background: rgba(255,255,255,.02);
+}
+.bs-badge-card h3 { font-size: 18px; margin-bottom: 8px; }
+.bs-ai-comment { font-style: italic; color: var(--accent); margin-top: 8px; }
+.bs-section { margin-bottom: 24px; }
+.bs-section h3 { font-size: 17px; margin-bottom: 12px; }
+.bs-q { background: rgba(0,0,0,.15); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.bs-q ul { list-style: none; padding: 8px 0 0 0; }
+.bs-q li { padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+.bs-q li.bs-correct { background: rgba(76,175,80,.15); font-weight: 700; }
+.bs-concept { font-size: 14px; color: var(--muted); margin-top: 8px; }
+
+@media (max-width: 600px) {
+  .bs-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 8px 12px 32px; }
+  .bs-detail-card { margin: 0 12px 40px; padding: 20px; }
+}
