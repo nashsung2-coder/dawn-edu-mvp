@@ -64,14 +64,22 @@ body{
 .brand .emblem-img{width:38px;height:38px;box-shadow:var(--glow-sm)}
 .brand b{font-family:var(--serif);font-size:17px;letter-spacing:.14em;font-weight:600}
 .brand small{display:block;font-size:10px;letter-spacing:.3em;color:var(--text-3);font-weight:400}
-nav.tabs{display:flex;gap:4px;margin-left:24px}
-nav.tabs button{background:none;border:0;color:var(--text-2);font-family:var(--sans);
-  font-size:14.5px;letter-spacing:.1em;padding:10px 16px;border-radius:var(--r-pill);
-  cursor:pointer;position:relative;transition:color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease)}
+/* ---------- 主導覽：獨立 pill bar（桌面）／底部 tab bar（手機） ---------- */
+nav.tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+  padding:10px 24px;background:oklch(11.8% 0.019 275 / 55%);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--hairline)}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;
+  background:none;border:1px solid transparent;color:var(--text-2);font-family:var(--sans);
+  font-size:14px;letter-spacing:.08em;padding:9px 16px;border-radius:var(--r-pill);
+  cursor:pointer;white-space:nowrap;
+  transition:color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease)}
 nav.tabs button:hover{color:var(--text-1);background:oklch(94.6% 0.026 275 / 6%)}
-nav.tabs button.active{color:var(--gold-hi)}
-nav.tabs button.active::after{content:"";position:absolute;left:16px;right:16px;bottom:4px;height:2px;
-  border-radius:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+nav.tabs button.active{color:var(--gold-hi);background:oklch(85% 0.14 85 / 10%);
+  border-color:oklch(85% 0.14 85 / 35%)}
+.tab-ic{font-size:16px;line-height:1}
+.tab-tx{line-height:1.4}
 .hd-right{margin-left:auto;display:flex;align-items:center;gap:12px}
 /* authBar（JS 渲染） */
 #authBar{display:flex;align-items:center;gap:10px}
@@ -354,9 +362,21 @@ canvas#radarCanvas,canvas#islandCanvas{max-width:100%;height:auto;display:block;
   .duel-setup{grid-template-columns:1fr}
 }
 @media (max-width:760px){
-  nav.tabs{display:flex;overflow-x:auto;margin-left:4px;scrollbar-width:none;flex:1}
+  /* 手機：底部固定 tab bar（App 式） */
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    display:flex;overflow-x:auto;scrollbar-width:none;
+    padding:8px 10px calc(10px + env(safe-area-inset-bottom));
+    background:oklch(11.8% 0.019 275 / 90%);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border-top:1px solid var(--hairline);border-bottom:0}
   nav.tabs::-webkit-scrollbar{display:none}
-  nav.tabs button{padding:10px 14px;font-size:13.5px;white-space:nowrap;min-height:44px}
+  nav.tabs button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;
+    min-width:60px;padding:8px 8px 6px;font-size:11px;letter-spacing:.02em;
+    border:1px solid transparent;min-height:56px;justify-content:center}
+  nav.tabs button.active{background:oklch(85% 0.14 85 / 12%)}
+  .tab-ic{font-size:21px}
+  .tab-tx{font-size:11px}
+  body{padding-bottom:84px} /* 避開底部 bar */
   .hd-in{padding:10px 16px;gap:8px}
   .brand small{display:none}
   .brand b{font-size:16px}
