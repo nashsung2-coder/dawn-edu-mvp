@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from app import auth as auth_mod
 from app import db
 from app import economy
+from app import learn as learn_mod
+from app import llm as llm_mod
 from app.game import (
     compare_radar,
     create_duel,
@@ -548,6 +550,121 @@ def duel_answer(duel_id: int, body: DuelAnswerIn):
 @app.get("/api/v1/rag/query", summary="RAG 檢索")
 def rag(q: str = Query("", description="問題或關鍵字")):
     return rag_query(q)
+
+
+# ---------------- 費曼戰役：學習會話 ----------------
+class LearnStartIn(BaseModel):
+    question: str = Field(description="學習問題")
+    grade_band: str = Field(default="高中", description="年級段")
+    hypothesis: str = Field(default="", description="自己的假設（選填）")
+
+
+class LearnEventIn(BaseModel):
+    kind: str = Field(description="事件種類")
+    payload: dict = Field(default_factory=dict)
+
+
+class QuizAnswerIn(BaseModel):
+    answers: list[int] = Field(description="選擇題答案索引")
+
+
+class FeynmanIn(BaseModel):
+    explanation: str = Field(description="學生的費曼解釋")
+
+
+class FinishIn(BaseModel):
+    badge_name: str = Field(default="", description="自訂技能章名（選填）")
+
+
+@app.post("/api/v1/learn/sessions", summary="開始一場費曼戰役", status_code=201)
+def learn_start(body: LearnStartIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True,
+                **learn_mod.start_session(user["id"], body.question,
+                                          body.grade_band, body.hypothesis)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/learn/sessions", summary="我的學習會話")
+def learn_list(request: Request, limit: int = Query(20, ge=1, le=100)):
+    user = _current_user(request)
+    return {"ok": True, "sessions": learn_mod.list_sessions(user["id"], limit)}
+
+
+@app.get("/api/v1/learn/sessions/{sid}", summary="學習會話詳情")
+def learn_detail(sid: str, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **learn_mod.get_session(sid, user["id"])}
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/v1/learn/sessions/{sid}/events", summary="記錄學習事件")
+def learn_event(sid: str, body: LearnEventIn, request: Request):
+    user = _current_user(request)
+    try:
+        learn_mod.log_event(sid, user["id"], body.kind, body.payload)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True}
+
+
+@app.post("/api/v1/learn/sessions/{sid}/quiz", summary="產生穿插測驗")
+def learn_quiz(sid: str, request: Request, n: int = Query(3, ge=1, le=5)):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **learn_mod.get_quiz(sid, user["id"], n)}
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/learn/sessions/{sid}/quiz/answers", summary="測驗作答")
+def learn_quiz_answer(sid: str, body: QuizAnswerIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **learn_mod.answer_quiz(sid, user["id"], body.answers)}
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/learn/sessions/{sid}/feynman", summary="費曼解釋＋AI糾錯")
+def learn_feynman(sid: str, body: FeynmanIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **learn_mod.feynman_explain(sid, user["id"], body.explanation)}
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/learn/sessions/{sid}/finish", summary="完成戰役：授勳")
+def learn_finish(sid: str, body: FinishIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **learn_mod.finish_session(sid, user["id"], body.badge_name)}
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/learn/badges", summary="我的技能章（武器庫）")
+def learn_badges(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "badges": learn_mod.list_badges(user["id"])}
+
+
+@app.get("/api/v1/learn/mastery", summary="主題掌握度")
+def learn_mastery(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "topics": learn_mod.get_mastery(user["id"])}
+
+
+@app.get("/api/v1/learn/textbook", summary="課本筆記章節")
+def learn_textbook(request: Request):
+    user = _current_user(request)
+    return {"ok": True, "chapters": learn_mod.textbook_chapters(user["id"]),
+            "llm": llm_mod.has_llm()}
 
 
 @app.get("/", summary="健康檢查")
