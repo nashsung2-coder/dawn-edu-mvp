@@ -21,6 +21,48 @@ function stars(n) {
   return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
+/* ---------------- 等待小夥伴（AI 運算中陪伴） ---------------- */
+const WAITING_MSGS = [
+  "再等一下下，系統正在玩命運算中",
+  "AI 正在翻閱星海圖書館",
+  "你的小夥伴正在催 AI 快一點",
+  "正在把星砂煉成題目",
+  "AI 的腦細胞正在加班",
+];
+let _waitTimer = null;
+
+function stopWaiting() {
+  if (_waitTimer) { clearInterval(_waitTimer); _waitTimer = null; }
+}
+
+/* 在 el 內顯示等待小夥伴；回傳 stopWaiting（完成時呼叫）。
+   寵物階段：沒寵物=🥚蛋 → Lv1-2=🐣 → Lv3-4=🦊 → Lv5+=🐲 */
+async function showWaiting(el) {
+  stopWaiting();
+  let emoji = "🥚", name = "寵物蛋", isEgg = true;
+  try {
+    const d = await api("/api/v1/world/pet");
+    if (d.pet) {
+      const lv = d.pet.level || 1;
+      emoji = lv >= 5 ? "🐲" : lv >= 3 ? "🦊" : "🐣";
+      name = d.pet.name;
+      isEgg = false;
+    }
+  } catch (e) { /* 未登入或失敗就顯示蛋 */ }
+  let mi = 0;
+  const render = () => {
+    el.innerHTML =
+      '<div class="waiting-companion"><div class="waiting-pet' + (isEgg ? " egg" : "") + '">' +
+      emoji + '</div><div class="waiting-name">' + esc(name) + " 陪你等</div>" +
+      '<div class="waiting-msg">' + esc(WAITING_MSGS[mi % WAITING_MSGS.length]) +
+      '<span class="waiting-dots"><span>.</span><span>.</span><span>.</span></span></div>' +
+      '<div class="waiting-bar"><div class="waiting-fill"></div></div></div>';
+  };
+  render();
+  _waitTimer = setInterval(() => { mi++; render(); }, 4000);
+  return stopWaiting;
+}
+
 /* ---------------- 學習中心 ---------------- */
 
 let battle = null; // {id, question, topic, depth_level, stage}
@@ -78,9 +120,10 @@ function renderReading(d) {
 
 async function loadQuiz() {
   const st = $("learnStage");
-  st.innerHTML = battleHeader("第二幕 · 穿插測驗") + '<p class="sub">載入題目中…</p>';
+  const done = await showWaiting(st);
   try {
     const d = await api("/api/v1/learn/sessions/" + battle.id + "/quiz", { method: "POST" });
+    done();
     battle.quiz = d.questions;
     let html = battleHeader("第二幕 · 穿插測驗") +
       '<p class="sub">' + esc(d.note || "關書作答") + "</p>";
@@ -96,6 +139,7 @@ async function loadQuiz() {
     st.innerHTML = html;
     $("quizSubmit").onclick = submitQuiz;
   } catch (e) {
+    done();
     toast(e.message || "載入測驗失敗");
   }
 }
@@ -142,7 +186,7 @@ async function submitFeynman() {
   if (text.length < 10) { toast("再多講一點，講到別人能聽懂為止。"); return; }
   const btn = $("feynmanSubmit");
   btn.disabled = true;
-  btn.textContent = "AI 思考中…";
+  const done = await showWaiting($("feynmanResp"));
   try {
     const d = await api("/api/v1/learn/sessions/" + battle.id + "/feynman", {
       method: "POST", body: JSON.stringify({ explanation: text }),
@@ -159,6 +203,7 @@ async function submitFeynman() {
   } catch (e) {
     toast(e.message || "提交失敗");
   } finally {
+    done();
     btn.disabled = false;
     btn.textContent = "說服 AI";
   }
@@ -618,6 +663,7 @@ async function buildNotesChapter() {
 window.WorldUI = {
   initLearn, initJourney, initMarket, initWeekly,
   loadPet, loadLearnIslands, buildNotesChapter,
+  showWaiting, stopWaiting,
 };
 
 })();
