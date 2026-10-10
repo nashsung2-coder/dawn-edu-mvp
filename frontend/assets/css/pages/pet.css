@@ -1,0 +1,73 @@
+/* 靈獸小屋：禪區樣式。只用裸名 token，不寫死顏色。 */
+
+body { background: var(--bg); color: var(--ink); }
+
+.p-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.p-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.p-header h1 { font-size: var(--fs-24); }
+.p-sub { color: var(--muted); font-size: var(--fs-13); }
+
+#p-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+
+/* 孵化（無靈獸） */
+.p-hatch { text-align: center; padding: var(--sp-12) 0; }
+.p-hatch img { width: 160px; margin: 0 auto var(--sp-6); border-radius: 50%; }
+.p-hatch h2 { font-size: var(--fs-20); margin-bottom: var(--sp-4); }
+.p-hatch p { color: var(--muted); margin-bottom: var(--sp-6); }
+.p-hatch-form {
+  display: flex; gap: var(--sp-2); max-width: 480px; margin: 0 auto;
+}
+.p-hatch-form input {
+  flex: 1; padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line); border-radius: var(--r-full);
+  font-size: var(--fs-14); background: var(--card); color: var(--ink);
+}
+.p-hatch-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 靈獸卡 */
+.p-pet { text-align: center; }
+.p-pet-emblem { width: 160px; margin: 0 auto var(--sp-6); border-radius: 50%; }
+.p-pet h2 { font-size: var(--fs-24); }
+.p-species { color: var(--muted); font-size: var(--fs-14); margin-bottom: var(--sp-6); }
+
+.p-stats { text-align: left; margin-bottom: var(--sp-6); }
+.p-stat {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--sp-3) 0; border-bottom: 1px solid var(--line);
+  font-size: var(--fs-14);
+}
+.p-stat span { color: var(--muted); }
+
+.p-mood { padding: var(--sp-3) 0; }
+.p-mood-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: var(--fs-14); margin-bottom: var(--sp-2);
+}
+.p-mood-head span { color: var(--muted); }
+.p-mood-bar {
+  height: 10px; border-radius: var(--r-full);
+  background: var(--bg-soft); border: 1px solid var(--line);
+  overflow: hidden;
+}
+.p-mood-fill {
+  height: 100%; border-radius: var(--r-full);
+  background: var(--accent);
+  transition: width .4s var(--ease);
+}
+
+/* 改名卡 */
+.p-rename { text-align: left; }
+.p-rename h3 { font-size: var(--fs-16); margin-bottom: var(--sp-4); }
+.p-rename-form {
+  display: flex; gap: var(--sp-2);
+}
+.p-rename-form input {
+  flex: 1; padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line); border-radius: var(--r-full);
+  font-size: var(--fs-14); background: var(--card); color: var(--ink);
+}
+.p-rename-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
