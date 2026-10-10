@@ -119,7 +119,21 @@
   }
 
   /* ---------- 進入動畫：AI 生成影片，循環播放，上滑/點擊跳過 ---------- */
-  const ENTRY_VIDEOS = { flow: "assets/entry-flow.mp4", cosmos: "assets/entry-cosmos.mp4" };
+  // 影片以 base64 分塊存在 assets/*.partN.js，瀏覽器端重組為 Blob URL
+  function vidUrl(name) {
+    const up = name.toUpperCase().replace("-", "_");
+    let b64 = "", i = 0;
+    while (window["__VID_" + up + "_" + i] !== undefined) b64 += window["__VID_" + up + "_" + i++];
+    if (!b64) return null;
+    const bin = atob(b64), arr = new Uint8Array(bin.length);
+    for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+    return URL.createObjectURL(new Blob([arr], { type: "video/mp4" }));
+  }
+  const ENTRY_VIDEOS = {};
+  ["entry-flow", "entry-cosmos"].forEach((n) => {
+    const u = vidUrl(n);
+    if (u) ENTRY_VIDEOS[n === "entry-flow" ? "flow" : "cosmos"] = u;
+  });
   let entryShown = {};
   function showEntry(name) {
     const src = ENTRY_VIDEOS[name];
