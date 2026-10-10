@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>曙光教育 3.0</title>
 <meta name="description" content="選擇你的版本：電腦/平板，或手機。">
+<script>
+  /* 記住裝置選擇：選過就直接進對應版本，不再顯示選擇頁 */
+  try {
+    var d = localStorage.getItem('dawn.device');
+    if (d === 'desktop') location.replace('desktop.html');
+    else if (d === 'mobile') location.replace('mobile.html');
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
 <style>
   #chooser { min-height: 100dvh; display: grid; grid-template-columns: 1fr 1fr; }
