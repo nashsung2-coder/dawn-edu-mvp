@@ -9,12 +9,20 @@
 </head>
 <body class="theme-zen">
 <header class="f-header">
-  <a class="btn btn-ghost" href="../index.html" aria-label="回首頁">‹ 首頁</a>
+  <a class="btn btn-ghost" href="../desktop.html" data-device-home aria-label="回首頁">‹ 首頁</a>
   <img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="收藏徽章：藏書閣" class="f-emblem">
   <div><h1>藏書閣</h1><p class="f-sub">知識湖 · 收藏</p></div>
 </header>
 <main id="f-main"><div id="f-view"></div></main>
 <div id="toast-root" aria-live="polite"></div>
 <script type="module" src="../assets/js/pages/favorites.js?v=3.0.0"></script>
+<script>
+  /* 返回鍵：回到記住的裝置版本首頁，而非裝置選擇頁 */
+  try {
+    var d = localStorage.getItem("dawn.device");
+    var link = document.querySelector("[data-device-home]");
+    if (link) link.href = (d === "mobile") ? "../mobile.html" : "../desktop.html";
+  } catch (e) {}
+</script>
 </body>
 </html>
