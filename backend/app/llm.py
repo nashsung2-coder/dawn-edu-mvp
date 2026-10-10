@@ -21,36 +21,59 @@ NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_MODEL = os.environ.get("NIM_MODEL", "openai/gpt-oss-20b")
 
 
+def _all_keys() -> list[str]:
+    """收集所有 NVIDIA key：NVIDIA_API_KEY、NVIDIA_API_KEY_1..9（輪替備援）。"""
+    keys = []
+    for name in ["NVIDIA_API_KEY"] + [f"NVIDIA_API_KEY_{i}" for i in range(1, 10)]:
+        v = (os.environ.get(name) or "").strip()
+        if v and v not in keys:
+            keys.append(v)
+    return keys
+
+
 def has_llm() -> bool:
-    return bool(os.environ.get("NVIDIA_API_KEY"))
+    return bool(_all_keys())
+
+
+# 記住哪把 key 可用，避免每次都重試壞 key
+_working_key: str | None = None
 
 
 def _nim_call(messages: list[dict], max_tokens: int = 1200,
               temperature: float = 0.7) -> str | None:
-    """打 NIM chat completions。失敗回 None（呼叫端降級）。"""
-    key = os.environ.get("NVIDIA_API_KEY")
-    if not key:
+    """打 NIM chat completions。多 key 時依序嘗試，記住可用的那把。
+    全部失敗回 None（呼叫端降級為規則式）。"""
+    global _working_key
+    keys = _all_keys()
+    if not keys:
         return None
+    ordered = ([_working_key] if _working_key in keys else []) + \
+              [k for k in keys if k != _working_key]
     body = json.dumps({
         "model": DEFAULT_MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
     }).encode("utf-8")
-    req = urllib.request.Request(
-        NIM_URL, data=body,
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {key}"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        msg = data["choices"][0]["message"]
-        text = msg.get("content") or msg.get("reasoning_content") or ""
-        return text.strip() or None
-    except Exception:
-        return None
+    for key in ordered:
+        req = urllib.request.Request(
+            NIM_URL, data=body,
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {key}"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            msg = data["choices"][0]["message"]
+            text = msg.get("content") or msg.get("reasoning_content") or ""
+            text = text.strip()
+            if text:
+                _working_key = key
+                return text
+        except Exception:
+            continue
+    return None
 
 
 # ---------------- 系統 prompt 模板（硬約束） ----------------
