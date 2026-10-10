@@ -1,0 +1,79 @@
+/* 探索冒險：禪區樣式。只用裸名 token，不寫死顏色。 */
+
+body { background: var(--bg); color: var(--ink); }
+
+.x-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.x-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.x-header h1 { font-size: var(--fs-24); }
+.x-sub { color: var(--muted); font-size: var(--fs-13); }
+
+#x-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+
+/* 著陸 */
+.x-landing { text-align: center; padding: var(--sp-12) 0 var(--sp-8); }
+.x-landing img { width: 160px; margin: 0 auto var(--sp-6); border-radius: 50%; }
+.x-landing p { color: var(--muted); margin-bottom: var(--sp-6); }
+
+/* 區域卡 */
+.x-zones { display: grid; gap: var(--sp-4); margin-bottom: var(--sp-8); }
+.x-zone h3 { font-size: var(--fs-20); margin-bottom: var(--sp-2); }
+.x-zone p { color: var(--muted); font-size: var(--fs-14); margin-bottom: var(--sp-2); }
+.x-meta { font-size: var(--fs-13); }
+.x-zone .x-go { margin-top: var(--sp-3); width: 100%; }
+
+/* 進度點 */
+.x-stages { display: flex; gap: var(--sp-2); justify-content: center; margin-bottom: var(--sp-6); }
+.x-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); }
+.x-dot.done { background: var(--accent); border-color: var(--accent); }
+.x-dot.now { border-color: var(--accent); box-shadow: 0 0 0 3px var(--bg-soft); }
+
+/* 劇情卡 */
+.x-story h2 { font-size: var(--fs-20); margin-bottom: var(--sp-4); }
+.x-zone-tag { color: var(--muted); font-size: var(--fs-13); margin-bottom: var(--sp-2); }
+.x-text { font-size: var(--fs-16); line-height: 1.8; margin-bottom: var(--sp-4); white-space: pre-wrap; }
+.x-hint {
+  font-size: var(--fs-13); color: var(--muted);
+  border-left: 3px solid var(--accent); padding-left: var(--sp-3);
+  margin-bottom: var(--sp-6);
+}
+.x-choices { display: grid; gap: var(--sp-3); }
+.x-opt {
+  display: block; width: 100%; text-align: left;
+  padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--card); font-size: var(--fs-14);
+  transition: border-color .2s var(--ease), background .2s var(--ease);
+}
+.x-opt:hover { border-color: var(--accent); background: var(--bg-soft); }
+.x-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 完成 */
+.x-done { text-align: center; }
+.x-done img { width: 120px; margin: 0 auto var(--sp-4); border-radius: 50%; }
+.x-done h2 { font-size: var(--fs-24); margin-bottom: var(--sp-2); }
+.x-reward { margin-top: var(--sp-6); text-align: center; }
+.x-reward h3 { font-size: var(--fs-16); margin-bottom: var(--sp-2); }
+.x-reward p { font-size: var(--fs-14); }
+
+/* 足跡 */
+.x-trail { margin-top: var(--sp-8); text-align: left; }
+.x-trail h3 { font-size: var(--fs-16); margin-bottom: var(--sp-3); }
+.x-trow {
+  display: flex; justify-content: space-between; gap: var(--sp-4);
+  padding: var(--sp-3) 0; border-bottom: 1px solid var(--line);
+  font-size: var(--fs-13);
+}
+.x-trow span:last-child { color: var(--muted); text-align: right; }
+
+/* 紀錄 */
+.x-history { margin-top: var(--sp-8); }
+.x-history h2 { font-size: var(--fs-20); margin-bottom: var(--sp-4); }
+.x-hrow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line);
+  font-size: var(--fs-14);
+}
+.x-hrow span:last-child { color: var(--muted); }
