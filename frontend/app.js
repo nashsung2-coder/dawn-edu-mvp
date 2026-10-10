@@ -416,6 +416,7 @@ let authMode = "login";
 
 function openAuthModal(mode) {
   authMode = mode === "register" ? "register" : "login";
+  forgotQuestion = "";
   document.querySelectorAll(".auth-tab").forEach((t) =>
     t.classList.toggle("active", t.dataset.mode === authMode)
   );
@@ -431,16 +432,25 @@ function closeAuthModal() {
   $("authPass").value = "";
 }
 
+let forgotQuestion = ""; // 忘記密碼流程第二步的安全問題
+
 function syncAuthModeUI() {
   const isLogin = authMode === "login";
   const isForgot = authMode === "forgot";
-  $("authTitle").textContent = isForgot ? "重設密碼"
+  const isRegister = authMode === "register";
+  $("authTitle").textContent = isForgot ? "找回你的星圖"
     : isLogin ? "歡迎回來，拓荒者" : "在星海中留下你的名字";
-  $("authSubmit").textContent = isForgot ? "重設密碼"
+  $("authSubmit").textContent = isForgot ? (forgotQuestion ? "重設密碼" : "查詢安全問題")
     : isLogin ? "登入" : "註冊並啟程";
-  // Email 欄：註冊（選填）與忘記密碼（必填）時顯示
-  $("authEmailWrap").style.display = isLogin ? "none" : "";
-  $("authEmail").placeholder = isForgot ? "註冊時填寫的 Email" : "忘記密碼時用來重設";
+  // Email 欄：僅註冊時顯示（選填）
+  $("authEmailWrap").style.display = isRegister ? "" : "none";
+  // 安全問題：僅註冊時顯示
+  $("authSecQWrap").style.display = isRegister ? "" : "none";
+  $("authSecAWrap").style.display = isRegister ? "" : "none";
+  // 忘記密碼兩步
+  $("authPassWrap").style.display = (isForgot && !forgotQuestion) ? "none" : "";
+  $("authForgotQWrap").style.display = (isForgot && forgotQuestion) ? "" : "none";
+  $("authForgotAWrap").style.display = (isForgot && forgotQuestion) ? "" : "none";
   // 密碼欄標籤
   $("authPassLabel").textContent = isForgot ? "新密碼" : "密碼";
   $("authPass").setAttribute("autocomplete", isForgot ? "new-password" : isLogin ? "current-password" : "new-password");
@@ -451,8 +461,10 @@ function syncAuthModeUI() {
     x.classList.toggle("active", !isForgot && x.dataset.mode === authMode)
   );
   $("authNote").innerHTML = isForgot
-    ? "輸入暱稱與註冊時填寫的 Email，<br>吻合即可設定新密碼。"
-    : "你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。";
+    ? "先輸入暱稱查詢你的安全問題，<br>答對即可設定新密碼。"
+    : isRegister
+      ? "安全問題是忘記密碼時驗證身分的唯一方式，<br>請選一個只有你知道答案的問題。"
+      : "你的島嶼進度會跟著這個帳號走。";
 }
 
 async function submitAuth() {
@@ -464,22 +476,44 @@ async function submitAuth() {
   err.classList.remove("show");
   const fail = (m) => { err.textContent = m; err.classList.add("show"); };
   if (!name) { fail("請輸入暱稱。"); return; }
-  if (pw.length < 4) { fail(authMode === "forgot" ? "新密碼至少需要 4 個字元。" : "密碼至少需要 4 個字元。"); return; }
-  if (authMode === "forgot" && !email) { fail("請輸入註冊時填寫的 Email。"); return; }
+  if (authMode === "forgot" && forgotQuestion && pw.length < 4) { fail("新密碼至少需要 4 個字元。"); return; }
+  if (authMode !== "forgot" && pw.length < 4) { fail("密碼至少需要 4 個字元。"); return; }
+  if (authMode === "register") {
+    const q = $("authSecQ").value === "__custom" ? $("authSecQCustom").value.trim() : $("authSecQ").value;
+    const a = $("authSecA").value.trim();
+    if (!q) { fail("請選擇或輸入安全問題。"); return; }
+    if (!a) { fail("請輸入安全問題的答案。"); return; }
+  }
   const btn = $("authSubmit");
-  const btnOrig = btn.textContent;
+  let btnOrig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = authMode === "forgot" ? "重設中…" : "喚醒伺服器中…";
+  btn.textContent = authMode === "forgot" ? (forgotQuestion ? "重設中…" : "查詢中…") : "喚醒伺服器中…";
   try {
     if (authMode === "forgot") {
+      if (!forgotQuestion) {
+        // 第一步：查安全問題
+        const qd = await api("/api/v1/auth/security-question?name=" + encodeURIComponent(name),
+                             { timeout: 30000 });
+        forgotQuestion = qd.question;
+        $("authForgotQ").textContent = forgotQuestion;
+        $("authErr").textContent = "";
+        $("authErr").classList.remove("show");
+        syncAuthModeUI();
+        btnOrig = $("authSubmit").textContent; // finally 還原時保持「重設密碼」
+        return;
+      }
+      // 第二步：答案＋新密碼
+      const answer = $("authForgotA").value.trim();
+      if (!answer) { fail("請輸入安全問題的答案。"); btn.disabled = false; btn.textContent = btnOrig; return; }
       const data = await api("/api/v1/auth/forgot", {
         method: "POST",
-        body: JSON.stringify({ name, email, new_password: pw }),
+        body: JSON.stringify({ name, answer, new_password: pw }),
         timeout: 30000,
       });
       closeAuthModal();
       toast(data.reason || "密碼已重設，請用新密碼登入。");
       authMode = "login";
+      forgotQuestion = "";
       syncAuthModeUI();
       return;
     }
@@ -487,7 +521,11 @@ async function submitAuth() {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const body = { name, password: pw };
-        if (authMode === "register" && email) body.email = email;
+        if (authMode === "register") {
+          if (email) body.email = email;
+          body.sec_question = $("authSecQ").value === "__custom" ? $("authSecQCustom").value.trim() : $("authSecQ").value;
+          body.sec_answer = $("authSecA").value.trim();
+        }
         data = await api("/api/v1/auth/" + authMode, {
           method: "POST",
           body: JSON.stringify(body),
@@ -541,8 +579,14 @@ function initAuth() {
     };
   });
   $("authSubmit").onclick = submitAuth;
-  $("forgotLink").onclick = () => { authMode = "forgot"; syncAuthModeUI(); };
-  $("backToLogin").onclick = () => { authMode = "login"; syncAuthModeUI(); };
+  $("forgotLink").onclick = () => { authMode = "forgot"; forgotQuestion = ""; syncAuthModeUI(); };
+  $("backToLogin").onclick = () => { authMode = "login"; forgotQuestion = ""; syncAuthModeUI(); };
+  $("authSecQ").onchange = () => {
+    $("authSecQCustom").style.display = $("authSecQ").value === "__custom" ? "" : "none";
+  };
+  document.querySelectorAll(".auth-tab").forEach((t) => {
+    t.addEventListener("click", () => { forgotQuestion = ""; });
+  });
   $("authClose").onclick = closeAuthModal;
   $("authModal").addEventListener("click", (e) => {
     if (e.target === $("authModal")) closeAuthModal();
@@ -2236,6 +2280,7 @@ async function buildAccount() {
     (roleName ? '<div class="acct-row"><span>角色</span><b>' + roleName + "</b></div>" : "") +
     (created ? '<div class="acct-row"><span>加入星海</span><b>' + created + "</b></div>" : "");
   $("acctEmail").value = me.email || "";
+  $("acctSecQNow").textContent = me.sec_question || "尚未設定";
   // 重置刪除流程
   $("deleteStep2").style.display = "none";
   $("deleteStep1").style.display = "";
@@ -2343,10 +2388,36 @@ async function deleteAccount() {
   }
 }
 
+async function saveAcctSecQa() {
+  const q = $("acctSecQ").value === "__custom" ? $("acctSecQCustom").value.trim() : $("acctSecQ").value;
+  const a = $("acctSecA").value.trim();
+  if (!q) { toast("請選擇或輸入安全問題。"); return; }
+  if (!a) { toast("請輸入答案。"); return; }
+  const btn = $("acctSecQSave");
+  btn.disabled = true;
+  try {
+    const d = await api("/api/v1/auth/security-qa", {
+      method: "PUT",
+      body: JSON.stringify({ sec_question: q, sec_answer: a }),
+    });
+    $("acctSecA").value = "";
+    toast(d.reason || "安全問題已更新。");
+    buildAccount();
+  } catch (e) {
+    toast(e.message || "更新失敗");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function initAccount() {
   $("accountLogin").onclick = () => openAuthModal("login");
   $("acctEmailSave").onclick = saveAcctEmail;
   $("acctPwSave").onclick = changeAcctPassword;
+  $("acctSecQSave").onclick = saveAcctSecQa;
+  $("acctSecQ").onchange = () => {
+    $("acctSecQCustom").style.display = $("acctSecQ").value === "__custom" ? "" : "none";
+  };
   $("acctExport").onclick = exportHistory;
   $("acctDeleteBtn").onclick = () => {
     $("deleteName").textContent = Auth.user ? Auth.user.name : "";
