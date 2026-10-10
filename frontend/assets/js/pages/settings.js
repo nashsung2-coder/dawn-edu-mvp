@@ -73,7 +73,12 @@ async function renderProfile() {
         <div class="s-row"><span>等級</span><span>Lv.${me.level ?? 1}</span></div>
       </div>
       <button class="btn" id="s-export" style="width:100%;margin-bottom:8px">匯出學習歷程</button>
+      <button class="btn btn-ghost" id="s-switch-device" style="width:100%;margin-bottom:8px">切換裝置版本（目前：${(function(){try{return localStorage.getItem("dawn.device")==="mobile"?"手機":"電腦/平板"}catch(e){return "電腦/平板"}})()}）</button>
       <button class="btn btn-ghost" id="s-logout" style="width:100%">登出</button>`;
+    document.getElementById("s-switch-device").onclick = () => {
+      try { localStorage.removeItem("dawn.device"); } catch (e) {}
+      location.href = "../index.html";
+    };
     document.getElementById("s-logout").onclick = () => {
       clearAuth();
       broadcast({ type: "auth:logout" });
