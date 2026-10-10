@@ -27,6 +27,7 @@
       <button data-tab="duel">對決</button>
       <button data-tab="qa">問答</button>
       <button data-tab="textbook">課本</button>
+      <button data-tab="account">帳號</button>
     </nav>
     <div class="hd-right"><div id="authBar"></div></div>
   </div>
@@ -202,6 +203,58 @@
     <div id="textbookBody"></div>
   </section>
 
+  <!-- ============ 7. 帳號 ============ -->
+  <section class="tab-page" id="page-account">
+    <div id="accountGate" class="gate" style="display:none">
+      <h3>登入後管理你的帳號</h3>
+      <p>更新 Email、修改密碼、匯出學習歷程，或刪除帳號。</p>
+      <button class="btn primary" id="accountLogin">登入 / 註冊</button>
+    </div>
+    <div id="accountBody">
+      <div class="panel">
+        <h2 class="h2">帳號管理</h2>
+        <div class="acct-profile" id="acctProfile"></div>
+      </div>
+      <div class="panel">
+        <h3 class="h3">Email</h3>
+        <p class="sub">忘記密碼時，用註冊的 Email 重設。留空表示不設定。</p>
+        <div class="qa-box">
+          <input id="acctEmail" class="input" type="email" maxlength="120" placeholder="例如：you@example.com">
+          <button class="btn primary" id="acctEmailSave">更新 Email</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="h3">修改密碼</h3>
+        <div class="acct-form">
+          <input id="acctOldPw" class="input" type="password" placeholder="舊密碼" autocomplete="current-password">
+          <input id="acctNewPw" class="input" type="password" placeholder="新密碼（至少 4 個字元）" autocomplete="new-password">
+          <button class="btn primary" id="acctPwSave">修改密碼</button>
+        </div>
+        <p class="sub">修改後，其他裝置的登入會失效，請用新密碼重新登入。</p>
+      </div>
+      <div class="panel">
+        <h3 class="h3">匯出學習歷程</h3>
+        <p class="sub">下載你的完整學習資料（JSON）：個人檔案、島嶼、日誌、收藏、星砂、人格、對決與戰報紀錄。</p>
+        <button class="btn" id="acctExport">下載學習歷程</button>
+      </div>
+      <div class="panel danger-zone">
+        <h3 class="h3">刪除帳號</h3>
+        <p class="sub">刪除後，你的帳號、島嶼、日誌、收藏、星砂等所有資料都會消失，<b>無法復原</b>。</p>
+        <div id="deleteStep1"><button class="btn danger" id="acctDeleteBtn">刪除我的帳號</button></div>
+        <div id="deleteStep2" style="display:none">
+          <p class="sub" style="color:var(--red)">最後確認：請輸入密碼以刪除帳號「<b id="deleteName"></b>」。</p>
+          <div class="acct-form">
+            <input id="acctDeletePw" class="input" type="password" placeholder="輸入密碼確認刪除" autocomplete="current-password">
+            <div class="qa-box">
+              <button class="btn danger" id="acctDeleteConfirm">確認刪除，不後悔</button>
+              <button class="btn" id="acctDeleteCancel">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <footer class="site-footer">
     <div class="rule"></div>
     曙光教育智能系統 · 慢荒宇宙<br>
@@ -224,13 +277,19 @@
       <label for="authName">暱稱</label>
       <input id="authName" class="input" maxlength="20" placeholder="例如：星海旅人" autocomplete="username">
     </div>
-    <div class="auth-field">
-      <label for="authPass">密碼</label>
+    <div class="auth-field" id="authEmailWrap" style="display:none">
+      <label for="authEmail">Email（選填）</label>
+      <input id="authEmail" class="input" type="email" maxlength="120" placeholder="忘記密碼時用來重設" autocomplete="email">
+    </div>
+    <div class="auth-field" id="authPassWrap">
+      <label for="authPass" id="authPassLabel">密碼</label>
       <input id="authPass" class="input" type="password" placeholder="至少 4 個字元" autocomplete="current-password">
     </div>
     <div class="auth-err" id="authErr"></div>
     <button class="btn primary" id="authSubmit" style="width:100%">登入</button>
-    <p class="auth-note">你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。</p>
+    <button class="ob-skip" id="forgotLink">忘記密碼？</button>
+    <button class="ob-skip" id="backToLogin" style="display:none">返回登入</button>
+    <p class="auth-note" id="authNote">你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。</p>
   </div>
 </div>
 

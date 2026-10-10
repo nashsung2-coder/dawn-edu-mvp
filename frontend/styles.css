@@ -518,3 +518,21 @@ canvas#radarCanvas,canvas#islandCanvas{max-width:100%;height:auto;display:block;
 .book-role{display:inline-block;font-size:13px;letter-spacing:.28em;color:var(--violet);
   border:1px solid oklch(66.2% 0.188 285 / 45%);border-radius:var(--r-pill);
   padding:6px 18px 6px 22px;margin-bottom:14px}
+
+/* ============ 帳號管理 ============ */
+.acct-profile{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.acct-row{display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:12px 2px;border-bottom:1px solid var(--hairline);font-size:14.5px}
+.acct-row:last-child{border-bottom:0}
+.acct-row span{color:var(--text-3);letter-spacing:.08em;font-size:13px}
+.acct-row b{color:var(--text-1);font-weight:600}
+.acct-form{display:flex;flex-direction:column;gap:10px;max-width:420px}
+.acct-form .btn{align-self:flex-start}
+.danger-zone{border-color:oklch(69.3% 0.199 17 / 35%)}
+.danger-zone .h3{color:var(--red)}
+.btn.danger{background:oklch(69.3% 0.199 17 / 12%);border:1px solid oklch(69.3% 0.199 17 / 50%);
+  color:var(--red)}
+.btn.danger:hover:not(:disabled){background:oklch(69.3% 0.199 17 / 22%)}
+@media (max-width:760px){
+  .acct-form .btn{width:100%}
+}
