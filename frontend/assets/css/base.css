@@ -1,0 +1,85 @@
+/* 曙光教育 3.0 — 全站基礎（≤300 行）
+ * 中性 token + reset + 排版基線。顏色只活在 .theme-zen/.theme-neon。
+ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-6: 24px; --sp-8: 32px; --sp-12: 48px;
+  --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px;
+  --fs-20: 20px; --fs-24: 24px; --fs-32: 32px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-full: 999px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --z-base: 1; --z-river: 50; --z-toast: 200;
+}
+
+/* 主題作用域：顏色只活在這裡 */
+.theme-zen {
+  --bg: #F4EFE6; --bg-soft: #EDE6D6; --ink: #2B2620; --muted: #8A8175;
+  --line: #E2D9C8; --accent: #B4552D; --card: #FBF8F1;
+}
+.theme-neon {
+  --bg: #0B0E2A; --bg-soft: #141842; --ink: #EAF6FF; --muted: #8B93C9;
+  --line: #23264F; --accent: #00E5FF; --card: #12163A;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  background: var(--bg); color: var(--ink);
+  line-height: 1.6; min-height: 100dvh;
+}
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+button { font: inherit; cursor: pointer; }
+
+/* 語義地標 */
+main { display: block; }
+
+/* 通用按鈕 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-6); border-radius: var(--r-full);
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  font-size: var(--fs-14); font-weight: 700; text-decoration: none;
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+  min-height: 44px;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-ghost { background: transparent; }
+
+/* 通用卡片 */
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: var(--sp-6); transition: transform .3s var(--ease), box-shadow .3s var(--ease);
+}
+a.card { text-decoration: none; display: block; }
+a.card:hover { transform: translateY(-4px); }
+
+/* 三態：loading 骨架屏（只准灰塊，不准假文字） */
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--line) 25%, var(--bg-soft) 50%, var(--line) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite linear;
+  min-height: 20px;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+.state-empty, .state-error { text-align: center; padding: var(--sp-12) var(--sp-6); }
+.state-empty img, .state-error img { width: 120px; margin: 0 auto var(--sp-4); opacity: .9; }
+.state-empty p, .state-error p { color: var(--muted); font-size: var(--fs-14); margin-bottom: var(--sp-4); }
+
+/* toast */
+#toast-root { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: var(--z-toast); }
+.toast {
+  background: var(--ink); color: var(--bg); padding: var(--sp-3) var(--sp-6);
+  border-radius: var(--r-full); font-size: var(--fs-14); font-weight: 600;
+  animation: toastIn .3s var(--ease);
+}
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
