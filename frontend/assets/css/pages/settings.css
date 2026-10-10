@@ -1,0 +1,30 @@
+/* 設定頁：禪區樣式 */
+body { background: var(--bg); color: var(--ink); }
+.s-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 640px; margin: 0 auto;
+}
+.s-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.s-header h1 { font-size: var(--fs-24); }
+.s-sub { color: var(--muted); font-size: var(--fs-13); }
+#s-main { max-width: 640px; margin: 0 auto; padding: var(--sp-8); }
+.s-form { display: grid; gap: var(--sp-4); }
+.s-form label { font-size: var(--fs-14); font-weight: 600; }
+.s-form input {
+  padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line);
+  border-radius: var(--r-md); font-size: var(--fs-16); width: 100%;
+  background: var(--card); color: var(--ink);
+}
+.s-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.s-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-6); }
+.s-tabs button {
+  flex: 1; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-full);
+  background: transparent; color: var(--muted); font-weight: 700;
+}
+.s-tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.s-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--sp-4); border-bottom: 1px solid var(--line); font-size: var(--fs-14);
+}
+.s-row span:last-child { color: var(--muted); }
