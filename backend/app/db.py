@@ -511,6 +511,7 @@ CREATE TABLE IF NOT EXISTS users (
     sec_answer_hash TEXT NOT NULL DEFAULT '',
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
+    tier TEXT NOT NULL DEFAULT 'basic',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -629,6 +630,24 @@ CREATE TABLE IF NOT EXISTS topic_mastery (
     last_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (user_id, topic)
 );
+
+-- 複習卡片（SM-2 間隔重複）：學過的東西不被遺忘
+CREATE TABLE IF NOT EXISTS review_cards (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    topic TEXT NOT NULL DEFAULT '',
+    question TEXT NOT NULL,
+    hint TEXT NOT NULL DEFAULT '',
+    session_id TEXT NOT NULL DEFAULT '',
+    easiness REAL NOT NULL DEFAULT 2.5,
+    interval_days INTEGER NOT NULL DEFAULT 1,
+    repetitions INTEGER NOT NULL DEFAULT 0,
+    next_review_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
+    ON review_cards(user_id, next_review_at);
 
 -- 技能章（= 武器）
 CREATE TABLE IF NOT EXISTS skill_badges (
