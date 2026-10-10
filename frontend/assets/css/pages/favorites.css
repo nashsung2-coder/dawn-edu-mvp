@@ -1,0 +1,25 @@
+/* 藏書閣：禪區樣式 */
+body { background: var(--bg); color: var(--ink); }
+.f-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.f-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.f-header h1 { font-size: var(--fs-24); }
+.f-sub { color: var(--muted); font-size: var(--fs-13); }
+#f-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+.f-search { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-6); }
+.f-search input {
+  flex: 1; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line);
+  border-radius: var(--r-full); font-size: var(--fs-14); background: var(--card); color: var(--ink);
+}
+.f-list { display: grid; gap: var(--sp-3); }
+.f-item h3 { font-size: var(--fs-16); margin-bottom: var(--sp-1); }
+.f-item p { font-size: var(--fs-13); color: var(--muted); }
+.f-tags { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-6); }
+.f-tag {
+  padding: var(--sp-1) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-full);
+  font-size: var(--fs-12); background: transparent; color: var(--muted);
+}
+.f-tag[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
