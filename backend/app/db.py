@@ -299,6 +299,8 @@ CREATE TABLE IF NOT EXISTS skill_badges (
     rarity TEXT NOT NULL DEFAULT '普通',
     ai_comment TEXT NOT NULL DEFAULT '',
     bond REAL NOT NULL DEFAULT 0.0,
+    archetype TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -343,6 +345,8 @@ CREATE TABLE IF NOT EXISTS market_listings (
     trade_kind TEXT NOT NULL DEFAULT 'sell',
     want_text TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'open',
+    archetype TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -549,6 +553,8 @@ CREATE TABLE IF NOT EXISTS skill_badges (
     rarity TEXT NOT NULL DEFAULT '普通',
     ai_comment TEXT NOT NULL DEFAULT '',
     bond REAL NOT NULL DEFAULT 0.0,
+    archetype TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -593,6 +599,8 @@ CREATE TABLE IF NOT EXISTS market_listings (
     trade_kind TEXT NOT NULL DEFAULT 'sell',
     want_text TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'open',
+    archetype TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -637,6 +645,7 @@ def init_db() -> None:
     _migrate_users_game_columns()
     _migrate_users_email_column()
     _migrate_users_secqa_columns()
+    _migrate_badge_market_columns()
 
 
 def _migrate_users_auth_columns() -> None:
@@ -693,6 +702,32 @@ def _migrate_users_secqa_columns() -> None:
             for name, ddl in cols:
                 if name not in existing:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+
+
+def _migrate_badge_market_columns() -> None:
+    """為已存在的 skill_badges / market_listings 補上分類＋標籤欄位（冪等，雙模式相容）。
+    舊武器回填：archetype/tags 由 classify 規則推導（在 learn.classify_badge），
+    此處只補欄位；回填交給啟動時的一次性掃描（見 learn.backfill_badge_taxonomy）。"""
+    tables = {
+        "skill_badges": (("archetype", "TEXT NOT NULL DEFAULT ''"),
+                         ("tags", "TEXT NOT NULL DEFAULT '[]'")),
+        "market_listings": (("archetype", "TEXT NOT NULL DEFAULT ''"),
+                            ("tags", "TEXT NOT NULL DEFAULT '[]'"),
+                            ("snap_attack", "INTEGER NOT NULL DEFAULT 0"),
+                            ("snap_defense", "INTEGER NOT NULL DEFAULT 0"),
+                            ("snap_bond", "REAL NOT NULL DEFAULT 0")),
+    }
+    with get_conn() as conn:
+        for table, cols in tables.items():
+            if is_postgres():
+                for name, ddl in cols:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {ddl}")
+            else:
+                existing = {r["name"] for r in
+                            conn.execute(f"PRAGMA table_info({table})").fetchall()}
+                for name, ddl in cols:
+                    if name not in existing:
+                        conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
 
 
 def table_empty(table: str) -> bool:
