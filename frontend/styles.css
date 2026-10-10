@@ -541,3 +541,48 @@ canvas#radarCanvas,canvas#islandCanvas{max-width:100%;height:auto;display:block;
 .forgot-q{padding:14px 16px;border:1px dashed var(--cyan);border-radius:var(--r-sm);
   background:oklch(80.2% 0.106 192 / 8%);color:var(--cyan);font-size:15px;font-weight:600}
 select.input{appearance:none;-webkit-appearance:none;cursor:pointer}
+
+/* ===== 曙光學習宇宙：世界系 ===== */
+.battle-head{margin-bottom:12px}
+.battle-topic{display:inline-block;font-size:12px;color:var(--cyan);
+  border:1px solid var(--cyan);border-radius:999px;padding:2px 10px;margin-bottom:6px}
+.callout{padding:12px 14px;border-left:3px solid var(--cyan);border-radius:var(--r-sm);
+  background:oklch(80.2% 0.106 192 / 7%);margin:10px 0;font-size:14px;line-height:1.7}
+.quiz-tip{padding:10px 14px;border-radius:var(--r-sm);margin:10px 0;font-size:14px;
+  background:oklch(85% 0.12 90 / 10%);border:1px dashed oklch(85% 0.12 90 / 40%)}
+.quiz-q{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm)}
+.quiz-opt{display:block;padding:8px 10px;margin:6px 0;border-radius:var(--r-sm);
+  border:1px solid var(--line);cursor:pointer;font-size:14px}
+.quiz-opt:hover{border-color:var(--cyan)}
+.quiz-opt input{margin-right:8px;accent-color:var(--cyan)}
+.badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.badge-card{padding:14px;border:1px solid var(--line);border-radius:var(--r);
+  background:linear-gradient(135deg,oklch(70% 0.15 280 / 8%),transparent)}
+.badge-name{font-size:16px;font-weight:700;color:var(--gold,#e8b04b)}
+.mastery-row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:14px}
+.mastery-row .cap-track{flex:1}
+.pet-card{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.pet-emoji{font-size:44px}
+.island-card{margin:10px 0}
+.build-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.btn.sm{padding:8px 14px;font-size:13px}
+.zone-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px}
+.zone-card p{min-height:40px}
+.story-panel{margin:12px 0}
+.story-choice{display:block;width:100%;text-align:left;margin:8px 0;padding:12px 14px}
+.market-card{display:flex;align-items:center;gap:12px;margin:8px 0}
+.market-card .btn{margin-left:auto}
+.weekly-card{margin:10px 0}
+.weekly-ctype{display:inline-block;font-size:12px;padding:2px 10px;border-radius:999px;
+  background:oklch(80.2% 0.106 192 / 12%);color:var(--cyan);margin-bottom:6px}
+.review-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.note-chapter{border-top:1px dashed var(--line);padding:12px 0;margin-top:8px}
+.note-chapter h4{margin:0 0 6px;font-size:15px}
+.gate .btn{margin-top:8px}
+.lbl-h{display:block;font-size:13px;font-weight:600;margin:10px 0 4px;color:var(--text-2)}
+textarea.input{width:100%;resize:vertical;font-family:inherit}
+@media (max-width:640px){
+  .badge-grid{grid-template-columns:1fr 1fr}
+  .review-grid{grid-template-columns:1fr 1fr 1fr}
+  .story-choice{font-size:14px}
+}

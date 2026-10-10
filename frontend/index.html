@@ -22,7 +22,11 @@
     </a>
     <nav class="tabs" id="mainNav" aria-label="主導覽">
       <button data-tab="explore" class="active">探究</button>
+      <button data-tab="learn">學習</button>
       <button data-tab="island">島嶼</button>
+      <button data-tab="journey">遠征</button>
+      <button data-tab="market">交易</button>
+      <button data-tab="weekly">週精選</button>
       <button data-tab="radar">雷達</button>
       <button data-tab="duel">對決</button>
       <button data-tab="qa">問答</button>
@@ -111,6 +115,111 @@
           <ul class="log-list" id="territoryLog"></ul>
         </div>
       </div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">🐾 我的寵物</h3>
+      <div id="petGate" class="gate" style="display:none">
+        <p class="small">登入後，完成第一場費曼戰役即可孵化寵物。</p>
+      </div>
+      <div id="petBody"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">🏝️ 學習島嶼</h3>
+      <p class="sub">每場完整戰役可命名一座新島嶼。島上可蓋建築（圖書館／訓練場／瞭望塔）。</p>
+      <div id="learnIslands"></div>
+    </div>
+  </section>
+
+  <!-- ============ 2.5 學習中心 ============ -->
+  <section class="tab-page" id="page-learn">
+    <div class="panel">
+      <h2 class="h2">⚔️ 費曼戰役</h2>
+      <p class="sub">提問 → 閱讀 → 測驗 → 向 AI 解釋 → 授勳。你的目標：把 AI 說服。</p>
+      <div id="learnGate" class="gate" style="display:none">
+        <p class="small">登入後開始你的第一場戰役。</p>
+        <button class="btn primary" id="learnGateLogin">登入 / 註冊</button>
+      </div>
+      <div id="learnBody">
+        <div id="learnStart">
+          <div class="acct-form">
+            <label class="lbl-h" for="learnQ">你的問題</label>
+            <input id="learnQ" class="input" maxlength="200" placeholder="例如：為何遠古時期嬰兒啼哭不會引發野獸？">
+            <label class="lbl-h" for="learnHyp">你的假設（選填，先預測再驗證）</label>
+            <input id="learnHyp" class="input" maxlength="500" placeholder="先寫下你的猜測，讀完再回來看對不對">
+            <label class="lbl-h" for="learnGrade">年級段</label>
+            <select id="learnGrade" class="input">
+              <option>國小</option><option>國中</option>
+              <option selected>高中</option><option>大學先修</option>
+            </select>
+            <button class="btn primary" id="learnStartBtn">開戰</button>
+          </div>
+        </div>
+        <div id="learnStage" style="display:none"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">📜 我的戰役</h3>
+      <div id="learnHistory"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">🎯 主題掌握度</h3>
+      <div id="learnMastery"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">🗡️ 武器庫（技能章）</h3>
+      <div id="learnBadges"></div>
+    </div>
+  </section>
+
+  <!-- ============ 2.6 遠征 ============ -->
+  <section class="tab-page" id="page-journey">
+    <div class="panel">
+      <h2 class="h2">🗺️ 遠征 · 未知領域</h2>
+      <p class="sub">劇情是偽裝的考題——用你學過的知識做選擇。每個選擇都會被記住。</p>
+      <div id="journeyGate" class="gate" style="display:none">
+        <p class="small">登入後開始遠征。</p>
+      </div>
+      <div id="journeyBody"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">📖 遠征紀錄</h3>
+      <div id="journeyHistory"></div>
+    </div>
+  </section>
+
+  <!-- ============ 2.7 交易市集 ============ -->
+  <section class="tab-page" id="page-market">
+    <div class="panel">
+      <h2 class="h2">🏪 交易市集</h2>
+      <p class="sub">武器與島嶼可交易。買到的武器默契歸零——真正的默契要靠自己的學習重建。</p>
+      <div id="marketGate" class="gate" style="display:none">
+        <p class="small">登入後逛市集。</p>
+      </div>
+      <div id="marketBody"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">📦 上架我的物品</h3>
+      <div id="marketPublish"></div>
+    </div>
+  </section>
+
+  <!-- ============ 2.8 週精選 ============ -->
+  <section class="tab-page" id="page-weekly">
+    <div class="panel">
+      <h2 class="h2">📰 本週精選</h2>
+      <p class="sub">依你的興趣策展。只呈現分析、不幫你選——選擇權在你手上。</p>
+      <div id="weeklyGate" class="gate" style="display:none">
+        <p class="small">登入後查看本週精選。</p>
+      </div>
+      <div id="weeklyBody"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">📊 本週盤點</h3>
+      <div id="weeklyReview"></div>
+    </div>
+    <div class="panel">
+      <h3 class="h3">✨ 自由屬性點</h3>
+      <div id="weeklyAttr"></div>
     </div>
   </section>
 
@@ -358,5 +467,6 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
+<script src="world.js"></script>
 </body>
 </html>
