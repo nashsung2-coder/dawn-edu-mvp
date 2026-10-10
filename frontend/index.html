@@ -1,555 +1,221 @@
 <!DOCTYPE html>
-<html lang="zh-Hant-TW">
+<html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>曙光教育智能系統 · 慢荒宇宙</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1a1f2e">
+<title>曙光教育 · 3.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="assets/emblem.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/page-cosmos.css">
+<link rel="stylesheet" href="css/page-home.css">
+<script src="config.js"></script>
 </head>
 <body>
-<canvas id="starfield"></canvas>
-<div class="nebula"></div>
 
-<header class="site-header">
-  <div class="hd-in">
-    <a class="brand" href="#top" id="brandHome">
-      <span class="emblem-img" role="img" aria-label="曙光之境"></span>
-      <span><b>曙光教育</b><small>DAWN EDUCATION</small></span>
-    </a>
-    <div class="hd-right"><div id="authBar"></div></div>
-  </div>
-</header>
-<nav class="tabs" id="mainNav" aria-label="主導覽">
-  <button data-tab="study" class="active"><span class="tab-tx">學習</span></button>
-  <button data-tab="trial"><span class="tab-tx">試煉場</span></button>
-  <button data-tab="world"><span class="tab-tx">世界</span></button>
-  <button data-tab="me"><span class="tab-tx">我的</span></button>
-</nav>
+<!-- 30秒進入動畫掛載點：心流版/宇宙版 Canvas 將掛載於此 -->
+<div id="entryAnim"></div>
 
 <div id="app">
-  <section class="hero" id="top" data-page="home">
-    <div id="brandHero">
-      <span class="emblem-img hero-emblem" role="img" aria-label="曙光之境"></span>
-      <div class="kicker"><span>慢荒宇宙 · 曙光教育智能系統</span></div>
-      <h1 class="display">讓每一次好奇，<br>都成為<span class="hl">島嶼</span>的新生地。</h1>
-      <p class="manifesto">從日常科學出發，經歷引起好奇、親自探索、延伸思考——<br>你的島嶼，是你知識的形狀。</p>
-    </div>
-    <div id="homeBoard" style="display:none"></div>
-  </section>
-
-  <!-- ============ 主分頁：學習 ============ -->
-  <section class="tab-page active" id="group-study" data-page="learn">
-    <div class="segmented" id="seg-study" role="tablist" aria-label="學習子頁">
-      <button data-sub="explore" class="active" role="tab">知識湖探究</button>
-      <button data-sub="learn" role="tab">費曼戰役</button>
-      <button data-sub="textbook" role="tab">知識圖鑑</button>
-    </div>
-
-    <!-- 學習 · 知識湖探究 -->
-    <div class="sub-page active" id="page-explore" data-page="explore">
-      <div class="panel">
-        <h2 class="h2">知識湖探究</h2>
-        <p class="sub">勾選多維標籤，交集搜尋會告訴你「為什麼推薦」。</p>
-
-        <h4 class="lbl-h">探索階段</h4>
-        <div class="stage-row" id="stageRow">
-          <button class="stage-chip active" data-stage="all">全部階段</button>
-          <button class="stage-chip" data-stage="引起好奇">引起好奇</button>
-          <button class="stage-chip" data-stage="親自探索">親自探索</button>
-          <button class="stage-chip" data-stage="延伸思考">延伸思考</button>
+  <!-- ============ 心流學習首頁 ============ -->
+  <section class="page" id="page-flow" data-page="flow">
+    <div class="page-scroll">
+      <header class="idbar">
+        <div class="avatar-wrap">
+          <button class="avatar" id="flowAvatar" aria-label="帳戶選單">曜</button>
+          <div class="acct-menu" id="flowAcctMenu"></div>
         </div>
+        <span class="lv-badge">Lv.<span id="flowLv">1</span></span>
+        <span class="spacer"></span>
+        <button class="coin-chip sand" id="flowSandChip"><span class="dot"></span><span class="num" id="flowSand">0</span> 星砂</button>
+        <button class="icon-btn" id="flowBell" aria-label="通知">🔔</button>
+      </header>
 
-        <h4 class="lbl-h">搜尋模式</h4>
-        <div class="mode-row" id="modeRow"></div>
-
-        <h4 class="lbl-h">多維標籤篩選<span class="lbl-hint">可複選</span></h4>
-        <div id="selBar" class="sel-bar" style="display:none"></div>
-        <div id="dimFilters"></div>
-
-        <div class="result-meta" id="exploreMeta"></div>
-        <div class="cards" id="exploreCards"></div>
+      <div class="brief">
+        <div class="kicker">今日作戰 · <span id="flowDate"></span></div>
+        <div class="ai-line" id="flowBriefLine">AI 參謀：「先挑一個讓你手癢的問題，剩下的交給我。」</div>
       </div>
-    </div>
 
-    <!-- 學習 · 費曼戰役 -->
-    <div class="sub-page" id="page-learn" data-page="learn">
-      <div class="panel">
-        <h2 class="h2">費曼戰役</h2>
-        <p class="sub">提問 → 閱讀 → 測驗 → 向 AI 解釋 → 授勳。你的目標：把 AI 說服。</p>
-        <div id="learnGate" class="gate" style="display:none">
-          <p class="small">登入後開始你的第一場戰役。</p>
-          <button class="btn primary" id="learnGateLogin">登入 / 註冊</button>
+      <div class="mode-capsule" id="modeCapsule" role="tablist" aria-label="學習模組">
+        <button data-mode="exam" role="tab">📝 考試衝刺</button>
+        <button data-mode="curious" role="tab" class="on">🔭 好奇逛逛</button>
+        <button data-mode="deep" role="tab">📚 深入研究</button>
+      </div>
+
+      <div class="card main-topic" id="mainTopic" role="button" tabindex="0" aria-label="主課題">
+        <div class="pills">
+          <span class="kp-pill" id="mainTopicTag">物理 · 熱學</span>
+          <span class="diff" aria-label="難度 2"><i class="f"></i><i class="f"></i><i></i></span>
         </div>
-        <div id="learnBody">
-          <div id="learnStart">
-            <div class="acct-form">
-              <label class="lbl-h" for="learnQ">你的問題</label>
-              <input id="learnQ" class="input" maxlength="200" placeholder="例如：為何遠古時期嬰兒啼哭不會引發野獸？">
-              <label class="lbl-h" for="learnHyp">你的假設（選填，先預測再驗證）</label>
-              <input id="learnHyp" class="input" maxlength="500" placeholder="先寫下你的猜測，讀完再回來看對不對">
-              <label class="lbl-h" for="learnGrade">年級段</label>
-              <select id="learnGrade" class="input">
-                <option>國小</option><option>國中</option>
-                <option selected>高中</option><option>大學先修</option>
-              </select>
-              <button class="btn primary" id="learnStartBtn">開戰</button>
-            </div>
-          </div>
-          <div id="learnStage" style="display:none"></div>
+        <h2 id="mainTopicTitle">為什麼從泳池起來，有風吹來特別冷？</h2>
+        <div class="sub" id="mainTopicSub">3 份史料 · 1 個爭點 · 約 12 分鐘</div>
+        <div class="progress"><i id="mainTopicProg" style="width:35%"></i></div>
+        <div class="foot">
+          <span class="small">上次停在：穿插測驗</span>
+          <span class="small" style="color:var(--page-accent)">繼續 →</span>
         </div>
       </div>
-      <div class="panel">
-        <h3 class="h3">我的戰役</h3>
-        <div id="learnHistory"></div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">主題掌握度</h3>
-        <div id="learnMastery"></div>
-      </div>
-    </div>
 
-    <!-- 學習 · 知識圖鑑 -->
-    <div class="sub-page" id="page-textbook" data-page="codex">
-      <div id="textbookGate" class="gate" style="display:none">
-        <h3>你的知識圖鑑還在星海深處</h3>
-        <p>登入後，系統會根據你的學習軌跡，自動編纂一本只屬於你的圖鑑。</p>
-        <button class="btn primary" id="textbookLogin">登入 / 註冊</button>
+      <div class="flow-steps" aria-label="心流三步驟">
+        <div class="step cur">📖 讀檔</div>
+        <div class="step">⚔️ 辯論</div>
+        <div class="step">🗡️ 取武</div>
       </div>
-      <div id="textbookBody"></div>
+
+      <h3 style="font-size:var(--fs-14); margin:0 0 10px;">其他課題</h3>
+      <div class="topic-list" id="topicList"></div>
+
+      <h3 style="font-size:var(--fs-14); margin:4px 0 10px;">最近取得</h3>
+      <div class="loot-row" id="lootRow"></div>
+      <div style="height:12px"></div>
+    </div>
+    <div class="page-cta">
+      <button class="btn btn-primary" id="flowCta">進入閉門造車 →</button>
     </div>
   </section>
 
-  <!-- ============ 主分頁：試煉場 ============ -->
-  <section class="tab-page" id="group-trial" data-page="trial">
-    <div class="segmented" id="seg-trial" role="tablist" aria-label="試煉場子頁">
-      <button data-sub="qa" class="active" role="tab">問答</button>
-      <button data-sub="radar" role="tab">雷達</button>
-      <button data-sub="duel" role="tab">對決</button>
-    </div>
+  <!-- ============ 遊歷宇宙首頁 ============ -->
+  <section class="page" id="page-cosmos" data-page="cosmos">
+    <div class="starfield" id="starfield" aria-hidden="true"></div>
 
-    <!-- 試煉場 · 問答 -->
-    <div class="sub-page active" id="page-qa" data-page="trial">
-      <div class="panel">
-        <h2 class="h2">知識湖問答</h2>
-        <p class="sub">輸入你的問題，系統從知識湖檢索相關內容，生成摘要回答並附上引用來源。</p>
-        <div class="qa-box">
-          <input id="qaInput" class="input" type="text" placeholder="例如：為什麼從泳池起來有風會特別冷？" maxlength="120">
-          <button class="btn primary" id="qaAsk">提問</button>
-        </div>
-        <div id="qaOutput"></div>
+    <button class="planet" id="planet1" style="left:12%; top:26%;" data-p="kx447">
+      <span class="p-body" style="background:radial-gradient(circle at 35% 35%, oklch(.62 .14 45), oklch(.42 .1 40));"></span>
+      <span class="p-ring"></span><span class="p-name">鐵鏽帶 · KX-447</span>
+    </button>
+    <button class="planet recommended" id="planet2" style="left:58%; top:20%;" data-p="mist">
+      <span class="p-body" style="background:radial-gradient(circle at 35% 35%, oklch(.6 .12 200), oklch(.38 .09 210));"></span>
+      <span class="p-ring"></span><span class="p-name">迷霧星 · ML-09</span>
+    </button>
+    <button class="planet" id="planet3" style="left:34%; top:44%;" data-p="ember">
+      <span class="p-body" style="background:radial-gradient(circle at 35% 35%, oklch(.58 .13 25), oklch(.36 .09 20));"></span>
+      <span class="p-ring"></span><span class="p-name">餘燼星 · EM-31</span>
+    </button>
+
+    <div class="ship" aria-hidden="true">🚀<span class="trail"></span></div>
+
+    <div class="cosmos-hud">
+      <div class="hud-top">
+        <div class="energy"><div class="bar"><i></i></div><span class="num">72</span></div>
+        <div class="coords">X:447 Y:09 Z:31</div>
+        <button class="coin-chip sand" id="cosmosSandChip" style="min-height:32px"><span class="dot"></span><span class="num" id="cosmosSand">0</span></button>
+        <button class="icon-btn" id="cosmosGear" aria-label="設定" style="width:44px;height:44px">⚙️</button>
+      </div>
+      <div class="bridge-bar"><b>曙光號 · Mk.II</b><span class="small">戰力 <span class="val">1,240</span></span><span class="small">心靈 <span class="val">68</span></span></div>
+      <div class="ops-row" id="opsRow">
+        <button data-op="atk" class="on">🎯 遠端攻擊</button>
+        <button data-op="explore">🔭 星球探索</button>
+        <button data-op="forge">🧠 論文鍛鍊</button>
       </div>
     </div>
 
-    <!-- 試煉場 · 雷達 -->
-    <div class="sub-page" id="page-radar" data-page="trial">
-      <div class="panel">
-        <h2 class="h2">三維空間雷達</h2>
-        <p class="sub">X 知識廣度 · Y 認知深度 · Z 社會連結。拖曳可旋轉視角，點選拓荒者查看知識距離。</p>
-        <div class="radar-layout">
-          <div><canvas id="radarCanvas" width="640" height="420"></canvas></div>
-          <div>
-            <h4 class="lbl-h">星海中的拓荒者</h4>
-            <div class="pioneer-list" id="pioneerList"></div>
-            <div class="radar-info" id="radarInfo">
-              <div class="small" style="color:var(--text-3)">點選一位拓荒者，查看你們的知識距離與關係判讀。</div>
-            </div>
-            <div class="privacy-note">隱私設計：只顯示知識距離，不顯示任何人的精確座標。所有資料皆匿名化處理。</div>
-          </div>
+    <div class="target-card" id="targetCard" aria-live="polite">
+      <h3 id="tcName">迷霧星 · ML-09</h3>
+      <div class="diff-row"><span>難度</span><span class="diff"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span><span>距離 2.4 光年</span></div>
+      <div class="loot"><span>💰 <b>120</b> 星砂</span><span>🔷 <b>8</b> 記憶微粒</span><span>🛡️ 鈦殼裝甲</span></div>
+    </div>
+    <div class="cosmos-cta">
+      <button class="btn btn-primary" id="cosmosCta">出擊 →</button>
+    </div>
+  </section>
+
+  <!-- ============ 家 ============ -->
+  <section class="page" id="page-home" data-page="home">
+    <div class="page-scroll">
+      <header class="idbar">
+        <div class="avatar-wrap">
+          <button class="avatar" id="homeAvatar" aria-label="帳戶選單">曜</button>
+          <div class="acct-menu" id="homeAcctMenu"></div>
         </div>
+        <span class="lv-badge">曙光小築 · Lv.7</span>
+        <span class="spacer"></span>
+        <button class="coin-chip sand" id="homeSandChip"><span class="dot"></span><span class="num" id="homeSand">0</span></button>
+        <button class="coin-chip mote" id="homeMoteChip"><span class="dot"></span><span class="num" id="homeMote">0</span></button>
+      </header>
+
+      <div class="room" id="room" aria-label="我的房間">
+        <div class="wall-l"></div><div class="wall-r"></div>
+        <div class="floor"></div>
+        <div class="rug"></div>
+        <button class="furniture" style="left:16%; top:52%;" data-f="書架">📚<span class="tag">書架</span></button>
+        <button class="furniture" style="left:70%; top:48%;" data-f="熔爐">🔥<span class="tag">鍛造爐</span></button>
+        <button class="pet" id="petBtn" aria-label="寵物">🦊</button>
+        <div class="pet-bubble" id="petBubble">你回來啦！今天要去打 KX-447 嗎？</div>
       </div>
-      <div class="panel">
-        <h2 class="h2">兵器庫 <span class="points-pill" id="radarPoints">星砂 <b>0</b></span></h2>
-        <p class="sub">學習賺取星砂：開疆拓土 ＋10、對決勝利 ＋20。星砂換武器，挑戰星海中的拓荒者——純遊戲，點到為止。</p>
-        <div class="shop-grid" id="shopGrid"></div>
-        <h4 class="lbl-h" style="margin-top:18px">戰報</h4>
-        <ul class="battle-log-list" id="battleLogList"><li class="small" style="color:var(--text-3)">還沒有戰報。選一位拓荒者，發起你的第一場挑戰吧。</li></ul>
+
+      <div class="card pet-status">
+        <span style="font-size:24px">🦊</span>
+        <div class="mood"><b style="font-size:var(--fs-14)">小火</b> <span class="small">· 心情不錯</span>
+          <div class="bar"><i></i></div>
+        </div>
+        <span class="small">飽食 78%</span>
       </div>
+
+      <div class="quick-grid">
+        <button data-q="chat"><span class="qi">💬</span>聊天</button>
+        <button data-q="forum"><span class="qi">🗣️</span>討論空間</button>
+        <button data-q="friends"><span class="qi">👥</span>好友</button>
+        <button data-q="achv"><span class="qi">🏆</span>成就</button>
+      </div>
+
+      <div class="card build-card">
+        <div class="thumb">🏠</div>
+        <div class="bt"><b>佈置你的家</b><span>2 塊空地待建設 · 建造給被動加成</span></div>
+        <button class="btn" data-q="build">前往</button>
+      </div>
+      <div style="height:8px"></div>
     </div>
 
-    <!-- 試煉場 · 對決 -->
-    <div class="sub-page" id="page-duel" data-page="trial">
-      <div class="panel">
-        <h2 class="h2">知識對決</h2>
-        <p class="sub">真正的攻擊，是讓對方看見自己還沒學會的地方。勝利者獲得榮譽，失敗者獲得成長。</p>
-
-        <div class="trial-flow" aria-label="試煉路線">
-          <button class="flow-node" data-goto="qa">
-            <span class="flow-tag">日常小怪</span><span class="flow-name">問答</span>
-            <small>先暖身，試試水溫</small>
-          </button>
-          <span class="flow-arrow" aria-hidden="true">→</span>
-          <button class="flow-node" data-goto="radar">
-            <span class="flow-tag">弱點掃描</span><span class="flow-name">雷達</span>
-            <small>看看對手在哪裡</small>
-          </button>
-          <span class="flow-arrow" aria-hidden="true">→</span>
-          <button class="flow-node boss" data-goto="duel">
-            <span class="flow-tag">Boss 戰</span><span class="flow-name">對決</span>
-            <small>5 回合觀念交鋒</small>
-          </button>
+    <!-- 錢包面板 -->
+    <div class="sheet-mask" id="walletMask">
+      <div class="sheet" role="dialog" aria-label="錢包">
+        <h3>💰 學習帳本</h3>
+        <p class="small">紀錄永不遺失 · 每一筆都有來源</p>
+        <div class="wallet-row">
+          <span class="cdot" style="background:var(--sand)"></span><b>星砂</b><span class="num" id="wSand">0</span>
         </div>
-
-        <div id="duelSetup">
-          <div class="duel-setup">
-            <div class="field">
-              <label>選擇對手</label>
-              <select id="duelOpponent" class="input"></select>
-            </div>
-            <div class="field">
-              <label>對決領域（共同標籤）</label>
-              <select id="duelDomain" class="input"></select>
-            </div>
-            <button class="btn primary" id="duelStart">發起對決</button>
-          </div>
-          <div class="empty-hint">選擇對手與共同標籤領域，開始 5 回合的觀念交鋒。</div>
+        <div class="wallet-row">
+          <span class="cdot" style="background:var(--mote)"></span><b>記憶微粒</b><span class="num" id="wMote">0</span>
         </div>
-
-        <div class="duel-arena" id="duelArena">
-          <div class="round-head">
-            <div class="round-pills" id="roundPills"></div>
-            <div class="duel-score" id="duelScore">你 0 : 0 對手</div>
-          </div>
-          <div class="question-box">
-            <h3 id="duelQuestion"></h3>
-            <div id="duelOptions"></div>
-            <div class="feedback-box" id="duelFeedback"></div>
-            <div class="duel-next-row">
-              <button class="btn primary" id="duelNext" style="display:none;">下一題 →</button>
-            </div>
-          </div>
+        <p class="x-rate">匯率 1 星砂 ≈ 100 記憶微粒（本週浮動 ±5%）</p>
+        <div class="x-ctl">
+          <input type="range" id="xRange" min="0" max="1000" value="0" step="10" aria-label="兌換數量">
+          <span class="x-out" id="xOut">→ 0 星砂</span>
         </div>
-
-        <div class="duel-result" id="duelResult"></div>
+        <button class="btn btn-primary" id="xBtn" style="background:var(--page-accent)">兌換記憶微粒 → 星砂</button>
+        <button class="btn btn-ghost" id="walletClose" style="margin-top:10px; color:oklch(.28 .014 70); border-color:oklch(0 0 0/.2)">關閉</button>
       </div>
     </div>
   </section>
 
-  <!-- ============ 主分頁：世界 ============ -->
-  <section class="tab-page" id="group-world" data-page="island">
-    <div class="segmented" id="seg-world" role="tablist" aria-label="世界子頁">
-      <button data-sub="island" class="active" role="tab">島嶼</button>
-      <button data-sub="journey" role="tab">遠征</button>
-      <button data-sub="market" role="tab">交易市集</button>
-      <button data-sub="weekly" role="tab">週精選</button>
-    </div>
+  <!-- ============ 底部導航：三格（心流／宇宙／家） ============ -->
+  <nav id="tabbar" aria-label="主導航">
+    <button data-go="flow" class="on"><span class="t-ico">📖</span>心流</button>
+    <button data-go="cosmos"><span class="t-ico">🚀</span>宇宙</button>
+    <button data-go="home"><span class="t-ico">🏠</span>家</button>
+  </nav>
+</div>
 
-    <!-- 世界 · 島嶼 -->
-    <div class="sub-page active" id="page-island" data-page="island">
-      <div class="panel">
-        <h2 class="h2">我的島嶼 · <span id="islandName">初生之島</span></h2>
-        <p class="sub">學習行為會開疆拓土。進度跟著帳號走，換裝置也不會消失。
-          <span id="personaTag" class="persona-tag" style="display:none"></span>
-          <button class="linklike" id="retakePersona" style="display:none">重測人格</button>
-        </p>
-        <div id="personaBanner" class="persona-banner" style="display:none">
-          <div><b>星海還不認識你。</b><span class="small">完成引路儀式，測出你的人格與角色——未來你的課本與學習會為你個人化。</span></div>
-          <div class="persona-banner-actions">
-            <button class="btn primary" id="personaStart">開始引路儀式</button>
-            <button class="btn" id="personaDismiss">稍後</button>
-          </div>
-        </div>
-        <div id="islandGate" class="gate" style="display:none">
-          <span class="emblem-img" role="img" aria-label="曙光之境"></span>
-          <h3 class="h3">島嶼需要一位主人</h3>
-          <p class="small">登入後，你的領土、資源與開疆紀錄都會保存在雲端——重整頁面、換裝置都不會消失。</p>
-          <button class="btn primary" id="gateLoginBtn">登入 / 註冊</button>
-        </div>
-        <div class="island-layout" id="islandLayout">
-          <div>
-            <canvas id="islandCanvas" width="520" height="340"></canvas>
-            <div class="island-stats">
-              <div class="stat-box"><div class="num" id="statUnits">1</div><div class="lbl">領土單位</div></div>
-              <div class="stat-box"><div class="num" id="statLevel">荒島</div><div class="lbl">島嶼階段</div></div>
-              <div class="stat-box"><div class="num" id="statToday">0 / 5</div><div class="lbl">今日擴張</div></div>
-            </div>
-            <div class="cap-bar">
-              <div class="cap-track"><div class="cap-fill" id="capFill" style="width:0%"></div></div>
-              <div class="cap-label">每日擴張上限 5 單位 · 穩定學習，細水長流</div>
-            </div>
-            <h4 class="lbl-h">領土資源</h4>
-            <div class="res-grid" id="resGrid"></div>
-          </div>
-          <div>
-            <h4 class="lbl-h">學習行為 · 開疆拓土</h4>
-            <p class="sub">完成學習行為即可擴張領土並獲得資源。</p>
-            <div class="action-list" id="islandActions"></div>
-            <h4 class="lbl-h">領土日誌</h4>
-            <ul class="log-list" id="territoryLog"></ul>
-          </div>
-        </div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">我的寵物</h3>
-        <div id="petGate" class="gate" style="display:none">
-          <p class="small">登入後，完成第一場費曼戰役即可孵化寵物。</p>
-        </div>
-        <div id="petBody"></div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">學習島嶼</h3>
-        <p class="sub">每場完整戰役可命名一座新島嶼。島上可蓋建築（圖書館／訓練場／瞭望塔）。</p>
-        <div id="learnIslands"></div>
-      </div>
+<!-- 登入 modal（簡化版） -->
+<div class="modal-mask" id="authMask">
+  <div class="modal" role="dialog" aria-label="登入">
+    <h3>歡迎回來，旅人</h3>
+    <p class="small">登入後，星砂與學習進度會跟著你走。</p>
+    <div class="fld"><label>暱稱</label><input id="authName" autocomplete="username" placeholder="你的名字"></div>
+    <div class="fld"><label>密碼</label><input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+    <div class="err" id="authErr"></div>
+    <div class="row">
+      <button class="btn btn-ghost" id="authCancel" style="flex:1">取消</button>
+      <button class="btn btn-primary" id="authGo" style="flex:2; min-height:48px">登入</button>
     </div>
-
-    <!-- 世界 · 遠征 -->
-    <div class="sub-page" id="page-journey" data-page="journey">
-      <div class="panel">
-        <h2 class="h2">遠征 · 未知領域</h2>
-        <p class="sub">劇情是偽裝的考題——用你學過的知識做選擇。每個選擇都會被記住。</p>
-        <div id="journeyGate" class="gate" style="display:none">
-          <p class="small">登入後開始遠征。</p>
-        </div>
-        <div id="journeyBody"></div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">遠征紀錄</h3>
-        <div id="journeyHistory"></div>
-      </div>
-    </div>
-
-    <!-- 世界 · 交易市集 -->
-    <div class="sub-page" id="page-market" data-page="market">
-      <div class="panel">
-        <h2 class="h2">交易市集</h2>
-        <p class="sub">武器與島嶼可交易。買到的武器默契歸零——真正的默契要靠自己的學習重建。</p>
-        <div id="marketGate" class="gate" style="display:none">
-          <p class="small">登入後逛市集。</p>
-        </div>
-        <div class="market-chips" id="marketChips" role="tablist" aria-label="市集分類">
-          <button class="mchip active" data-cat="">全部</button>
-          <button class="mchip arch-攻擊型" data-cat="攻擊型">攻擊型</button>
-          <button class="mchip arch-防禦型" data-cat="防禦型">防禦型</button>
-          <button class="mchip arch-輔助型" data-cat="輔助型">輔助型</button>
-          <button class="mchip arch-經濟型" data-cat="經濟型">經濟型</button>
-        </div>
-        <div id="marketBody"></div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">上架我的物品</h3>
-        <div id="marketPublish"></div>
-      </div>
-    </div>
-
-    <!-- 世界 · 週精選 -->
-    <div class="sub-page" id="page-weekly" data-page="weekly">
-      <div class="panel">
-        <h2 class="h2">本週精選</h2>
-        <p class="sub">依你的興趣策展。只呈現分析、不幫你選——選擇權在你手上。</p>
-        <div id="weeklyGate" class="gate" style="display:none">
-          <p class="small">登入後查看本週精選。</p>
-        </div>
-        <div id="weeklyBody"></div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">本週盤點</h3>
-        <div id="weeklyReview"></div>
-      </div>
-      <div class="panel">
-        <h3 class="h3">自由屬性點</h3>
-        <div id="weeklyAttr"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ 主分頁：我的 ============ -->
-  <section class="tab-page" id="group-me" data-page="me">
-    <div class="segmented" id="seg-me" role="tablist" aria-label="我的子頁">
-      <button data-sub="account" class="active" role="tab">帳號</button>
-      <button data-sub="armory" role="tab">武器庫</button>
-    </div>
-
-    <!-- 我的 · 帳號 -->
-    <div class="sub-page active" id="page-account" data-page="me">
-      <div id="accountGate" class="gate" style="display:none">
-        <h3>登入後管理你的帳號</h3>
-        <p>更新 Email、修改密碼、匯出學習歷程，或刪除帳號。</p>
-        <button class="btn primary" id="accountLogin">登入 / 註冊</button>
-      </div>
-      <div id="accountBody">
-        <div class="panel">
-          <h2 class="h2">帳號管理</h2>
-          <div class="acct-profile" id="acctProfile"></div>
-        </div>
-        <div class="panel">
-          <h3 class="h3">Email</h3>
-          <p class="sub">忘記密碼時，用註冊的 Email 重設。留空表示不設定。</p>
-          <div class="qa-box">
-            <input id="acctEmail" class="input" type="email" maxlength="120" placeholder="例如：you@example.com">
-            <button class="btn primary" id="acctEmailSave">更新 Email</button>
-          </div>
-        </div>
-        <div class="panel">
-          <h3 class="h3">修改密碼</h3>
-          <div class="acct-form">
-            <input id="acctOldPw" class="input" type="password" placeholder="舊密碼" autocomplete="current-password">
-            <input id="acctNewPw" class="input" type="password" placeholder="新密碼（至少 4 個字元）" autocomplete="new-password">
-            <button class="btn primary" id="acctPwSave">修改密碼</button>
-          </div>
-          <p class="sub">修改後，其他裝置的登入會失效，請用新密碼重新登入。</p>
-        </div>
-        <div class="panel">
-          <h3 class="h3">安全問題</h3>
-          <p class="sub">忘記密碼時，答對安全問題即可重設。目前：<b id="acctSecQNow">讀取中…</b></p>
-          <div class="acct-form">
-            <select id="acctSecQ" class="input">
-              <option value="讓你最心動的一個名字是？">讓你最心動的一個名字是？</option>
-              <option value="你的第一隻寵物的名字是？">你的第一隻寵物的名字是？</option>
-              <option value="你最喜歡吃的食物是？">你最喜歡吃的食物是？</option>
-              <option value="你童年最好的朋友叫什麼名字？">你童年最好的朋友叫什麼名字？</option>
-              <option value="你最想去的地方是哪裡？">你最想去的地方是哪裡？</option>
-              <option value="__custom">自訂問題…</option>
-            </select>
-            <input id="acctSecQCustom" class="input" maxlength="60" placeholder="輸入你自己的安全問題" style="display:none">
-            <input id="acctSecA" class="input" maxlength="60" placeholder="答案（只用來驗證，不會公開）" autocomplete="off">
-            <button class="btn primary" id="acctSecQSave">更新安全問題</button>
-          </div>
-        </div>
-        <div class="panel">
-          <h3 class="h3">匯出學習歷程</h3>
-          <p class="sub">下載你的完整學習資料（JSON）：個人檔案、島嶼、日誌、收藏、星砂、人格、對決與戰報紀錄。</p>
-          <button class="btn" id="acctExport">下載學習歷程</button>
-        </div>
-        <div class="panel danger-zone">
-          <h3 class="h3">刪除帳號</h3>
-          <p class="sub">刪除後，你的帳號、島嶼、日誌、收藏、星砂等所有資料都會消失，<b>無法復原</b>。</p>
-          <div id="deleteStep1"><button class="btn danger" id="acctDeleteBtn">刪除我的帳號</button></div>
-          <div id="deleteStep2" style="display:none">
-            <p class="sub" style="color:var(--red)">最後確認：請輸入密碼以刪除帳號「<b id="deleteName"></b>」。</p>
-            <div class="acct-form">
-              <input id="acctDeletePw" class="input" type="password" placeholder="輸入密碼確認刪除" autocomplete="current-password">
-              <div class="qa-box">
-                <button class="btn danger" id="acctDeleteConfirm">確認刪除，不後悔</button>
-                <button class="btn" id="acctDeleteCancel">取消</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 我的 · 武器庫 -->
-    <div class="sub-page" id="page-armory" data-page="me">
-      <div class="panel">
-        <h2 class="h2">武器庫</h2>
-        <p class="sub">每場戰役鍛造的技能章即是武器。邊框顏色代表主分類，標籤代表特殊詞綴。</p>
-        <div class="market-chips" aria-label="武器分類圖例">
-          <span class="mchip arch-攻擊型 static">攻擊型</span>
-          <span class="mchip arch-防禦型 static">防禦型</span>
-          <span class="mchip arch-輔助型 static">輔助型</span>
-          <span class="mchip arch-經濟型 static">經濟型</span>
-        </div>
-        <div id="armoryBadges"></div>
-      </div>
-    </div>
-  </section>
-
-  <footer class="site-footer">
-    <div class="rule"></div>
-    曙光教育智能系統 · 慢荒宇宙<br>
-    <span>交集資料庫 × 知識湖 × 三維雷達 × 知識對決</span>
-  </footer>
+    <p class="small" style="margin-top:12px">還沒有帳號？<button id="authToReg" style="background:none;border:0;color:var(--sand);font-weight:700;cursor:pointer;font-size:var(--fs-12)">註冊一個 →</button></p>
+  </div>
 </div>
 
 <div id="toast" role="status"></div>
 
-<div id="authModal" class="auth-modal" aria-hidden="true">
-  <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
-    <button class="auth-close" id="authClose" aria-label="關閉">✕</button>
-    <span class="auth-emblem" role="img" aria-label="曙光之境"></span>
-    <div class="auth-tabs">
-      <button class="auth-tab active" data-mode="login">登入</button>
-      <button class="auth-tab" data-mode="register">註冊</button>
-    </div>
-    <h3 id="authTitle">歡迎回來，旅人</h3>
-    <div class="auth-field">
-      <label for="authName">暱稱</label>
-      <input id="authName" class="input" maxlength="20" placeholder="例如：星海旅人" autocomplete="username">
-    </div>
-    <div class="auth-field" id="authEmailWrap" style="display:none">
-      <label for="authEmail">Email（選填）</label>
-      <input id="authEmail" class="input" type="email" maxlength="120" placeholder="忘記密碼時用來重設" autocomplete="email">
-    </div>
-    <div class="auth-field" id="authPassWrap">
-      <label for="authPass" id="authPassLabel">密碼</label>
-      <input id="authPass" class="input" type="password" placeholder="至少 4 個字元" autocomplete="current-password">
-    </div>
-    <div class="auth-field" id="authSecQWrap" style="display:none">
-      <label for="authSecQ">安全問題 <span class="sub" style="font-weight:400">（忘記密碼時用來驗證身分）</span></label>
-      <select id="authSecQ" class="input">
-        <option value="讓你最心動的一個名字是？">讓你最心動的一個名字是？</option>
-        <option value="你的第一隻寵物的名字是？">你的第一隻寵物的名字是？</option>
-        <option value="你最喜歡吃的食物是？">你最喜歡吃的食物是？</option>
-        <option value="你童年最好的朋友叫什麼名字？">你童年最好的朋友叫什麼名字？</option>
-        <option value="你最想去的地方是哪裡？">你最想去的地方是哪裡？</option>
-        <option value="__custom">自訂問題…</option>
-      </select>
-      <input id="authSecQCustom" class="input" maxlength="60" placeholder="輸入你自己的安全問題"
-             style="display:none;margin-top:8px">
-    </div>
-    <div class="auth-field" id="authSecAWrap" style="display:none">
-      <label for="authSecA">安全問題的答案</label>
-      <input id="authSecA" class="input" maxlength="60" placeholder="答案只用來驗證，不會公開" autocomplete="off">
-    </div>
-    <div class="auth-field" id="authForgotQWrap" style="display:none">
-      <label>你的安全問題</label>
-      <div class="forgot-q" id="authForgotQ"></div>
-    </div>
-    <div class="auth-field" id="authForgotAWrap" style="display:none">
-      <label for="authForgotA">答案</label>
-      <input id="authForgotA" class="input" maxlength="60" placeholder="輸入安全問題的答案" autocomplete="off">
-    </div>
-    <div class="auth-err" id="authErr"></div>
-    <button class="btn primary" id="authSubmit" style="width:100%">登入</button>
-    <button class="ob-skip" id="forgotLink">忘記密碼？</button>
-    <button class="ob-skip" id="backToLogin" style="display:none">返回登入</button>
-    <p class="auth-note" id="authNote">你的島嶼進度會跟著這個帳號走。<br>請記好密碼——忘記就真的找不回來了。</p>
-  </div>
-</div>
-
-<div id="onboardModal" class="auth-modal" aria-hidden="true">
-  <div class="auth-card onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
-    <div id="onboardBody"></div>
-  </div>
-</div>
-
-<div id="battleModal" class="auth-modal" aria-hidden="true">
-  <div class="auth-card battle-card" role="dialog" aria-modal="true" aria-labelledby="battleTitle">
-    <button class="auth-close" id="battleClose" aria-label="關閉">✕</button>
-    <h3 id="battleTitle">星海挑戰</h3>
-    <div class="battle-hp">
-      <div class="hp-row"><span id="battleMeName">你</span><div class="hp-bar"><i id="battleMeHp"></i></div><b id="battleMeHpN">100</b></div>
-      <div class="hp-row"><span id="battleOppName">對手</span><div class="hp-bar opp"><i id="battleOppHp"></i></div><b id="battleOppHpN">100</b></div>
-    </div>
-    <div class="battle-log" id="battleArenaLog"></div>
-    <div class="battle-weapons" id="battleWeapons"></div>
-    <p class="auth-note">純遊戲：點到為止，拓荒者是模擬資料，不會真的受傷。</p>
-  </div>
-</div>
-
-<!-- 費曼辯論場：全螢幕對決 HUD -->
-<div id="debateModal" class="auth-modal debate-modal" aria-hidden="true" data-page="debate">
-  <div class="auth-card debate-card" role="dialog" aria-modal="true" aria-labelledby="debateTitle">
-    <button class="auth-close" id="debateClose" aria-label="關閉">✕</button>
-    <div id="debateBody"></div>
-  </div>
-</div>
-
-<!-- 市集對比浮窗 -->
-<div id="compareModal" class="auth-modal" aria-hidden="true">
-  <div class="auth-card compare-card" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
-    <button class="auth-close" id="compareClose" aria-label="關閉">✕</button>
-    <div id="compareBody"></div>
-  </div>
-</div>
-
-<script src="config.js"></script>
-<script src="data.js"></script>
-<script src="app.js"></script>
-<script src="world.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
