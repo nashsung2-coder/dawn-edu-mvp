@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -192,13 +193,9 @@ def generate_quiz(question: str, topic: str, grade_band: str,
                         f"深度等級：{depth}（1=入門，數字越大越深）\n請出 {n} 題。只回 JSON，不要其他文字。"},
         ]
         out = _nim_call(msgs, max_tokens=1600, temperature=0.5)
-        if out:
-            try:
-                start = out.find("[")
-                items = json.loads(out[start:out.rfind("]") + 1])
-                return [_norm_quiz(q) for q in items[:n] if isinstance(q, dict)]
-            except Exception:
-                pass
+        items = _extract_json_arr(out)
+        if items:
+            return [_norm_quiz(q) for q in items[:n] if isinstance(q, dict)]
     return [_rule_quiz(question, topic, i) for i in range(n)]
 
 
@@ -248,15 +245,11 @@ def name_skill_badge(question: str, topic: str, depth: int,
                         f"請命名並寫一句評語。只回 JSON。"},
         ]
         out = _nim_call(msgs, max_tokens=700, temperature=0.9)
-        if out:
-            try:
-                start = out.find("{")
-                d = json.loads(out[start:out.rfind("}") + 1])
-                name = str(d.get("name", ""))[:12] or _rule_badge_name(topic, depth)
-                return {"name": name, "rarity": rarity,
-                        "ai_comment": str(d.get("ai_comment", ""))[:60], "llm": True}
-            except Exception:
-                pass
+        d = _extract_json_obj(out)
+        if d:
+            name = str(d.get("name", ""))[:12] or _rule_badge_name(topic, depth)
+            return {"name": name, "rarity": rarity,
+                    "ai_comment": str(d.get("ai_comment", ""))[:60], "llm": True}
     return {"name": _rule_badge_name(topic, depth), "rarity": rarity,
             "ai_comment": _rule_comment(build_score), "llm": False}
 
@@ -293,3 +286,213 @@ def analyze_explanation(explain: str) -> dict:
     score += min(0.15, signals["self_fix"] * 0.15)
     score += min(0.1, signals["length"] / 2000)
     return {"build_score": round(min(1.0, score), 3), "signals": signals}
+
+
+# ---------------- 費曼辯論 ----------------
+
+def _scan_json_blocks(text: str) -> list[str]:
+    """平衡括號掃描：找出所有頂層 JSON 區塊（{} 或 []）。
+    推理模型（gpt-oss）會先輸出長串思考過程，舊的 find/rfind 硬切會被
+    思考過程裡的括號搞爛。這裡正確配對括號（字串內的括號不算），
+    並先去掉 markdown fence。"""
+    t = re.sub(r"```[a-zA-Z]*", "", text or "")
+    blocks: list[str] = []
+    stack: list[str] = []
+    start = -1
+    in_str = False
+    esc = False
+    pairs = {"}": "{", "]": "["}
+    for i, ch in enumerate(t):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in "{[":
+            if not stack:
+                start = i
+            stack.append(ch)
+        elif ch in "}]":
+            if stack and stack[-1] == pairs[ch]:
+                stack.pop()
+                if not stack and start >= 0:
+                    blocks.append(t[start:i + 1])
+                    start = -1
+    return blocks
+
+
+def _extract_json_obj(text: str | None) -> dict | None:
+    """從模型輸出中擷取 JSON 物件（由後往前試，答案通常在最後）。"""
+    if not text:
+        return None
+    for b in reversed(_scan_json_blocks(text)):
+        try:
+            d = json.loads(b)
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            continue
+    return None
+
+
+def _extract_json_arr(text: str | None) -> list | None:
+    """從模型輸出中擷取 JSON 陣列（由後往前試，答案通常在最後）。"""
+    if not text:
+        return None
+    for b in reversed(_scan_json_blocks(text)):
+        try:
+            d = json.loads(b)
+            if isinstance(d, list):
+                return d
+        except Exception:
+            continue
+    return None
+
+
+def _rule_suspicion(explain: str) -> dict:
+    """規則式懷疑度三維度（0-1，越高＝論點防禦越好）。
+    clarity 論點清晰度：長度＋自我修正；examples 舉例適切性：類比＋舉例詞；
+    logic 邏輯嚴密性：建構度分數。"""
+    text = explain or ""
+    analysis = analyze_explanation(text)
+    sig = analysis["signals"]
+    example_kw = ("例如", "譬如", "舉例", "比如", "比方")
+    clarity = 0.25 + min(0.5, len(text) / 300) + min(0.25, sig["self_fix"] * 0.12)
+    examples = min(1.0, sig["analogy"] * 0.4 +
+                   sum(text.count(w) for w in example_kw) * 0.3)
+    logic = min(1.0, analysis["build_score"] + sig["causal"] * 0.03)
+    return {"clarity": round(min(1.0, clarity), 3),
+            "examples": round(examples, 3),
+            "logic": round(min(1.0, logic), 3)}
+
+
+def _norm_suspicion(d: dict) -> dict:
+    def _f(v):
+        try:
+            return round(max(0.0, min(1.0, float(v))), 3)
+        except Exception:
+            return 0.5
+    return {"clarity": _f(d.get("clarity")), "examples": _f(d.get("examples")),
+            "logic": _f(d.get("logic"))}
+
+
+def debate_challenge(question: str, explanation: str, feedback) -> dict:
+    """把 AI 回饋轉成「最強漏洞挑戰」。
+    回傳 {challenge, suspicion: {clarity, examples, logic}, llm}。"""
+    fb_text = (feedback.get("feedback", "") if isinstance(feedback, dict)
+               else str(feedback or ""))
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是辯論教練。只回 JSON：{\"challenge\": "
+                        "\"針對學生解釋中最強的一個漏洞發起的挑戰質問（100字內，繁體中文，"
+                        "語氣像對手不像老師）\", \"clarity\": 0-1論點清晰度, "
+                        "\"examples\": 0-1舉例適切性, \"logic\": 0-1邏輯嚴密性}。"
+                        "分數是即時估計，不是考試分數。"},
+            {"role": "user",
+             "content": f"學習問題：{question}\n學生解釋：{explanation[:800]}"
+                        f"\nAI回饋：{fb_text[:800]}"},
+        ]
+        d = _extract_json_obj(_nim_call(msgs, max_tokens=800, temperature=0.6))
+        if d and d.get("challenge"):
+            return {"challenge": str(d["challenge"])[:300],
+                    "suspicion": _norm_suspicion(d), "llm": True}
+    # 規則式降級：取回饋中的第一個漏洞句，否則用追問模板
+    challenge = _first_vulnerability(fb_text) or _rule_followup(question)
+    return {"challenge": challenge,
+            "suspicion": _rule_suspicion(explanation), "llm": False}
+
+
+def _first_vulnerability(fb_text: str) -> str:
+    """從回饋文字中擷取第一個像「漏洞」的句子（簡易規則）。"""
+    text = (fb_text or "")
+    for sep in ("！", "？", "\n"):
+        text = text.replace(sep, "。")
+    for sent in text.split("。"):
+        s = sent.strip()
+        if len(s) >= 12 and any(w in s for w in
+                                ("但是", "不過", "漏洞", "問題", "反例", "如果",
+                                 "為什麼", "真的嗎", "站得住")):
+            return s[:150] + "——你怎麼回應這個質疑？"
+    return ""
+
+
+def _bigrams(text: str) -> set:
+    """中文 bigram 集合（去標點、去非中文）。"""
+    import re
+    t = re.sub(r"[^\u4e00-\u9fff]", "", text or "")
+    return {t[i:i + 2] for i in range(len(t) - 1)}
+
+
+def debate_judge(question: str, challenge: str, response: str) -> dict:
+    """評判用戶是否堵住了上一輪的漏洞。
+    回傳 {verdict: blocked/evaded/partial, suspicion, judge_note, llm}。"""
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是辯論裁判。判斷學生的回應是否堵住了挑戰中的漏洞。只回 JSON："
+                        "{\"verdict\": \"blocked|evaded|partial\", \"clarity\": 0-1, "
+                        "\"examples\": 0-1, \"logic\": 0-1, "
+                        "\"judge_note\": \"一句裁判評語（40字內，繁體中文）\"}。"
+                        "blocked=正面回應並補上論據；evaded=閃躲、答非所問；"
+                        "partial=有回應但論據不足。分數是即時估計。"},
+            {"role": "user",
+             "content": f"學習問題：{question}\n上一輪挑戰：{challenge}"
+                        f"\n學生回應：{response[:800]}"},
+        ]
+        d = _extract_json_obj(_nim_call(msgs, max_tokens=700, temperature=0.4))
+        if d and d.get("verdict") in ("blocked", "evaded", "partial"):
+            return {"verdict": d["verdict"],
+                    "suspicion": _norm_suspicion(d),
+                    "judge_note": str(d.get("judge_note", ""))[:80],
+                    "llm": True}
+    verdict = _rule_judge(challenge, response)
+    return {"verdict": verdict,
+            "suspicion": _rule_suspicion(response),
+            "judge_note": _rule_judge_note(verdict), "llm": False}
+
+
+def _rule_judge(challenge: str, response: str) -> str:
+    """規則式評判：回應是否沾到挑戰的關鍵 bigram＋有無論證訊號。"""
+    ch, rp = _bigrams(challenge), _bigrams(response)
+    overlap = len(ch & rp) / max(1, len(ch))
+    causal = any(w in response for w in
+                 ("因為", "所以", "因此", "導致", "例如", "譬如", "舉例來說"))
+    if overlap >= 0.2 and causal:
+        return "blocked"
+    if overlap >= 0.08 or causal:
+        return "partial"
+    return "evaded"
+
+
+def _rule_judge_note(verdict: str) -> str:
+    return {"blocked": "正面迎戰，漏洞補上了。",
+            "partial": "有回應到，但論據還可以更紮實。",
+            "evaded": "好像閃掉了關鍵質疑——直球對決試試？"}[verdict]
+
+
+def debate_summary(question: str, rounds: list[dict]) -> str:
+    """R3 用：AI 總結雙方論點，邀請用戶最後陳述一句。"""
+    if has_llm():
+        trail = "\n".join(
+            f"第{r['round']}輪：挑戰「{r.get('challenge', '')[:120]}」→ "
+            f"回應「{r.get('response', '')[:120]}」（{r.get('verdict', '')}）"
+            for r in rounds)
+        msgs = [
+            {"role": "system",
+             "content": "你是辯論主持人。用 120 字內總結這場辯論雙方的論點交鋒（繁體中文），"
+                        "最後邀請學生用一句話做最終陳述。不要評價輸贏。"},
+            {"role": "user", "content": f"學習問題：{question}\n{trail}"},
+        ]
+        out = _nim_call(msgs, max_tokens=600, temperature=0.5)
+        if out:
+            return out[:400]
+    # 規則式降級
+    n = len(rounds)
+    return (f"這場辯論走了 {n} 輪：AI 質疑了你的論點漏洞，你逐一回應。現在請用一句話"
+            f"做最終陳述——如果只能留一句話給後來的人，你會怎麼總結「{question[:30]}」？")
