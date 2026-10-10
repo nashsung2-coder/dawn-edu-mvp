@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>複習任務 · 曙光教育 3.0</title>
+<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<link rel="stylesheet" href="../assets/css/pages/review.css?v=3.0.0">
+</head>
+<body class="theme-zen">
+<header class="r-header">
+  <a class="btn btn-ghost" href="../desktop.html" data-device-home aria-label="回首頁">‹ 首頁</a>
+  <img src="../assets/img/emblem-review.webp?v=3.0.0" alt="複習徽章" class="r-emblem">
+  <div>
+    <h1>複習任務</h1>
+    <p class="r-sub" id="r-userline">載入中…</p>
+  </div>
+</header>
+
+<main id="r-main">
+  <!-- 三態容器：stats / review / done / empty -->
+  <div id="r-view"></div>
+</main>
+
+<div id="toast-root" aria-live="polite"></div>
+<script type="module" src="../assets/js/pages/review.js?v=3.0.0"></script>
+<script>
+  /* 返回鍵：回到記住的裝置版本首頁，而非裝置選擇頁 */
+  try {
+    var d = localStorage.getItem("dawn.device");
+    var link = document.querySelector("[data-device-home]");
+    if (link) link.href = (d === "mobile") ? "../mobile.html" : "../desktop.html";
+  } catch (e) {}
+</script>
+</body>
+</html>
