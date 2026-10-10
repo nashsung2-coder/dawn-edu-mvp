@@ -1,0 +1,65 @@
+/* 掌握度儀表板：禪區樣式。只用裸名 token，不寫死顏色。 */
+
+body { background: var(--bg); color: var(--ink); }
+
+.m-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.m-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.m-header h1 { font-size: var(--fs-24); }
+.m-sub { color: var(--muted); font-size: var(--fs-13); }
+
+#m-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+
+.m-section { margin-bottom: var(--sp-12); }
+.m-section > h2 { font-size: var(--fs-20); margin-bottom: var(--sp-4); }
+
+/* 總覽統計 */
+.m-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
+.m-stat {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--sp-4) var(--sp-2); text-align: center;
+}
+.m-stat-n { display: block; font-size: var(--fs-24); font-weight: 800; }
+.m-stat-l { font-size: var(--fs-12); color: var(--muted); }
+@media (max-width: 480px) { .m-stats { grid-template-columns: repeat(2, 1fr); } }
+
+/* 掌握度條 */
+.m-topic { margin-bottom: var(--sp-4); }
+.m-topic-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--sp-1); }
+.m-topic-name { font-size: var(--fs-14); font-weight: 600; }
+.m-topic-pct { font-size: var(--fs-13); color: var(--muted); font-variant-numeric: tabular-nums; }
+.m-bar {
+  height: 10px; border-radius: var(--r-full);
+  background: var(--bg-soft); border: 1px solid var(--line);
+  overflow: hidden;
+}
+.m-bar-fill {
+  height: 100%; border-radius: var(--r-full);
+  background: linear-gradient(90deg, var(--accent), var(--ink));
+  transition: width .8s var(--ease);
+  min-width: 0;
+}
+
+/* 技能章 */
+.m-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--sp-3); }
+.m-badge {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--sp-4); border-left: 4px solid var(--rarity, var(--line));
+}
+.m-badge h3 { font-size: var(--fs-14); margin-bottom: var(--sp-1); }
+.m-badge p { font-size: var(--fs-12); color: var(--muted); }
+.m-badge .m-badge-stats { color: var(--ink); font-weight: 600; }
+
+/* 弱項 */
+.m-weak { display: flex; flex-direction: column; gap: var(--sp-3); }
+.m-weak-row {
+  display: flex; align-items: center; gap: var(--sp-4);
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--sp-4);
+}
+.m-weak-row .m-topic-name { flex: 1; min-width: 0; }
+.m-weak-row .m-bar { flex: 2; min-width: 80px; }
+.m-weak-pct { font-size: var(--fs-13); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
