@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>我的書架 · 曙光教育 3.0</title>
+<meta name="description" content="你的個人化課本書架：每一章都是你打過的費曼戰役。">
+<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<link rel="stylesheet" href="../assets/css/pages/bookshelf.css?v=3.0.0">
+</head>
+<body class="theme-zen">
+<header class="s-header">
+  <a class="btn btn-ghost" href="../desktop.html" data-device-home aria-label="回首頁">‹ 首頁</a>
+  <div><h1>📚 我的書架</h1><p class="s-sub" id="bs-userline">載入中…</p></div>
+</header>
+<main id="bs-main">
+  <div id="bs-stats"></div>
+  <div id="bs-shelf"></div>
+  <div id="bs-detail"></div>
+</main>
+<div id="toast-root" aria-live="polite"></div>
+<script type="module" src="../assets/js/pages/bookshelf.js?v=3.0.0"></script>
+<script>
+  try {
+    var d = localStorage.getItem("dawn.device");
+    var link = document.querySelector("[data-device-home]");
+    if (link) link.href = (d === "mobile") ? "../mobile.html" : "../desktop.html";
+  } catch (e) {}
+</script>
+</body>
+</html>
