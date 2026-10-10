@@ -268,6 +268,12 @@ def relation_label(distance: float) -> str:
 
 
 def compare_radar(me: str, other: str) -> dict:
+    # 不存在的用戶回 404，而非假數據 0,0,0
+    with db.get_conn() as conn:
+        for uid, label in ((me, "me"), (other, "other")):
+            row = conn.execute("SELECT id FROM users WHERE id = ?", (uid,)).fetchone()
+            if not row:
+                raise ValueError(f"找不到使用者：{uid}")
     p1, p2 = radar_position(me), radar_position(other)
     d = radar_distance(p1, p2)
     label = relation_label(d)

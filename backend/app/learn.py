@@ -15,6 +15,7 @@ import uuid
 
 from app import db
 from app import llm as llm_mod
+from app import review as review_mod
 
 GRADE_BANDS = ("國小", "國中", "高中", "大學先修")
 
@@ -39,6 +40,28 @@ def _row_to_dict(row) -> dict:
     return dict(row) if row is not None else {}
 
 
+TIER_LIMITS = {
+    "basic": {"daily_battles": 3, "debate_rounds": 3, "name": "基礎版"},
+    "plus": {"daily_battles": -1, "debate_rounds": 5, "name": "加購版"},
+}
+
+
+def get_tier(user_id: str) -> str:
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT tier FROM users WHERE id = ?", (user_id,)).fetchone()
+    return (row["tier"] if row and row["tier"] else "basic")
+
+
+def daily_battles_used(user_id: str) -> int:
+    """今日已開戰次數。"""
+    with db.get_conn() as conn:
+        row = conn.execute(
+            """SELECT COUNT(*) FROM learn_sessions
+               WHERE user_id = ? AND date(created_at) = date('now')""",
+            (user_id,)).fetchone()
+    return row[0] if row else 0
+
+
 def start_session(user_id: str, question: str, grade_band: str = "高中",
                   hypothesis: str = "") -> dict:
     """開場：提問＋寫下自己的假設（Pressley 精緻化追問：先預測再給材料）。"""
@@ -47,6 +70,11 @@ def start_session(user_id: str, question: str, grade_band: str = "高中",
         raise ValueError("請先提出一個問題。")
     if len(question) > 200:
         raise ValueError("問題太長了，請在 200 字以內。")
+    # 分級：基礎版每日 3 場，加購版無限
+    tier = get_tier(user_id)
+    limit = TIER_LIMITS.get(tier, TIER_LIMITS["basic"])["daily_battles"]
+    if limit >= 0 and daily_battles_used(user_id) >= limit:
+        raise ValueError(f"今日戰役已用完（{limit} 場）。升級加購版可無限開戰，明日再來吧！")
     if grade_band not in GRADE_BANDS:
         grade_band = "高中"
     topic = _extract_topic(question)
@@ -136,10 +164,23 @@ def _set_status(sid: str, status: str) -> None:
 
 
 def get_quiz(sid: str, user_id: str, n: int = 3) -> dict:
-    """穿插測驗：生成題目（關書作答）。"""
+    """穿插測驗：生成題目（關書作答）。冪等：已生成則回傳現有題目。"""
     s = _own_session(sid, user_id)
     if s["status"] not in ("reading", "quiz"):
         raise ValueError("現在不是測驗階段。")
+    # 冪等：如果已有題目，直接回傳（避免 LLM 逾時重試時重複生成）
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT payload FROM learn_events WHERE session_id = ? AND kind = 'quiz'"
+            " ORDER BY id DESC LIMIT 1", (sid,)).fetchone()
+    if row:
+        quizzes = db.jloads(row["payload"], {}).get("questions", [])
+        if quizzes:
+            public = [{"question": q["question"], "options": q["options"],
+                       "concept": q.get("concept", "")} for q in quizzes]
+            return {"questions": public, "count": len(public),
+                    "llm": llm_mod.has_llm(), "cached": True,
+                    "note": "關書作答——提取練習的效果來自憑記憶提取。（Roediger & Karpicke, 2006）"}
     quizzes = llm_mod.generate_quiz(s["question"], s["topic"], s["grade_band"],
                                     s["depth_level"], n)
     log_event(sid, user_id, "quiz", {"questions": quizzes})
@@ -295,12 +336,24 @@ def finish_session(sid: str, user_id: str, badge_name: str = "",
                               "debate_score": debate_score},
                              ensure_ascii=False)))
         conn.commit()
+    # 戰役完成 → 自動生成 SM-2 複習卡片（讓學過的東西不被遺忘）
+    try:
+        with db.get_conn() as conn2:
+            qrow = conn2.execute(
+                "SELECT payload FROM learn_events WHERE session_id = ? AND kind = 'quiz'"
+                " ORDER BY id DESC LIMIT 1", (sid,)).fetchone()
+        quiz_qs = db.jloads(qrow["payload"], {}).get("questions", []) if qrow else []
+        review_cards = review_mod.create_cards_from_session(
+            user_id, sid, s["topic"], s["question"], quiz_qs)
+    except Exception:
+        review_cards = []
     return {"badge": {"id": bid, "name": name, "topic": s["topic"],
                       "depth": s["depth_level"], "attack": attack, "defense": defense,
                       "rarity": rarity, "ai_comment": named["ai_comment"],
                       "bond": 0.2, "archetype": archetype, "tags": tags},
             "mastery": round(mastery, 3), "mastered": mastery >= MASTERY_THRESHOLD,
-            "llm": named.get("llm", False)}
+            "llm": named.get("llm", False),
+            "review_cards": len(review_cards)}
 
 
 def list_badges(user_id: str) -> list[dict]:
@@ -467,7 +520,12 @@ def debate_start(sid: str, user_id: str, explanation: str) -> dict:
         raise ValueError("請先完成穿插測驗，再來挑戰 AI。")
     _, last = _last_debate_row(sid)
     if last:
-        raise ValueError("辯論已經開戰了——請繼續回應，或暫停挑戰。")
+        # 冪等：已開戰則回傳現有第一回合（避免 LLM 逾時重試時報錯）
+        payload = db.jloads(last["payload"], {})
+        return {"round": 1, "challenge": payload.get("challenge", ""),
+                "suspicion": _public_suspicion(payload.get("suspicion", {})),
+                "llm": payload.get("llm", False), "can_continue": True,
+                "resumed": True, "perfect": False}
     taunt = _check_debate_input(s["question"], explanation)
     if taunt:
         return taunt

@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS users (
     sec_answer_hash TEXT NOT NULL DEFAULT '',
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
+    tier TEXT NOT NULL DEFAULT 'basic',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -285,6 +286,24 @@ CREATE TABLE IF NOT EXISTS topic_mastery (
     last_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, topic)
 );
+
+-- 複習卡片（SM-2 間隔重複）：學過的東西不被遺忘
+CREATE TABLE IF NOT EXISTS review_cards (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    topic TEXT NOT NULL DEFAULT '',
+    question TEXT NOT NULL,
+    hint TEXT NOT NULL DEFAULT '',
+    session_id TEXT NOT NULL DEFAULT '',
+    easiness REAL NOT NULL DEFAULT 2.5,
+    interval_days INTEGER NOT NULL DEFAULT 1,
+    repetitions INTEGER NOT NULL DEFAULT 0,
+    next_review_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_reviewed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
+    ON review_cards(user_id, next_review_at);
 
 -- 技能章（= 武器）
 CREATE TABLE IF NOT EXISTS skill_badges (
@@ -646,6 +665,7 @@ def init_db() -> None:
     _migrate_users_email_column()
     _migrate_users_secqa_columns()
     _migrate_badge_market_columns()
+    _migrate_users_tier_column()
 
 
 def _migrate_users_auth_columns() -> None:
@@ -734,6 +754,17 @@ def table_empty(table: str) -> bool:
     with get_conn() as conn:
         row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
         return row["n"] == 0
+
+
+def _migrate_users_tier_column() -> None:
+    """為已存在的 users 表補上 tier 欄位（冪等，雙模式相容）。"""
+    with get_conn() as conn:
+        if is_postgres():
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'basic'")
+        else:
+            existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+            if "tier" not in existing:
+                conn.execute("ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'basic'")
 
 
 def jloads(s: str, default):

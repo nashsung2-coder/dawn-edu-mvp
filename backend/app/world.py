@@ -78,6 +78,31 @@ def rename_pet(user_id: str, name: str) -> dict:
     return get_pet(user_id)
 
 
+PET_INTERACTIONS = {
+    "feed": {"mood": 15, "exp": 10, "text": "餵食了星砂餅乾，寵物很開心！"},
+    "play": {"mood": 20, "exp": 15, "text": "陪寵物玩耍，羈絆加深了！"},
+    "pat": {"mood": 10, "exp": 5, "text": "摸摸寵物的頭，它發出滿足的呼嚕聲。"},
+}
+
+
+def interact_pet(user_id: str, action: str) -> dict:
+    """寵物互動：餵食/玩耍/摸頭，提升心情與經驗。"""
+    if action not in PET_INTERACTIONS:
+        raise ValueError(f"未知的互動：{action}")
+    pet = get_pet(user_id)
+    if not pet:
+        raise ValueError("你還沒有寵物，先去孵化吧。")
+    cfg = PET_INTERACTIONS[action]
+    mood = min(100, pet["mood"] + cfg["mood"])
+    p = pet_gain_exp(user_id, cfg["exp"], f"互動：{action}")
+    with db.get_conn() as conn:
+        conn.execute("UPDATE pets SET mood = ? WHERE user_id = ?", (mood, user_id))
+        conn.commit()
+    p = get_pet(user_id)
+    p["interaction_text"] = cfg["text"]
+    return p
+
+
 # ---------------- 島嶼與建築 ----------------
 
 BUILDINGS = {

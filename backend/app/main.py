@@ -214,15 +214,16 @@ class LearningEventIn(BaseModel):
 
 
 @app.post("/api/v1/learning-events", summary="寫入學習事件")
-def post_learning_event(ev: LearningEventIn):
+def post_learning_event(ev: LearningEventIn, request: Request):
     import json
+    user = _current_user(request)
 
     with db.get_conn() as conn:
         new_id = db.insert_id(
             conn,
             """INSERT INTO learning_events (user_id, content_id, event_type, session_id, detail)
                VALUES (?, ?, ?, ?, ?)""",
-            (ev.user_id, ev.content_id, ev.event_type, ev.session_id,
+            (user["id"], ev.content_id, ev.event_type, ev.session_id,
              json.dumps(ev.detail, ensure_ascii=False)),
         )
         return {"ok": True, "id": new_id, "reason": "學習事件已記錄，島嶼養分 +1。"}
@@ -243,7 +244,8 @@ class FlowDepositIn(BaseModel):
 
 
 @app.post("/api/v1/flow-deposits", summary="寫入心流細土")
-def post_flow_deposit(fd: FlowDepositIn):
+def post_flow_deposit(fd: FlowDepositIn, request: Request):
+    user = _current_user(request)
     with db.get_conn() as conn:
         new_id = db.insert_id(
             conn,
@@ -251,7 +253,7 @@ def post_flow_deposit(fd: FlowDepositIn):
                (user_id, session_id, content_id, resource_type, event_type, dwell_ms,
                 focus_score, emotion, flow_state, note, context_stage)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (fd.user_id, fd.session_id, fd.content_id, fd.resource_type, fd.event_type,
+            (user["id"], fd.session_id, fd.content_id, fd.resource_type, fd.event_type,
              fd.dwell_ms, fd.focus_score, fd.emotion, fd.flow_state, fd.note, fd.context_stage),
         )
         return {"ok": True, "id": new_id, "reason": "心流細土已沉積，滋養你的島嶼。"}
@@ -513,7 +515,10 @@ def island_logs(user_id: str, request: Request, limit: int = Query(30, ge=1, le=
 # ---------------- 雷達 ----------------
 @app.get("/api/v1/radar/compare", summary="雷達距離比較")
 def radar_compare(me: str = Query(...), other: str = Query(...)):
-    return compare_radar(me, other)
+    try:
+        return compare_radar(me, other)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
 
 
 @app.get("/api/v1/radar/{user_id}", summary="三維雷達座標")
@@ -529,7 +534,10 @@ class DuelCreateIn(BaseModel):
 
 
 @app.post("/api/v1/duels", summary="發起知識對決")
-def duel_create(body: DuelCreateIn):
+def duel_create(body: DuelCreateIn, request: Request):
+    user = _current_user(request)
+    if body.challenger_id != user["id"]:
+        raise HTTPException(403, "只能以自己的名義發起對決。")
     result = create_duel(body.challenger_id, body.opponent_id, body.tag)
     if not result.get("ok"):
         raise HTTPException(400, result["reason"])
@@ -542,8 +550,11 @@ class DuelAnswerIn(BaseModel):
 
 
 @app.post("/api/v1/duels/{duel_id}/answers", summary="對決作答")
-def duel_answer(duel_id: int, body: DuelAnswerIn):
+def duel_answer(duel_id: int, body: DuelAnswerIn, request: Request):
     from app.game import answer_duel
+    user = _current_user(request)
+    if body.user_id != user["id"]:
+        raise HTTPException(403, "只能替自己作答。")
 
     result = answer_duel(duel_id, body.user_id, body.answers)
     if not result.get("ok"):
@@ -733,6 +744,80 @@ def learn_badges(request: Request):
     return {"ok": True, "badges": learn_mod.list_badges(user["id"])}
 
 
+# ---------------- 間隔重複複習 ----------------
+from app import review as review_mod
+
+
+class ReviewGradeIn(BaseModel):
+    grade: int = Field(ge=0, le=5, description="0 完全忘記 ~ 5 輕鬆回憶")
+
+
+@app.get("/api/v1/learn/review/due", summary="到期的複習卡片")
+def review_due(request: Request, limit: int = Query(20, ge=1, le=50)):
+    user = _current_user(request)
+    return {"ok": True, "cards": review_mod.due_cards(user["id"], limit)}
+
+
+@app.get("/api/v1/learn/review/upcoming", summary="即將到期的複習卡片")
+def review_upcoming(request: Request, limit: int = Query(20, ge=1, le=50)):
+    user = _current_user(request)
+    return {"ok": True, "cards": review_mod.upcoming_cards(user["id"], limit)}
+
+
+@app.post("/api/v1/learn/review/{card_id}/grade", summary="複習評分（SM-2）")
+def review_grade(card_id: str, body: ReviewGradeIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **review_mod.grade_card(user["id"], card_id, body.grade)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/learn/review/stats", summary="複習統計")
+def review_stats(request: Request):
+    user = _current_user(request)
+    return {"ok": True, **review_mod.review_stats(user["id"])}
+
+
+# ---------------- 分級 ----------------
+@app.get("/api/v1/tier", summary="我的方案")
+def get_my_tier(request: Request):
+    user = _current_user(request)
+    tier = learn_mod.get_tier(user["id"])
+    limits = learn_mod.TIER_LIMITS.get(tier, learn_mod.TIER_LIMITS["basic"])
+    used = learn_mod.daily_battles_used(user["id"])
+    return {
+        "ok": True,
+        "tier": tier,
+        "tier_name": limits["name"],
+        "daily_battles_limit": limits["daily_battles"],
+        "daily_battles_used": used,
+        "daily_battles_left": max(0, limits["daily_battles"] - used) if limits["daily_battles"] >= 0 else -1,
+        "debate_rounds": limits["debate_rounds"],
+        "tiers": {
+            k: {"name": v["name"], "daily_battles": v["daily_battles"],
+                "debate_rounds": v["debate_rounds"]}
+            for k, v in learn_mod.TIER_LIMITS.items()
+        },
+    }
+
+
+class TierUpgradeIn(BaseModel):
+    tier: str = Field(description="basic / plus")
+
+
+@app.post("/api/v1/tier/upgrade", summary="升級方案（暫為手動，需聯繫管理員開通）")
+def upgrade_tier(body: TierUpgradeIn, request: Request):
+    user = _current_user(request)
+    if body.tier not in ("basic", "plus"):
+        raise HTTPException(400, "未知的方案。")
+    with db.get_conn() as conn:
+        conn.execute("UPDATE users SET tier = ? WHERE id = ?", (body.tier, user["id"]))
+        conn.commit()
+    return {"ok": True, "tier": body.tier,
+            "message": "方案已更新。" if body.tier == "basic" else "已升級為加購版，享受無限戰役！"}
+
+
 @app.get("/api/v1/learn/mastery", summary="主題掌握度")
 def learn_mastery(request: Request):
     user = _current_user(request)
@@ -780,6 +865,19 @@ def world_pet_rename(body: PetNameIn, request: Request):
     user = _current_user(request)
     try:
         return {"ok": True, "pet": world_mod.rename_pet(user["id"], body.name)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class PetInteractIn(BaseModel):
+    action: str = Field(description="feed 餵食 / play 玩耍 / pat 摸頭")
+
+
+@app.post("/api/v1/world/pet/interact", summary="寵物互動")
+def world_pet_interact(body: PetInteractIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "pet": world_mod.interact_pet(user["id"], body.action)}
     except ValueError as e:
         raise HTTPException(400, str(e))
 
