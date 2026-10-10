@@ -100,6 +100,7 @@ def auth_register(body: AuthIn):
         raise HTTPException(400, str(e))
     return {"ok": True, "token": result["token"],
             "user": {"id": result["id"], "name": result["name"], "email": result["email"]},
+            "has_sec_qa": result.get("has_sec_qa", False),
             "reason": f"歡迎來到慢荒宇宙，{result['name']}！你的島嶼已經在星海中浮現。"}
 
 
