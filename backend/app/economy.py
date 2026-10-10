@@ -67,6 +67,27 @@ def earn(user_id: str, amount: int, reason: str = "") -> dict:
     return {"ok": True, "earned": amount, "points": new_points, "reason": reason}
 
 
+def spend(user_id: str, amount: int, reason: str = "") -> dict:
+    """扣星砂（建築、市集交易用）。餘額不足拋 ValueError。"""
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        raise ValueError("amount 須為整數。")
+    if amount <= 0:
+        raise ValueError("amount 須為正整數。")
+    with db.get_conn() as conn:
+        row = _user_row(conn, user_id)
+        if not row:
+            raise KeyError("user not found")
+        points = row["points"] or 0
+        if points < amount:
+            raise ValueError(f"星砂不足（需要 {amount}，目前 {points}）。")
+        conn.execute("UPDATE users SET points = points - ? WHERE id = ?",
+                     (amount, user_id))
+        conn.commit()
+    return {"ok": True, "spent": amount, "points": points - amount, "reason": reason}
+
+
 def buy(user_id: str, item_id: str) -> dict:
     item = WEAPONS.get(item_id)
     if not item:

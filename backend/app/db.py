@@ -301,6 +301,79 @@ CREATE TABLE IF NOT EXISTS skill_badges (
     bond REAL NOT NULL DEFAULT 0.0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- 寵物
+CREATE TABLE IF NOT EXISTS pets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    species TEXT NOT NULL DEFAULT '星靈',
+    level INTEGER NOT NULL DEFAULT 1,
+    exp INTEGER NOT NULL DEFAULT 0,
+    mood INTEGER NOT NULL DEFAULT 70,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 學習島嶼（每次戰役命名一座）
+CREATE TABLE IF NOT EXISTS learn_islands (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    topic TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 建築
+CREATE TABLE IF NOT EXISTS buildings (
+    id TEXT PRIMARY KEY,
+    island_id TEXT NOT NULL REFERENCES learn_islands(id) ON DELETE CASCADE,
+    btype TEXT NOT NULL,
+    level INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 交易市集
+CREATE TABLE IF NOT EXISTS market_listings (
+    id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL,
+    item_type TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    price INTEGER NOT NULL DEFAULT 0,
+    trade_kind TEXT NOT NULL DEFAULT 'sell',
+    want_text TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 探索
+CREATE TABLE IF NOT EXISTS explorations (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    zone TEXT NOT NULL,
+    stage INTEGER NOT NULL DEFAULT 0,
+    story_state TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'ongoing',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 每週精選與盤點
+CREATE TABLE IF NOT EXISTS weekly_digests (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    week TEXT NOT NULL,
+    items TEXT NOT NULL DEFAULT '[]',
+    review TEXT NOT NULL DEFAULT '{}',
+    attr_points INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (user_id, week)
+);
+
+-- 自由屬性點
+CREATE TABLE IF NOT EXISTS attr_points (
+    user_id TEXT PRIMARY KEY,
+    points INTEGER NOT NULL DEFAULT 0
+);
 """
 
 SCHEMA_PG = """
@@ -477,6 +550,79 @@ CREATE TABLE IF NOT EXISTS skill_badges (
     ai_comment TEXT NOT NULL DEFAULT '',
     bond REAL NOT NULL DEFAULT 0.0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 寵物
+CREATE TABLE IF NOT EXISTS pets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    species TEXT NOT NULL DEFAULT '星靈',
+    level INTEGER NOT NULL DEFAULT 1,
+    exp INTEGER NOT NULL DEFAULT 0,
+    mood INTEGER NOT NULL DEFAULT 70,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 學習島嶼（每次戰役命名一座）
+CREATE TABLE IF NOT EXISTS learn_islands (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    topic TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 建築
+CREATE TABLE IF NOT EXISTS buildings (
+    id TEXT PRIMARY KEY,
+    island_id TEXT NOT NULL REFERENCES learn_islands(id) ON DELETE CASCADE,
+    btype TEXT NOT NULL,
+    level INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 交易市集
+CREATE TABLE IF NOT EXISTS market_listings (
+    id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL,
+    item_type TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    price INTEGER NOT NULL DEFAULT 0,
+    trade_kind TEXT NOT NULL DEFAULT 'sell',
+    want_text TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 探索
+CREATE TABLE IF NOT EXISTS explorations (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    zone TEXT NOT NULL,
+    stage INTEGER NOT NULL DEFAULT 0,
+    story_state TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'ongoing',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 每週精選與盤點
+CREATE TABLE IF NOT EXISTS weekly_digests (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    week TEXT NOT NULL,
+    items TEXT NOT NULL DEFAULT '[]',
+    review TEXT NOT NULL DEFAULT '{}',
+    attr_points INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, week)
+);
+
+-- 自由屬性點
+CREATE TABLE IF NOT EXISTS attr_points (
+    user_id TEXT PRIMARY KEY,
+    points INTEGER NOT NULL DEFAULT 0
 );
 """
 
