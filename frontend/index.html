@@ -17,7 +17,11 @@
 <body>
 
 <!-- 30秒進入動畫掛載點：心流版/宇宙版 Canvas 將掛載於此 -->
-<div id="entryAnim"></div>
+<div id="entryAnim">
+  <!-- AI 生成進入動畫：按當前首頁自動選片，循環播放，上滑跳過 -->
+  <video id="entryVideo" autoplay muted loop playsinline preload="auto"></video>
+  <div class="entry-skip">上滑進入 →</div>
+</div>
 
 <div id="app">
   <!-- ============ 心流學習首頁 ============ -->
