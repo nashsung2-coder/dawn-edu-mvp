@@ -9,7 +9,7 @@
 </head>
 <body class="theme-zen">
 <header class="q-header">
-  <a class="btn btn-ghost" href="../index.html" aria-label="回首頁">‹ 首頁</a>
+  <a class="btn btn-ghost" href="../desktop.html" data-device-home aria-label="回首頁">‹ 首頁</a>
   <img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="試煉徽章" class="q-emblem">
   <div>
     <h1>試煉場</h1>
@@ -24,5 +24,13 @@
 
 <div id="toast-root" aria-live="polite"></div>
 <script type="module" src="../assets/js/pages/quiz.js?v=3.0.0"></script>
+<script>
+  /* 返回鍵：回到記住的裝置版本首頁，而非裝置選擇頁 */
+  try {
+    var d = localStorage.getItem("dawn.device");
+    var link = document.querySelector("[data-device-home]");
+    if (link) link.href = (d === "mobile") ? "../mobile.html" : "../desktop.html";
+  } catch (e) {}
+</script>
 </body>
 </html>
