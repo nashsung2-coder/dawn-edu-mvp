@@ -158,17 +158,7 @@
     },
   };
 
-  /* ==================== 手機傳送門切換 ==================== */
-  function initSwitch() {
-    document.querySelectorAll(".g-switch button").forEach((b) => {
-      b.onclick = () => {
-        document.body.dataset.gzone = b.dataset.gzone;
-        document.querySelectorAll(".g-switch button").forEach((x) =>
-          x.classList.toggle("on", x === b));
-      };
-    });
-    if (!document.body.dataset.gzone) document.body.dataset.gzone = "learn";
-  }
+  /* 手機改上下分，傳送門切換已移除 */
 
   /* ==================== 啟動 ==================== */
   document.addEventListener("DOMContentLoaded", () => {
@@ -180,7 +170,7 @@
     Learn.init(gw.querySelector(".zone-learn"));
     Game.init(gw.querySelector(".zone-game"));
     Membrane.init();
-    initSwitch();
+
     // 深層頁返回時回到 gateway
     bus.on("back-to-gateway", () => { if (shell) shell.hidden = true; });
   });
