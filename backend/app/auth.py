@@ -253,19 +253,34 @@ def reset_password_by_email(name: str, email: str, new_password: str) -> None:
 
 
 def delete_user(user_id: str, password: str) -> None:
-    """刪除帳號：驗證密碼後，刪除該使用者所有資料（不可復原）。"""
+    """刪除帳號：驗證密碼後，刪除該使用者所有資料（不可復原）。
+
+    注意：Postgres 中失敗的語句會毒化整個 transaction，
+    故只對確實有 user_id 欄位的表下 DELETE，不用 try/except 包。
+    """
     with db.get_conn() as conn:
         row = conn.execute("SELECT pw_hash FROM users WHERE id = ?", (user_id,)).fetchone()
         if not row:
             raise KeyError("user not found")
         if not verify_password(password or "", row["pw_hash"] or ""):
             raise ValueError("密碼不正確，無法刪除帳號。")
-        for table in ("favorites", "territory_logs", "learning_events", "flow_deposits",
-                      "duel_answers", "duel_questions", "duel_sessions", "islands"):
-            try:
-                conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
-            except Exception:
-                pass
+        # 對決：duel_sessions 用 challenger_id/opponent_id，先清子表
+        duels = conn.execute(
+            "SELECT id FROM duel_sessions WHERE challenger_id = ? OR opponent_id = ?",
+            (user_id, user_id),
+        ).fetchall()
+        for d in duels:
+            did = d["id"]
+            conn.execute("DELETE FROM duel_answers WHERE duel_id = ?", (did,))
+            conn.execute("DELETE FROM duel_questions WHERE duel_id = ?", (did,))
+        conn.execute(
+            "DELETE FROM duel_sessions WHERE challenger_id = ? OR opponent_id = ?",
+            (user_id, user_id),
+        )
+        conn.execute("DELETE FROM duel_answers WHERE user_id = ?", (user_id,))
+        for table in ("favorites", "territory_logs", "learning_events",
+                      "flow_deposits", "islands"):
+            conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
 
