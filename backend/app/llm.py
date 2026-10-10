@@ -45,6 +45,36 @@ _rr_index = 0
 _COOLDOWN_S = 60
 
 
+def diagnose_keys() -> list[dict]:
+    """診斷每把 key 的狀態（不回傳 key 值）。打輕量 models 端點驗證。
+    回傳 [{"index": 1, "status": "ok"|"unauthorized"|"rate_limited"|"timeout"|"error", "ms": int}]"""
+    results = []
+    keys = _all_keys()
+    for i, key in enumerate(keys, 1):
+        t0 = time.time()
+        req = urllib.request.Request(
+            "https://integrate.api.nvidia.com/v1/models",
+            headers={"Authorization": f"Bearer {key}"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                resp.read(1024)
+            status = "ok" if resp.status == 200 else "error"
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                status = "unauthorized"
+            elif e.code == 429:
+                status = "rate_limited"
+            else:
+                status = f"http_{e.code}"
+        except Exception as e:
+            status = "timeout" if "timed out" in str(e).lower() else "error"
+        results.append({"index": i, "status": status,
+                        "ms": int((time.time() - t0) * 1000)})
+    return results
+
+
 def _nim_call(messages: list[dict], max_tokens: int = 1200,
               temperature: float = 0.7) -> str | None:
     """打 NIM chat completions。多 key 時 round-robin 分流；

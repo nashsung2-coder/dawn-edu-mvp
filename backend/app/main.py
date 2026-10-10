@@ -675,6 +675,14 @@ def learn_mastery(request: Request):
     return {"ok": True, "topics": learn_mod.get_mastery(user["id"])}
 
 
+@app.get("/api/v1/learn/llm-status", summary="LLM 診斷（不暴露 key 值）")
+def learn_llm_status(request: Request):
+    _current_user(request)
+    return {"ok": True, "has_llm": llm_mod.has_llm(),
+            "keys": llm_mod.diagnose_keys(),
+            "model": llm_mod.DEFAULT_MODEL}
+
+
 @app.get("/api/v1/learn/textbook", summary="課本筆記章節")
 def learn_textbook(request: Request):
     user = _current_user(request)
