@@ -36,8 +36,9 @@ function stopWaiting() {
 }
 
 /* 在 el 內顯示等待小夥伴；回傳 stopWaiting（完成時呼叫）。
-   寵物階段：沒寵物=🥚蛋 → Lv1-2=🐣 → Lv3-4=🦊 → Lv5+=🐲 */
-async function showWaiting(el) {
+   寵物階段：沒寵物=🥚蛋 → Lv1-2=🐣 → Lv3-4=🦊 → Lv5+=🐲
+   fixedMsg：固定文案（v2：AI 等待時顯示「AI 正在尋找你的邏輯漏洞…」等） */
+async function showWaiting(el, fixedMsg) {
   stopWaiting();
   let emoji = "🥚", name = "寵物蛋", isEgg = true;
   try {
@@ -54,7 +55,7 @@ async function showWaiting(el) {
     el.innerHTML =
       '<div class="waiting-companion"><div class="waiting-pet' + (isEgg ? " egg" : "") + '">' +
       emoji + '</div><div class="waiting-name">' + esc(name) + " 陪你等</div>" +
-      '<div class="waiting-msg">' + esc(WAITING_MSGS[mi % WAITING_MSGS.length]) +
+      '<div class="waiting-msg">' + esc(fixedMsg || WAITING_MSGS[mi % WAITING_MSGS.length]) +
       '<span class="waiting-dots"><span>.</span><span>.</span><span>.</span></span></div>' +
       '<div class="waiting-bar"><div class="waiting-fill"></div></div></div>';
   };
@@ -73,7 +74,7 @@ async function initLearn() {
   $("learnStartBtn").onclick = startBattle;
   loadLearnHistory();
   loadMastery();
-  loadBadges();
+  // v2：武器庫已搬到「我的」子頁，學習頁只留戰役紀錄＋掌握度
 }
 
 async function startBattle() {
@@ -92,6 +93,10 @@ async function startBattle() {
     });
     battle = { id: d.id, question: d.question, topic: d.topic,
                depth_level: d.depth_level, stage: "reading" };
+    try {
+      localStorage.setItem("dawn_last_battle",
+        JSON.stringify({ topic: d.topic, question: q, at: Date.now() }));
+    } catch (e) {}
     $("learnStart").style.display = "none";
     renderReading(d);
   } catch (e) {
@@ -169,89 +174,344 @@ async function submitQuiz() {
   }
 }
 
+/* ---------------- 費曼辯論場（v2：動態 1–3 輪對決 HUD） ----------------
+   流程：解釋 → debate/start → 全螢幕 modal → 多輪挑戰／反駁 → 授勳。
+   舊 /feynman 端點不再使用（後端保留）。 */
+
+let DBT = null; // {sid, round, challenge, suspicion, judgeNote, lastText, appealUsed, timerId, open, done}
+
+function openDebateModal() {
+  $("debateModal").classList.add("show");
+  $("debateModal").setAttribute("aria-hidden", "false");
+}
+
+function stopDebateTimer() {
+  if (DBT && DBT.timerId) { clearInterval(DBT.timerId); DBT.timerId = null; }
+}
+
+function closeDebateModal() {
+  if (DBT && DBT.open && !DBT.done) {
+    if (!confirm("辯論還沒結束，確定要離開嗎？\n（想結算可以按「暫停挑戰」拿參與獎）")) return;
+  }
+  stopDebateTimer();
+  $("debateModal").classList.remove("show");
+  $("debateModal").setAttribute("aria-hidden", "true");
+  DBT = null;
+}
+
 function renderFeynman() {
   const st = $("learnStage");
   st.innerHTML = battleHeader("第三幕 · 費曼解釋") +
-    '<div class="quiz-tip">🔒 關書時間——憑記憶講，不准偷看。這是效應最強的一幕。</div>' +
-    '<p class="sub">用自己的話把整個概念講清楚，試圖說服 AI：</p>' +
+    '<div class="quiz-tip">關書時間——憑記憶講，不准偷看。這是效應最強的一幕。</div>' +
+    '<p class="sub">用自己的話把整個概念講清楚。AI 怪獸會找出你最強的漏洞，向你宣戰：</p>' +
     '<textarea id="feynmanText" class="input" rows="6" maxlength="2000" ' +
     'placeholder="想像你在教一個聰明但挑剔的朋友…"></textarea>' +
-    '<button class="btn primary" id="feynmanSubmit">說服 AI</button>' +
+    '<button class="btn primary" id="feynmanSubmit">向 AI 怪獸宣戰</button>' +
     '<div id="feynmanResp"></div>';
-  $("feynmanSubmit").onclick = submitFeynman;
+  $("feynmanSubmit").onclick = startDebate;
 }
 
-async function submitFeynman() {
+async function startDebate() {
   const text = $("feynmanText").value.trim();
-  if (text.length < 10) { toast("再多講一點，講到別人能聽懂為止。"); return; }
+  if (text.length < 15) { toast("再多講一點，至少 15 個字，讓 AI 看得出你的思路。"); return; }
   const btn = $("feynmanSubmit");
   btn.disabled = true;
-  const done = await showWaiting($("feynmanResp"));
+  const done = await showWaiting($("feynmanResp"), "AI 怪獸正在磨刀霍霍…");
   try {
-    const d = await api("/api/v1/learn/sessions/" + battle.id + "/feynman", {
-      method: "POST", body: JSON.stringify({ explanation: text }),
+    const r = await api("/api/v1/learn/sessions/" + battle.id + "/debate/start", {
+      method: "POST", body: JSON.stringify({ explanation: text }), timeout: 90000,
     });
-    let html = '<div class="callout"><b>🤖 AI 回饋</b><br>' + esc(d.feedback) + "</div>";
-    if (d.followup) html += '<div class="callout"><b>追問</b><br>' + esc(d.followup) + "</div>";
-    html += '<p class="small">知識建構度：' + Math.round(d.build_score * 100) + "%" +
-      (d.llm ? " · AI 驅動" : " · 規則引導") + "</p>";
-    html += '<div class="acct-form"><label class="lbl-h">為這次學習命名一枚技能章（選填）</label>' +
-      '<input id="badgeName" class="input" maxlength="12" placeholder="例如：啼哭悖論之刃">' +
-      '<button class="btn primary" id="finishBtn">完成戰役 · 授勳</button></div>';
-    $("feynmanResp").innerHTML = html;
-    $("finishBtn").onclick = finishBattle;
-  } catch (e) {
-    toast(e.message || "提交失敗");
-  } finally {
     done();
+    if (r.taunt) {
+      $("feynmanResp").innerHTML = '<div class="callout"><b>AI 怪獸</b><br>' + esc(r.taunt) +
+        '<br><span class="small">本輪不計分——用自己的話再講一次。</span></div>';
+      return;
+    }
+    DBT = { sid: battle.id, round: 1, challenge: r.challenge, suspicion: r.suspicion,
+            judgeNote: "", lastText: "", appealUsed: false, timerId: null,
+            open: true, done: false };
+    openDebateModal();
+    if (r.perfect) {
+      showDebateAward(r.finish, {
+        title: "完美通關！",
+        sub: (r.verdict_text || "AI 怪獸找不到任何漏洞") + "——直接認輸，爆擊獎勵入手。",
+      });
+    } else {
+      renderDebateRound();
+    }
+  } catch (e) {
+    done();
+    toast(e.message || "開戰失敗");
+  } finally {
     btn.disabled = false;
-    btn.textContent = "說服 AI";
   }
 }
 
-async function finishBattle() {
-  const name = ($("badgeName") || {}).value || "";
-  try {
-    const d = await api("/api/v1/learn/sessions/" + battle.id + "/finish", {
-      method: "POST", body: JSON.stringify({ badge_name: name.trim() }),
-    });
-    const b = d.badge;
-    let html = battleHeader("🏆 授勳") +
-      '<div class="badge-card"><div class="badge-name">' + esc(b.name) + "</div>" +
-      '<div class="small">' + esc(b.rarity) + " · 攻擊 " + b.attack + " · 防禦 " + b.defense +
-      " · 默契 " + Math.round(b.bond * 100) + "%</div>" +
-      (b.ai_comment ? '<div class="small">「' + esc(b.ai_comment) + "」</div>" : "") + "</div>";
-    if (d.pet) {
-      html += d.pet.hatched
-        ? '<div class="callout">🐾 寵物孵化了！去島嶼頁看看你的新夥伴。</div>'
-        : '<div class="callout">🐾 寵物獲得經驗，變強了！</div>';
+/* ---- HUD 元件 ---- */
+
+function debateHpHTML(s) {
+  const def = Math.round((s.avg || 0) * 100);
+  const aiv = 100 - def;
+  return '<div class="debate-hp">' +
+    '<div class="hp-row"><span>你 · 論點防禦</span><div class="hp-bar"><i id="debateMeHp" style="width:' +
+    def + '%"></i></div><b>' + def + "</b></div>" +
+    '<div class="hp-row"><span>AI 怪獸 · 懷疑值</span><div class="hp-bar opp"><i id="debateAiHp" style="width:' +
+    aiv + '%"></i></div><b>' + aiv + "</b></div></div>";
+}
+
+function suspicionHTML(s) {
+  const pct = (v) => Math.round((v || 0) * 100) + "%";
+  const ico = s.state === "完美防禦" ? "●" : s.state === "逐漸穩固" ? "◐" : "○";
+  const dim = (label, v) =>
+    '<div class="sdim">' + label + '<div class="cap-track"><div class="cap-fill" style="width:' +
+    pct(v) + '"></div></div></div>';
+  return '<div class="suspicion-box">' +
+    '<div class="suspicion-head"><span class="suspicion-badge"><span class="s-ico">' + ico +
+    "</span>AI 懷疑度：" + esc(s.state) + "</span>" +
+    '<span class="suspicion-note">' + esc(s.note || "即時估計，非考試分數") + "</span></div>" +
+    '<div class="suspicion-dims">' +
+    dim("論點清晰度", s.clarity) + dim("舉例適切性", s.examples) + dim("邏輯嚴密性", s.logic) +
+    "</div></div>";
+}
+
+/* 字元集重疊率（鏡像後端 _overlap_ratio）：偵測整段貼上 */
+function charOverlap(src, text) {
+  const clean = (s) => String(s || "").replace(/[\s，。！？、；：「」『』（）,.!?;:"'()\-]/g, "");
+  const a = new Set(clean(src));
+  if (!a.size) return 0;
+  const b = new Set(clean(text));
+  let hit = 0;
+  a.forEach((c) => { if (b.has(c)) hit++; });
+  return hit / a.size;
+}
+
+function startDebateTimer() {
+  stopDebateTimer();
+  let left = 90;
+  const tick = () => {
+    const e = $("debateTimer");
+    if (!e) { stopDebateTimer(); return; }
+    e.textContent = left + "s";
+    e.classList.toggle("warn", left <= 15);
+    if (left <= 0) {
+      stopDebateTimer();
+      toast("時間到！自動送出。");
+      submitDebate();
+      return;
     }
-    html += '<button class="btn" id="newBattleBtn">再來一場</button> ' +
-      '<button class="btn" id="nameIslandBtn">為這次命名一座島嶼</button>';
-    $("learnStage").innerHTML = html;
-    $("newBattleBtn").onclick = () => {
-      battle = null;
-      $("learnStage").style.display = "none";
-      $("learnStage").innerHTML = "";
-      $("learnStart").style.display = "";
-      $("learnQ").value = ""; $("learnHyp").value = "";
-      loadLearnHistory(); loadMastery(); loadBadges();
-    };
-    $("nameIslandBtn").onclick = async () => {
-      const nm = prompt("為這座島嶼命名：", battle.topic + "島");
-      if (!nm) return;
-      try {
-        await api("/api/v1/world/islands", {
-          method: "POST",
-          body: JSON.stringify({ session_id: battle.id, name: nm.trim(), topic: battle.topic }),
-        });
-        toast("島嶼命名完成！去島嶼頁看看吧。");
-      } catch (e) { toast(e.message || "命名失敗"); }
-    };
-    loadLearnHistory(); loadMastery(); loadBadges();
+    left--;
+  };
+  tick();
+  DBT.timerId = setInterval(tick, 1000);
+}
+
+function renderDebateRound() {
+  const d = DBT;
+  $("debateBody").innerHTML =
+    '<div class="debate-title">費曼辯論 <span class="vs">VS</span> AI 怪獸</div>' +
+    '<div class="debate-round">第 ' + d.round + " 輪" + (d.round >= 3 ? " · 終局" : "") + "</div>" +
+    debateHpHTML(d.suspicion) + suspicionHTML(d.suspicion) +
+    '<div class="challenge-card"><div class="ck">AI 怪獸的挑戰</div><p>' + esc(d.challenge) + "</p></div>" +
+    (d.judgeNote ? '<div class="judge-note"><b>上一輪評判：</b>' + esc(d.judgeNote) + "</div>" : "") +
+    '<div class="debate-input-zone">' +
+    '<textarea id="debateText" class="input" rows="5" maxlength="150" ' +
+    'placeholder="用自己的話反駁或補強（150 字內，90 秒）…"></textarea>' +
+    '<div class="debate-meta-row"><span id="debateCount">0 / 150</span>' +
+    '<span>⏱ <span class="debate-timer" id="debateTimer">90s</span></span></div>' +
+    '<div class="paste-warn" id="pasteWarn">用自己的話說說看，別整段貼上——貼上的內容不計分。</div>' +
+    '<div class="debate-actions">' +
+    '<button class="btn primary" id="debateSubmit" disabled>出招反駁</button>' +
+    '<button class="btn" id="debateConcede">暫停挑戰</button>' +
+    "</div></div>";
+  const ta = $("debateText"), submitBtn = $("debateSubmit");
+  ta.addEventListener("input", () => {
+    const n = ta.value.trim().length;
+    $("debateCount").textContent = ta.value.length + " / 150";
+    submitBtn.disabled = n < 15;
+  });
+  ta.addEventListener("paste", () => {
+    setTimeout(() => {
+      const sim = charOverlap(battle.question + " " + (DBT.challenge || ""), ta.value);
+      if (sim > 0.8 && ta.value.trim().length >= 10)
+        $("pasteWarn").classList.add("show");
+    }, 0);
+  });
+  submitBtn.onclick = submitDebate;
+  $("debateConcede").onclick = concedeDebate;
+  startDebateTimer();
+  setTimeout(() => ta.focus(), 100);
+}
+
+async function submitDebate() {
+  const ta = $("debateText");
+  if (!ta) return;
+  const text = ta.value.trim();
+  if (text.length < 15) { toast("至少 15 個字，讓 AI 看得出你的思路。"); return; }
+  stopDebateTimer();
+  const done = await showWaiting($("debateBody"), "AI 正在尋找你的邏輯漏洞…");
+  try {
+    const r = await api("/api/v1/learn/sessions/" + DBT.sid + "/debate/respond", {
+      method: "POST", body: JSON.stringify({ text }), timeout: 90000,
+    });
+    done();
+    handleDebateResponse(r, text);
   } catch (e) {
-    toast(e.message || "授勳失敗");
+    done();
+    toast(e.message || "送出失敗");
+    startDebateTimer();
   }
+}
+
+function handleDebateResponse(r, text) {
+  if (r.taunt) {
+    $("debateBody").innerHTML =
+      '<div class="verdict-flash"><div class="verdict-big">被看穿了</div>' +
+      '<div class="verdict-sub">' + esc(r.taunt) + "<br>本輪不計分。</div></div>" +
+      '<div class="debate-actions"><button class="btn primary" id="debateRetry">用自己的話重講</button>' +
+      '<button class="btn" id="debateConcede3">暫停挑戰</button></div>';
+    $("debateRetry").onclick = renderDebateRound;
+    $("debateConcede3").onclick = concedeDebate;
+    return;
+  }
+  if (r.perfect || (r.verdict && r.finish)) {
+    showDebateAward(r.finish, {
+      title: r.verdict_text || "完美通關！",
+      sub: r.judge_note || "",
+    });
+    return;
+  }
+  showDebateVerdict(r, text);
+}
+
+function showDebateVerdict(r, text) {
+  DBT.lastText = text;
+  DBT.appealUsed = false;
+  const v = r.verdict;
+  const big = v === "blocked" ? "破綻！" : v === "partial" ? "還差一點" : "被閃開了";
+  let html =
+    '<div class="debate-title">費曼辯論 <span class="vs">VS</span> AI 怪獸</div>' +
+    '<div class="verdict-flash' + (v === "blocked" ? " blocked" : "") + '">' +
+    '<div class="verdict-big">' + big + "</div>" +
+    '<div class="verdict-sub">' + esc(r.judge_note || "") +
+    (r.hint ? "<br>" + esc(r.hint) : "") + "</div></div>" +
+    suspicionHTML(r.suspicion) +
+    '<div class="debate-actions">';
+  if (v === "blocked" && r.next_round) {
+    html += '<button class="btn primary" id="debateDeep">深入追擊（R3 終局）</button>';
+  } else if (r.challenge) {
+    html += '<button class="btn primary" id="debateNext">迎接下一輪挑戰</button>';
+  }
+  if (v === "evaded" || v === "partial")
+    html += '<button class="btn" id="debateAppeal">申訴一次</button>';
+  html += '<button class="btn" id="debateConcede2">暫停挑戰</button></div>';
+  $("debateBody").innerHTML = html;
+  const deep = $("debateDeep"), next = $("debateNext"),
+        appeal = $("debateAppeal"), conc = $("debateConcede2");
+  if (deep) deep.onclick = () => {
+    DBT.round = r.next_round || 3;
+    DBT.suspicion = r.suspicion;
+    DBT.judgeNote = r.judge_note || "";
+    DBT.challenge = "終局陳述——AI 已總結雙方論點，用最後一段話為你的論點一錘定音。";
+    renderDebateRound();
+  };
+  if (next) next.onclick = () => {
+    DBT.round = r.round;
+    DBT.challenge = r.challenge;
+    DBT.suspicion = r.suspicion;
+    DBT.judgeNote = r.judge_note || "";
+    renderDebateRound();
+  };
+  if (appeal) appeal.onclick = appealDebate;
+  if (conc) conc.onclick = concedeDebate;
+}
+
+/* 申訴：每輪限 1 次，後端重判上一輪。 */
+async function appealDebate() {
+  if (DBT.appealUsed) { toast("本輪申訴已用過。"); return; }
+  DBT.appealUsed = true;
+  const btn = $("debateAppeal");
+  if (btn) btn.disabled = true;
+  const done = await showWaiting($("debateBody"), "AI 正在重新審視你的論點…");
+  try {
+    const r = await api("/api/v1/learn/sessions/" + DBT.sid + "/debate/appeal", {
+      method: "POST", timeout: 90000,
+    });
+    done();
+    handleDebateResponse(r, DBT.lastText);
+  } catch (e) {
+    done();
+    toast(e.message || "申訴失敗");
+  }
+}
+
+async function concedeDebate() {
+  if (!confirm("暫停挑戰並結算參與獎？\n費曼的核心是發現盲點，不是輸贏。")) return;
+  stopDebateTimer();
+  const done = await showWaiting($("debateBody"), "正在結算戰果…");
+  try {
+    const r = await api("/api/v1/learn/sessions/" + DBT.sid + "/debate/concede", {
+      method: "POST", timeout: 60000,
+    });
+    done();
+    showDebateAward(r.finish, {
+      title: "暫停挑戰",
+      sub: r.note + (r.award_starsand ? " 參與獎：星砂 +" + r.award_starsand + "。" : "") +
+        (r.reward_capped ? "（今日同主題獎勵已達上限，這次只給回饋不給分。）" : ""),
+    });
+  } catch (e) {
+    done();
+    toast(e.message || "暫停失敗");
+  }
+}
+
+function showDebateAward(fin, info) {
+  DBT.done = true;
+  const b = fin.badge;
+  let html = '<div class="debate-award">' +
+    '<div class="award-title">' + esc(info.title) + "</div>" +
+    (info.sub ? '<p class="verdict-sub">' + esc(info.sub) + "</p>" : "") +
+    '<div class="badge-card"><div class="badge-name">' + esc(b.name) + "</div>" +
+    '<div class="small">' + esc(b.rarity) + " · 攻擊 " + b.attack + " · 防禦 " + b.defense +
+    " · 默契 " + Math.round((b.bond || 0) * 100) + "%</div>" +
+    (b.archetype ? '<div class="small">主分類：' + esc(b.archetype) +
+      ((b.tags || []).length ? " · " + b.tags.map(esc).join("／") : "") + "</div>" : "") +
+    (b.ai_comment ? '<div class="small">「' + esc(b.ai_comment) + "」</div>" : "") + "</div>";
+  if (fin.pet) {
+    html += fin.pet.hatched
+      ? '<div class="callout">寵物孵化了！去島嶼頁看看你的新夥伴。</div>'
+      : '<div class="callout">寵物獲得經驗，變強了！</div>';
+  }
+  html += '<div class="debate-actions"><button class="btn primary" id="debateAgain">再來一場</button>' +
+    '<button class="btn" id="debateNameIsland">為這次命名一座島嶼</button></div></div>';
+  $("debateBody").innerHTML = html;
+  $("debateAgain").onclick = () => {
+    closeDebateModal();
+    resetBattle();
+  };
+  $("debateNameIsland").onclick = async () => {
+    const nm = prompt("為這座島嶼命名：", battle.topic + "島");
+    if (!nm) return;
+    try {
+      await api("/api/v1/world/islands", {
+        method: "POST",
+        body: JSON.stringify({ session_id: battle.id, name: nm.trim(), topic: battle.topic }),
+      });
+      toast("島嶼命名完成！去島嶼頁看看吧。");
+    } catch (e) { toast(e.message || "命名失敗"); }
+  };
+  loadLearnHistory();
+  loadMastery();
+  if ($("page-armory") && $("page-armory").classList.contains("active")) initArmory();
+}
+
+function resetBattle() {
+  battle = null;
+  $("learnStage").style.display = "none";
+  $("learnStage").innerHTML = "";
+  $("learnStart").style.display = "";
+  $("learnQ").value = ""; $("learnHyp").value = "";
+  loadLearnHistory();
+  loadMastery();
 }
 
 async function loadLearnHistory() {
@@ -279,15 +539,32 @@ async function loadMastery() {
   } catch (e) { el.innerHTML = ""; }
 }
 
+/* v2：武器庫搬到「我的」子頁（page-armory），卡片邊框色＝主分類 */
+async function initArmory() {
+  await loadBadges();
+}
+
 async function loadBadges() {
-  const el = $("learnBadges");
+  const el = $("armoryBadges");
+  if (!el) return;
+  if (!Auth.user) { el.innerHTML = '<p class="small">登入後查看你的武器庫。</p>'; return; }
   try {
     const d = await api("/api/v1/learn/badges");
-    if (!d.badges.length) { el.innerHTML = '<p class="small">完成戰役可鍛造技能章。</p>'; return; }
-    el.innerHTML = '<div class="badge-grid">' + d.badges.map((b) =>
-      '<div class="badge-card"><div class="badge-name">' + esc(b.name) + "</div>" +
-      '<div class="small">' + esc(b.rarity) + " · 攻 " + b.attack + " · 防 " + b.defense +
-      " · 默契 " + Math.round((b.bond || 0) * 100) + "%</div></div>"
+    if (!d.badges.length) {
+      el.innerHTML = '<p class="small">完成戰役可鍛造技能章（武器）。</p>';
+      return;
+    }
+    el.innerHTML = '<div class="armory-grid">' + d.badges.map((b) =>
+      '<div class="armory-card arch-' + esc(b.archetype || "") + '">' +
+      '<div class="badge-name">' + esc(b.name) + "</div>" +
+      '<div class="small">' + esc(b.rarity || "") + " · 攻 " + b.attack + " · 防 " + b.defense +
+      " · 默契 " + Math.round((b.bond || 0) * 100) + "%</div>" +
+      (b.archetype ? '<div class="small">主分類：' + esc(b.archetype) + "</div>" : "") +
+      ((b.tags || []).length
+        ? '<div class="tag-pills">' + b.tags.map((t) =>
+          '<span class="tag-pill">' + esc(t) + "</span>").join("") + "</div>"
+        : "") +
+      "</div>"
     ).join("") + "</div>";
   } catch (e) { el.innerHTML = ""; }
 }
@@ -457,37 +734,184 @@ async function loadJourneyHistory() {
 
 /* ---------------- 交易市集 ---------------- */
 
+/* ---------------- 交易市集 v2：主分類＋標籤＋卡牌化 ---------------- */
+
+let marketCat = ""; // "" | 攻擊型 | 防禦型 | 輔助型 | 經濟型
+
 async function initMarket() {
   if (!needLogin("marketGate")) { $("marketBody").innerHTML = ""; return; }
+  const chips = $("marketChips");
+  if (chips && !chips.dataset.wired) {
+    chips.dataset.wired = "1";
+    chips.querySelectorAll("button[data-cat]").forEach((c) => {
+      c.onclick = () => {
+        chips.querySelectorAll("button").forEach((x) => x.classList.remove("active"));
+        c.classList.add("active");
+        marketCat = c.dataset.cat;
+        loadMarket();
+      };
+    });
+  }
   await loadMarket();
   await renderPublish();
 }
 
 async function loadMarket() {
   const el = $("marketBody");
+  const q = marketCat ? "?category=" + encodeURIComponent(marketCat) : "";
   try {
-    const d = await api("/api/v1/world/market");
-    if (!d.listings.length) {
-      el.innerHTML = '<p class="small">市集空空如也——成為第一個上架的人吧。</p>';
-      return;
-    }
-    el.innerHTML = d.listings.map((l) =>
-      '<div class="panel market-card"><b>' +
-      (l.item_type === "badge" ? "🗡️ 武器" : "🏝️ 島嶼") + "</b> " +
-      '<span class="small">' + (l.trade_kind === "sell" ? "星砂 " + l.price : "以物易物：" + esc(l.want_text || "")) + "</span>" +
-      '<button class="btn sm primary" data-buy="' + l.id + '"' +
-      (l.trade_kind !== "sell" ? " disabled" : "") + ">購買</button></div>"
-    ).join("");
+    const d = await api("/api/v1/world/market" + q);
+    if (!d.listings.length) { await renderMarketEmpty(el); return; }
+    el.innerHTML = d.listings.map((l) => {
+      const arch = l.archetype || "";
+      const kind = l.item_type === "badge" ? "武器" : "島嶼";
+      const tags = (l.tags || []).map((t) =>
+        '<span class="tag-pill">' + esc(t) + "</span>").join("");
+      return '<div class="stall-card arch-' + esc(arch) + '" data-lid="' + l.id + '">' +
+        '<div class="stall-head"><span class="stall-kind">' + kind + "</span>" +
+        (arch ? '<span class="arch-tag">' + esc(arch) + "</span>" : "") +
+        '<span class="stall-price">' +
+        (l.trade_kind === "sell" ? "星砂 " + l.price : "以物易物") + "</span></div>" +
+        (l.trade_kind === "barter" && l.want_text
+          ? '<div class="small">想換：' + esc(l.want_text) + "</div>" : "") +
+        (tags ? '<div class="tag-pills">' + tags + "</div>" : "") +
+        '<div class="stall-foot"><span class="small">點擊查看對比</span>' +
+        (l.trade_kind === "sell"
+          ? '<button class="btn sm primary" data-buy="' + l.id + '">購買</button>'
+          : '<button class="btn sm" disabled>僅以物易物</button>') +
+        "</div></div>";
+    }).join("");
+    el.querySelectorAll(".stall-card").forEach((card) => {
+      card.onclick = (e) => {
+        if (e.target.closest("button")) return;
+        const l = d.listings.find((x) => x.id === card.dataset.lid);
+        if (l) openCompare(l);
+      };
+    });
     el.querySelectorAll("button[data-buy]").forEach((b) => {
-      b.onclick = async () => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
         try {
           const r = await api("/api/v1/world/market/" + b.dataset.buy + "/buy", { method: "POST" });
           toast("購入成功！" + (r.note || ""));
           loadMarket();
-        } catch (e) { toast(e.message || "購買失敗"); }
+        } catch (e2) { toast(e2.message || "購買失敗"); }
       };
     });
   } catch (e) { el.innerHTML = ""; }
+}
+
+/* 空狀態三層：①系統現貨 → ②合成推薦 → ③UGC 上架 */
+async function renderMarketEmpty(el) {
+  let reco = "多打幾場費曼戰役，鍛造武器後再來上架。";
+  try {
+    const d = await api("/api/v1/learn/badges");
+    const counts = { "攻擊型": 0, "防禦型": 0, "輔助型": 0, "經濟型": 0 };
+    d.badges.forEach((b) => {
+      if (counts[b.archetype] !== undefined) counts[b.archetype]++;
+    });
+    const weakest = Object.keys(counts).sort((a, b) => counts[a] - counts[b])[0];
+    reco = "你的武器庫裡「" + weakest + "」最少（" + counts[weakest] +
+      " 件）——多打幾場費曼戰役，鍛造「" + weakest + "」武器再來上架。";
+  } catch (e) { /* 用預設文案 */ }
+  el.innerHTML =
+    '<div class="empty-layer"><div class="el-kicker">第一層 · 系統現貨</div>' +
+    "<h4>市集今晚打烊了</h4>" +
+    "<p>還沒有其他旅人上架物品。別空手而回——試煉場雷達頁的兵器庫有系統現貨，星砂可以直接換武器。</p>" +
+    '<button class="btn primary" id="emptyShop">去兵器庫看看</button></div>' +
+    '<div class="empty-layer"><div class="el-kicker">第二層 · 合成推薦</div>' +
+    "<h4>先鍛造，再交易</h4><p>" + esc(reco) + "</p>" +
+    '<button class="btn" id="emptyBattle">去打一場戰役</button></div>' +
+    '<div class="empty-layer"><div class="el-kicker">第三層 · 開張大吉</div>' +
+    "<h4>成為第一個上架的人</h4>" +
+    "<p>把你鍛造的武器或命名的島嶼掛上來，定個好價錢——市集的第一筆交易可能就是你的。</p>" +
+    '<button class="btn" id="emptyPublish">上架我的物品</button></div>';
+  $("emptyShop").onclick = () => gotoTab("radar");
+  $("emptyBattle").onclick = () => gotoTab("learn");
+  $("emptyPublish").onclick = () =>
+    $("marketPublish").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* 對比浮窗：賣家物品 vs 你的同 archetype 最佳 */
+function cmpArrow(theirs, mine) {
+  if (mine == null || theirs == null) return "";
+  if (theirs > mine) return ' <span class="cmp-up">↑</span>';
+  if (theirs < mine) return ' <span class="cmp-dn">↓</span>';
+  return ' <span class="cmp-eq">＝</span>';
+}
+async function openCompare(l) {
+  const modal = $("compareModal"), body = $("compareBody");
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  body.innerHTML = '<p class="small">載入對比中…</p>';
+  let mine = null;
+  try {
+    const d = await api("/api/v1/learn/badges");
+    const same = d.badges.filter((b) => b.archetype === l.archetype);
+    if (same.length) {
+      mine = same.sort((a, b) =>
+        (b.attack + b.defense + (b.bond || 0) * 100) -
+        (a.attack + a.defense + (a.bond || 0) * 100))[0];
+    }
+  } catch (e) { /* 無武器庫也照常顯示賣家資訊 */ }
+  const arch = l.archetype || "未分類";
+  body.innerHTML =
+    '<h3 class="h3" style="margin-bottom:4px">武器對比</h3>' +
+    '<p class="small">賣家物品 vs 你的同類型最佳</p>' +
+    '<div class="compare-cols">' +
+    '<div class="compare-col"><h4>賣家物品</h4>' +
+    '<div class="compare-stat"><span>類型</span><b>' +
+    (l.item_type === "badge" ? "武器" : "島嶼") + "</b></div>" +
+    '<div class="compare-stat"><span>主分類</span><b>' + esc(arch) + "</b></div>" +
+    '<div class="compare-stat"><span>標籤</span><b>' +
+    ((l.tags || []).map(esc).join("／") || "—") + "</b></div>" +
+    '<div class="compare-stat"><span>價格</span><b>' +
+    (l.trade_kind === "sell" ? "星砂 " + l.price : esc(l.want_text || "以物易物")) +
+    "</b></div>" +
+    '<div class="compare-stat"><span>攻擊</span><b>' +
+    (l.snap_attack != null ? l.snap_attack + cmpArrow(l.snap_attack, mine && mine.attack) : "—") +
+    "</b></div>" +
+    '<div class="compare-stat"><span>防禦</span><b>' +
+    (l.snap_defense != null ? l.snap_defense + cmpArrow(l.snap_defense, mine && mine.defense) : "—") +
+    "</b></div>" +
+    '<div class="compare-stat"><span>默契潛力</span><b>' +
+    (l.snap_bond != null ? Math.round(l.snap_bond * 100) + "%" : "—") + "</b></div>" +
+    "</div>" +
+    '<div class="compare-col mine"><h4>你的同類型最佳</h4>' +
+    (mine
+      ? '<div class="compare-stat"><span>名稱</span><b>' + esc(mine.name) + "</b></div>" +
+        '<div class="compare-stat"><span>攻擊</span><b>' + mine.attack + "</b></div>" +
+        '<div class="compare-stat"><span>防禦</span><b>' + mine.defense + "</b></div>" +
+        '<div class="compare-stat"><span>默契</span><b>' +
+        Math.round((mine.bond || 0) * 100) + "%</b></div>"
+      : '<p class="small">你還沒有「' + esc(arch) +
+        "」武器——買下它就是你的第一件。</p>") +
+    "</div></div>" +
+    '<p class="compare-note">數值為上架時快照。' +
+    "買到的武器默契歸零——真正的默契要靠自己的學習重建。</p>" +
+    (l.trade_kind === "sell"
+      ? '<button class="btn primary" id="compareBuy" style="width:100%">星砂 ' +
+        l.price + " 購入</button>"
+      : "");
+  const close = () => {
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+  };
+  $("compareClose").onclick = close;
+  modal.onclick = (e) => { if (e.target === modal) close(); };
+  const buyBtn = $("compareBuy");
+  if (buyBtn) buyBtn.onclick = async () => {
+    buyBtn.disabled = true;
+    try {
+      const r = await api("/api/v1/world/market/" + l.id + "/buy", { method: "POST" });
+      toast("購入成功！" + (r.note || ""));
+      close();
+      loadMarket();
+    } catch (e) {
+      toast(e.message || "購買失敗");
+      buyBtn.disabled = false;
+    }
+  };
 }
 
 async function renderPublish() {
@@ -496,23 +920,38 @@ async function renderPublish() {
     const [badges, islands] = await Promise.all([
       api("/api/v1/learn/badges"), api("/api/v1/world/islands"),
     ]);
+    const badgeMap = {};
+    badges.badges.forEach((b) => { badgeMap["badge:" + b.id] = b; });
     const opts = [
-      ...badges.badges.map((b) => ({ v: "badge:" + b.id, t: "🗡️ " + b.name })),
-      ...islands.islands.map((i) => ({ v: "island:" + i.id, t: "🏝️ " + i.name })),
+      ...badges.badges.map((b) => ({ v: "badge:" + b.id, t: b.name })),
+      ...islands.islands.map((i) => ({ v: "island:" + i.id, t: i.name + "（島嶼）" })),
     ];
     if (!opts.length) {
       el.innerHTML = '<p class="small">你還沒有可交易的武器或島嶼。</p>';
       return;
     }
     el.innerHTML = '<div class="acct-form">' +
+      '<label class="lbl-h">選擇物品</label>' +
       '<select id="pubItem" class="input">' +
       opts.map((o) => '<option value="' + o.v + '">' + esc(o.t) + "</option>").join("") +
       "</select>" +
+      '<div class="pub-info" id="pubInfo"></div>' +
+      '<label class="lbl-h">交易方式</label>' +
       '<select id="pubKind" class="input"><option value="sell">星砂交易</option>' +
       '<option value="barter">以物易物</option></select>' +
       '<input id="pubPrice" class="input" type="number" min="0" placeholder="定價（星砂）">' +
       '<input id="pubWant" class="input" maxlength="100" placeholder="以物易物想換什麼（選填）">' +
       '<button class="btn primary" id="pubBtn">上架</button></div>';
+    const updInfo = () => {
+      const b = badgeMap[$("pubItem").value];
+      $("pubInfo").innerHTML = b
+        ? "<span>主分類：<b>" + esc(b.archetype || "未分類") + "</b></span>" +
+          "<span>標籤：" + ((b.tags || []).map(esc).join("／") || "無") + "</span>" +
+          "<span>攻 " + b.attack + "／防 " + b.defense + "</span>"
+        : "<span>島嶼上架：無武器分類</span>";
+    };
+    $("pubItem").onchange = updInfo;
+    updInfo();
     $("pubBtn").onclick = async () => {
       const [item_type, item_id] = $("pubItem").value.split(":");
       try {
@@ -660,8 +1099,14 @@ async function buildNotesChapter() {
 
 /* ---------------- 對外接口 ---------------- */
 
+/* 辯論 modal 關閉接線（DOM 已就緒：script 在 body 尾端） */
+$("debateClose").onclick = closeDebateModal;
+$("debateModal").addEventListener("click", (e) => {
+  if (e.target === $("debateModal")) closeDebateModal();
+});
+
 window.WorldUI = {
-  initLearn, initJourney, initMarket, initWeekly,
+  initLearn, initJourney, initMarket, initWeekly, initArmory,
   loadPet, loadLearnIslands, buildNotesChapter,
   showWaiting, stopWaiting,
 };
