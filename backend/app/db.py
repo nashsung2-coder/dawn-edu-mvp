@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS users (
     persona TEXT NOT NULL DEFAULT '',
     pw_hash TEXT NOT NULL DEFAULT '',
     token_hash TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -288,6 +289,7 @@ CREATE TABLE IF NOT EXISTS users (
     persona TEXT NOT NULL DEFAULT '',
     pw_hash TEXT NOT NULL DEFAULT '',
     token_hash TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -387,6 +389,7 @@ def init_db() -> None:
             conn.execute(stmt)
     _migrate_users_auth_columns()
     _migrate_users_game_columns()
+    _migrate_users_email_column()
 
 
 def _migrate_users_auth_columns() -> None:
@@ -417,6 +420,17 @@ def _migrate_users_game_columns() -> None:
             for name, ddl in cols:
                 if name not in existing:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+
+
+def _migrate_users_email_column() -> None:
+    """為已存在的 users 表補上 email 欄位（冪等，雙模式相容）。"""
+    with get_conn() as conn:
+        if is_postgres():
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''")
+        else:
+            existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+            if "email" not in existing:
+                conn.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''")
 
 
 def table_empty(table: str) -> bool:

@@ -64,21 +64,25 @@ def _validate_password(password: str) -> str:
     return password
 
 
-def register(name: str, password: str) -> dict:
-    """註冊新帳號。成功回傳 {id, name, token}；失敗拋 ValueError（繁中訊息）。"""
+def register(name: str, password: str, email: str = "") -> dict:
+    """註冊新帳號（Email 選填）。成功回傳 {id, name, email, token}；失敗拋 ValueError。"""
     name = _validate_name(name)
     password = _validate_password(password)
+    email = _validate_email(email)
     with db.get_conn() as conn:
         exists = conn.execute("SELECT id FROM users WHERE name = ?", (name,)).fetchone()
         if exists:
             raise ValueError(f"暱稱「{name}」已經被使用了，換一個吧。")
+        if _email_taken(conn, email):
+            raise ValueError("這個 Email 已經註冊過了。")
         user_id = "u_" + uuid.uuid4().hex[:12]
         token, thash = _new_token()
         conn.execute(
-            "INSERT INTO users (id, name, pw_hash, token_hash) VALUES (?, ?, ?, ?)",
-            (user_id, name, hash_password(password), thash),
+            "INSERT INTO users (id, name, pw_hash, token_hash, email) VALUES (?, ?, ?, ?, ?)",
+            (user_id, name, hash_password(password), thash, email),
         )
-    return {"id": user_id, "name": name, "token": token}
+        conn.commit()
+    return {"id": user_id, "name": name, "email": email, "token": token}
 
 
 def login(name: str, password: str) -> dict:
@@ -120,12 +124,15 @@ def get_user_by_token(token: str) -> dict | None:
         return None
     with db.get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, persona FROM users WHERE token_hash = ? AND token_hash != ''",
+            "SELECT id, name, email, persona, created_at FROM users "
+            "WHERE token_hash = ? AND token_hash != ''",
             (_token_hash(token),),
         ).fetchone()
         if not row:
             return None
-        return {"id": row["id"], "name": row["name"], "persona": db.jloads(row["persona"], {})}
+        return {"id": row["id"], "name": row["name"], "email": row["email"] or "",
+                "persona": db.jloads(row["persona"], {}),
+                "created_at": row["created_at"] or ""}
 
 
 def set_persona(user_id: str, persona: dict) -> dict:
@@ -157,3 +164,140 @@ def set_persona(user_id: str, persona: dict) -> dict:
         if not updated:
             raise KeyError("user not found")
     return clean
+
+
+_EMAIL_RE = None
+
+def _email_re():
+    global _EMAIL_RE
+    if _EMAIL_RE is None:
+        import re
+        _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+    return _EMAIL_RE
+
+
+def _validate_email(email: str) -> str:
+    """Email 為選填；有填則檢查格式。回傳整理後的字串（空字串表示未填）。"""
+    email = (email or "").strip().lower()
+    if not email:
+        return ""
+    if len(email) > 120 or not _email_re().match(email):
+        raise ValueError("Email 格式不正確。")
+    return email
+
+
+def _email_taken(conn, email: str, exclude_id: str = "") -> bool:
+    if not email:
+        return False
+    row = conn.execute(
+        "SELECT id FROM users WHERE email = ? AND id != ?", (email, exclude_id)
+    ).fetchone()
+    return row is not None
+
+
+def set_email(user_id: str, email: str) -> str:
+    """更新 Email（可清空）。回傳整理後的 email。"""
+    email = _validate_email(email)
+    with db.get_conn() as conn:
+        if _email_taken(conn, email, exclude_id=user_id):
+            raise ValueError("這個 Email 已經註冊過了。")
+        cur = conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
+        conn.commit()
+        try:
+            ok = cur.rowcount > 0
+        except Exception:
+            ok = True
+        if not ok:
+            raise KeyError("user not found")
+    return email
+
+
+def change_password(user_id: str, old_password: str, new_password: str) -> None:
+    """登入中改密碼：需驗證舊密碼。"""
+    new_password = _validate_password(new_password)
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT pw_hash FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            raise KeyError("user not found")
+        if not verify_password(old_password or "", row["pw_hash"] or ""):
+            raise ValueError("舊密碼不正確。")
+        conn.execute(
+            "UPDATE users SET pw_hash = ?, token_hash = '' WHERE id = ?",
+            (hash_password(new_password), user_id),
+        )
+        conn.commit()
+
+
+def reset_password_by_email(name: str, email: str, new_password: str) -> None:
+    """忘記密碼：暱稱＋註冊 Email 吻合即重設。
+
+    說明：本站無郵件發送服務，故採「知識驗證」而非重設連結。
+    請勿將 Email 告訴他人；重要帳號請設高強度密碼。
+    """
+    name = _validate_name(name)
+    email = _validate_email(email)
+    if not email:
+        raise ValueError("請輸入註冊時填寫的 Email。")
+    new_password = _validate_password(new_password)
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM users WHERE name = ? AND email = ?", (name, email)
+        ).fetchone()
+        if not row:
+            raise ValueError("暱稱與 Email 不符。請確認後再試一次。")
+        conn.execute(
+            "UPDATE users SET pw_hash = ?, token_hash = '' WHERE id = ?",
+            (hash_password(new_password), row["id"]),
+        )
+        conn.commit()
+
+
+def delete_user(user_id: str, password: str) -> None:
+    """刪除帳號：驗證密碼後，刪除該使用者所有資料（不可復原）。"""
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT pw_hash FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            raise KeyError("user not found")
+        if not verify_password(password or "", row["pw_hash"] or ""):
+            raise ValueError("密碼不正確，無法刪除帳號。")
+        for table in ("favorites", "territory_logs", "learning_events", "flow_deposits",
+                      "duel_answers", "duel_questions", "duel_sessions", "islands"):
+            try:
+                conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+            except Exception:
+                pass
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+
+
+def export_user_data(user_id: str) -> dict:
+    """匯出學習歷程：個人檔案＋島嶼＋日誌＋收藏＋星砂＋人格。"""
+    with db.get_conn() as conn:
+        user = conn.execute(
+            "SELECT id, name, email, persona, points, inventory, created_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if not user:
+            raise KeyError("user not found")
+        island = conn.execute("SELECT * FROM islands WHERE user_id = ?", (user_id,)).fetchone()
+        logs = conn.execute(
+            "SELECT action, delta, territory_after, log_date, created_at FROM territory_logs "
+            "WHERE user_id = ? ORDER BY created_at", (user_id,)
+        ).fetchall()
+        favs = conn.execute(
+            "SELECT content_id, created_at FROM favorites WHERE user_id = ? ORDER BY created_at",
+            (user_id,),
+        ).fetchall()
+    return {
+        "exported_at": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
+        "user": {
+            "id": user["id"], "name": user["name"], "email": user["email"] or "",
+            "persona": db.jloads(user["persona"], {}),
+            "points": user["points"] or 0,
+            "inventory": db.jloads(user["inventory"], {}),
+            "created_at": user["created_at"],
+        },
+        "island": dict(island) if island else None,
+        "territory_logs": [dict(r) for r in logs],
+        "favorites": [dict(r) for r in favs],
+    }
