@@ -1,0 +1,15 @@
+/* 雷達頁：霓虹區樣式 */
+body { background: var(--bg); color: var(--ink); }
+.r-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8); border-bottom: 1px solid var(--line);
+  max-width: 720px; margin: 0 auto;
+}
+.r-emblem { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); }
+.r-header h1 { font-size: var(--fs-24); }
+.r-sub { color: var(--muted); font-size: var(--fs-13); }
+#r-main { max-width: 720px; margin: 0 auto; padding: var(--sp-8); }
+.r-bar { margin-bottom: var(--sp-4); }
+.r-bar label { display: flex; justify-content: space-between; font-size: var(--fs-14); margin-bottom: var(--sp-1); }
+.r-track { height: 10px; border-radius: var(--r-full); background: var(--line); overflow: hidden; }
+.r-fill { height: 100%; border-radius: var(--r-full); background: linear-gradient(90deg, var(--accent), #7B5CFF); transition: width .8s var(--ease); }
