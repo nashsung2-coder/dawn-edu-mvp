@@ -500,7 +500,14 @@ async function renderHomeBoard() {
       String(t.summary || "").replace(/</g, "&lt;").slice(0, 120) +
       "</p></button>" : "");
   board.querySelectorAll("[data-home-goto]").forEach((b) => {
-    b.onclick = () => gotoTab(b.dataset.homeGoto);
+    b.onclick = () => {
+      if (b.dataset.homeGoto === "learn" && last && last.sid &&
+          typeof resumeBattle === "function") {
+        resumeBattle(last.sid); // 有未完成戰役 → 直接續戰
+      } else {
+        gotoTab(b.dataset.homeGoto);
+      }
+    };
   });
 }
 
