@@ -91,7 +91,7 @@
     { k: "logout", icon: "🚪", label: "登出", danger: true },
   ];
   function buildAcctMenus() {
-    ["flowAcctMenu", "homeAcctMenu"].forEach((mid) => {
+    ["flowAcctMenu", "homeAcctMenu", "tbAcctMenu"].forEach((mid) => {
       const box = $(mid); if (!box) return;
       let html = '<div class="m-head"><b>' + esc(User.name || "旅人") + "</b>" +
         '<span class="small">Lv.' + User.level + " · 曙光旅人</span></div>";
@@ -323,11 +323,26 @@
       $("authErr").textContent = e.message || "登入失敗";
     } finally { $("authGo").disabled = false; }
   };
-  // 頭像點擊：未登入→登入框；已登入→進「家」（hover 選單另由 CSS 處理）
-  ["flowAvatar", "homeAvatar"].forEach((id) => {
-    $(id).addEventListener("click", () => {
-      if (!User.logged) openAuth(); else go("home");
+  // 頭像點擊：未登入→登入框；已登入→toggle 帳戶選單（治卡死）
+  ["flowAvatar", "homeAvatar", "tbAvatar"].forEach((id) => {
+    const av = $(id); if (!av) return;
+    av.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!User.logged) { openAuth(); return; }
+      const menu = av.parentElement.querySelector(".acct-menu");
+      const wasOpen = menu && menu.classList.contains("open");
+      document.querySelectorAll(".acct-menu.open").forEach((m) => m.classList.remove("open"));
+      if (menu && !wasOpen) menu.classList.add("open");
     });
+  });
+  // outside-click + Esc 關閉選單
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".avatar-wrap"))
+      document.querySelectorAll(".acct-menu.open").forEach((m) => m.classList.remove("open"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape")
+      document.querySelectorAll(".acct-menu.open").forEach((m) => m.classList.remove("open"));
   });
 
   /* ---------- 啟動 ---------- */
