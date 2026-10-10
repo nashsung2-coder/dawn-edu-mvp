@@ -277,4 +277,9 @@
 .game-card:hover{ transform:translateY(-3px); border-color:o
 ...[truncated 2144 chars]
 /* app-shell 預設隱藏（gateway 為主首頁），subpage 獨立於 shell 之外 */
-#app-shell.shell-hidden{ display:none; }
+#app-shell.shell-hidden{ display:none !important; }
+#tabbar{ display:none !important; }
+/* 深層頁實色背景（治穿透） */
+.page.subpage{ background:#F4EFE6; }
+.page.subpage[data-panel="cosmos"]{ background:#0B0E2A; color:#EDEFFF; }
+.page.subpage[data-panel="overlay"]{ background:oklch(16% .02 280); color:#EDEFFF; }
