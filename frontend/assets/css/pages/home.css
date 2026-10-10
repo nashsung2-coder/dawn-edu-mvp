@@ -1,0 +1,60 @@
+/* 首頁：左右分屏純入口（zen 左 / neon 右），點擊換頁不做 overlay */
+
+#gateway { display: grid; grid-template-columns: 1fr 44px 1fr; min-height: 100dvh; }
+
+/* 左：禪區 */
+.zone-learn { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); }
+.zone-learn::before {
+  content: ""; position: absolute; inset: 0;
+  background: url("../../img/home-zen-bg.webp") center / cover no-repeat;
+  opacity: .5; pointer-events: none;
+}
+.zone-learn > * { position: relative; }
+
+/* 右：霓虹區 */
+.zone-game { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); }
+.zone-game::before {
+  content: ""; position: absolute; inset: 0;
+  background: url("../../img/home-neon-bg.webp") center / cover no-repeat;
+  opacity: .6; pointer-events: none;
+}
+.zone-game > * { position: relative; }
+
+/* 中線：墨水分界河 */
+#ink-river {
+  position: relative; z-index: var(--z-river);
+  background: linear-gradient(180deg,
+    transparent 0%, #2B262066 30%, #00E5FF44 70%, transparent 100%);
+}
+#ink-river::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(50% 8% at 50% 50%, #00E5FF88, transparent 70%);
+  animation: riverPulse 6s ease-in-out infinite alternate;
+}
+@keyframes riverPulse { from { opacity: .4; } to { opacity: 1; } }
+
+/* 系統卡片 */
+.sys-grid { display: grid; gap: var(--sp-4); margin-top: var(--sp-8); }
+.zone-learn .sys-grid { grid-template-columns: repeat(2, 1fr); }
+.zone-game .sys-grid { grid-template-columns: repeat(2, 1fr); }
+.sys-card { text-align: center; padding: var(--sp-6) var(--sp-4); }
+.sys-card img {
+  width: 96px; height: 96px; object-fit: cover; border-radius: 50%;
+  margin: 0 auto var(--sp-3); border: 2px solid var(--line);
+}
+.sys-card h3 { font-size: var(--fs-16); margin-bottom: var(--sp-1); }
+.sys-card p { font-size: var(--fs-13); color: var(--muted); }
+
+.zone-title { font-size: var(--fs-32); font-weight: 800; letter-spacing: .1em; }
+.zone-sub { color: var(--muted); font-size: var(--fs-14); margin-top: var(--sp-2); }
+
+/* 手機：上下分，橫向河 */
+@media (max-width: 768px) {
+  #gateway { grid-template-columns: 1fr; grid-template-rows: 1fr 44px 1fr; }
+  #ink-river {
+    background: linear-gradient(90deg,
+      transparent 0%, #2B262066 30%, #00E5FF44 70%, transparent 100%);
+  }
+  .zone-learn, .zone-game { padding: var(--sp-8) var(--sp-4); }
+  .sys-card img { width: 72px; height: 72px; }
+}
