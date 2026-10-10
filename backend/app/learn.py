@@ -236,8 +236,19 @@ def feynman_explain(sid: str, user_id: str, explanation: str) -> dict:
             "hint": "覺得講清楚了就可以「完成戰役」授勳；還想再練可以繼續追問。"}
 
 
-def finish_session(sid: str, user_id: str, badge_name: str = "") -> dict:
-    """授勳：鍛造技能章（=武器）＋更新掌握度＋完成會話。"""
+def _rarity_with_debate_bonus(depth: int, debate_score: float | None) -> str:
+    """稀有度：基礎看深度；辯論最高懷疑度平均>=0.8 升一階（上限傳說）。"""
+    rarities = ["普通", "稀有", "史詩", "傳說"]
+    idx = min(3, depth - 1 if depth >= 1 else 0)
+    if debate_score is not None and debate_score >= PERFECT_THRESHOLD:
+        idx = min(3, idx + 1)
+    return rarities[idx]
+
+
+def finish_session(sid: str, user_id: str, badge_name: str = "",
+                   debate_score: float | None = None) -> dict:
+    """授勳：鍛造技能章（=武器）＋更新掌握度＋完成會話。
+    debate_score：辯論最高懷疑度平均（0-1），>=0.8 稀有度升一階。"""
     s = _own_session(sid, user_id)
     if s["status"] == "done":
         raise ValueError("這場戰役已經結束了。")
@@ -256,14 +267,18 @@ def finish_session(sid: str, user_id: str, badge_name: str = "") -> dict:
     # 數值：基礎 10 ＋ 深度×6 ＋ 掌握度×20 ＋ 建構度×15
     attack = int(10 + s["depth_level"] * 6 + mastery * 20 + build_score * 15)
     defense = int(10 + s["depth_level"] * 4 + mastery * 15 + build_score * 10)
+    rarity = _rarity_with_debate_bonus(s["depth_level"], debate_score)
+    archetype, tags = classify_badge(attack, defense, 0.2, rarity)
+    tags_json = json.dumps(tags, ensure_ascii=False)
     bid = "bd_" + uuid.uuid4().hex[:12]
     with db.get_conn() as conn:
         conn.execute(
             "INSERT INTO skill_badges (id, user_id, session_id, name, topic, depth,"
-            " attack, defense, rarity, ai_comment, bond)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.2)",
+            " attack, defense, rarity, ai_comment, bond, archetype, tags)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.2, ?, ?)",
             (bid, user_id, sid, name, s["topic"], s["depth_level"],
-             attack, defense, named["rarity"], named["ai_comment"][:120]),
+             attack, defense, rarity, named["ai_comment"][:120],
+             archetype, tags_json),
         )
         conn.execute(
             "UPDATE topic_mastery SET sessions_count = sessions_count + 1"
@@ -275,13 +290,15 @@ def finish_session(sid: str, user_id: str, badge_name: str = "") -> dict:
         conn.execute(
             "INSERT INTO learn_events (session_id, kind, payload) VALUES (?, 'badge', ?)",
             (sid, json.dumps({"badge_id": bid, "name": name, "attack": attack,
-                              "defense": defense, "rarity": named["rarity"]},
+                              "defense": defense, "rarity": rarity,
+                              "archetype": archetype, "tags": tags,
+                              "debate_score": debate_score},
                              ensure_ascii=False)))
         conn.commit()
     return {"badge": {"id": bid, "name": name, "topic": s["topic"],
                       "depth": s["depth_level"], "attack": attack, "defense": defense,
-                      "rarity": named["rarity"], "ai_comment": named["ai_comment"],
-                      "bond": 0.2},
+                      "rarity": rarity, "ai_comment": named["ai_comment"],
+                      "bond": 0.2, "archetype": archetype, "tags": tags},
             "mastery": round(mastery, 3), "mastered": mastery >= MASTERY_THRESHOLD,
             "llm": named.get("llm", False)}
 
@@ -291,7 +308,12 @@ def list_badges(user_id: str) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM skill_badges WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,)).fetchall()
-    return [_row_to_dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = _row_to_dict(r)
+        d["tags"] = db.jloads(d.get("tags", "[]"), [])
+        out.append(d)
+    return out
 
 
 def get_mastery(user_id: str) -> list[dict]:
@@ -335,3 +357,361 @@ def textbook_chapters(user_id: str) -> list[dict]:
                                    "defense": p.get("defense"), "rarity": p.get("rarity")}
             out.append(ch)
     return out
+
+
+# ---------------- 費曼辯論：動態 1-3 輪 ----------------
+# v2 設計：R1 解釋→AI 挑戰；R2 反駁→AI 評判；R3（可選）終局陳述。
+# 辯論狀態存在 learn_events（kind='debate_round'）。
+
+DEBATE_MIN_LEN = 15
+TAUNT = "這不是你自己理解的話吧？用自己的話再講一次，我等你。"
+PERFECT_THRESHOLD = 0.8
+
+
+def _suspicion_state(avg: float) -> str:
+    """懷疑度狀態映射（明示為即時估計，非考試分數）。"""
+    if avg < 0.35:
+        return "破綻百出"
+    if avg < 0.7:
+        return "逐漸穩固"
+    return "完美防禦"
+
+
+def _suspicion_avg(s: dict) -> float:
+    return round((float(s.get("clarity", 0)) + float(s.get("examples", 0))
+                  + float(s.get("logic", 0))) / 3, 3)
+
+
+def _overlap_ratio(src: str, text: str) -> float:
+    a = {c for c in (src or "") if c.strip() and c not in "，。！？、；：「」『』（） \t\n"}
+    if not a:
+        return 0.0
+    b = set(text or "")
+    return len(a & b) / len(a)
+
+
+def _looks_copied(question: str, text: str, extra: str = "") -> bool:
+    """複製貼上偵測：題目（或上一輪挑戰）被大段原樣貼上。"""
+    t = "".join((text or "").split())
+    for src in (question, extra):
+        s = "".join((src or "").split())
+        if len(s) >= 10 and s[:12] in t:
+            return True
+        if len(s) >= 10 and len(t) >= 10 and _overlap_ratio(s, t) > 0.75:
+            return True
+    return False
+
+
+def _check_debate_input(question: str, text: str, extra: str = "") -> dict | None:
+    """防刷分：通過回傳 None；複製貼上回傳嘲諷（不計分）；太短拋 400。"""
+    text = (text or "").strip()
+    if len(text) < DEBATE_MIN_LEN:
+        raise ValueError(f"再多講一點——至少 {DEBATE_MIN_LEN} 個字，讓 AI 看得出你的思路。")
+    if _looks_copied(question, text, extra):
+        return {"round": 0, "scored": False, "taunt": TAUNT}
+    return None
+
+
+def _debate_history(sid: str) -> list[dict]:
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT payload FROM learn_events WHERE session_id = ? AND kind = 'debate_round'"
+            " ORDER BY id DESC LIMIT 6", (sid,)).fetchall()
+    return [db.jloads(r["payload"], {}) for r in rows]
+
+
+def _last_debate_row(sid: str):
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, payload FROM learn_events WHERE session_id = ? AND kind = 'debate_round'"
+            " ORDER BY id DESC LIMIT 1", (sid,)).fetchone()
+    if not row:
+        return None, None
+    return row["id"], db.jloads(row["payload"], {})
+
+
+def _update_last_debate_event(sid: str, patch: dict) -> None:
+    eid, payload = _last_debate_row(sid)
+    if eid is None:
+        raise ValueError("找不到辯論紀錄。")
+    payload.update(patch)
+    with db.get_conn() as conn:
+        conn.execute("UPDATE learn_events SET payload = ? WHERE id = ?",
+                     (json.dumps(payload, ensure_ascii=False), eid))
+        conn.commit()
+
+
+def _best_debate_avg(sid: str) -> float | None:
+    """辯論歷程中的最高懷疑度平均（影響授勳稀有度加成）。"""
+    avgs = [h.get("avg") for h in _debate_history(sid)]
+    avgs = [a for a in avgs if isinstance(a, (int, float))]
+    return max(avgs) if avgs else None
+
+
+def _public_suspicion(suspicion: dict) -> dict:
+    avg = _suspicion_avg(suspicion)
+    return {"clarity": suspicion.get("clarity", 0),
+            "examples": suspicion.get("examples", 0),
+            "logic": suspicion.get("logic", 0),
+            "avg": avg, "state": _suspicion_state(avg),
+            "note": "即時估計，非考試分數"}
+
+
+def debate_start(sid: str, user_id: str, explanation: str) -> dict:
+    """辯論開戰 R1：用戶解釋 → AI 找出最強漏洞挑戰。
+    懷疑度平均>=0.8 直接完美通關授勳，不硬拖。"""
+    s = _own_session(sid, user_id)
+    if s["status"] == "done":
+        raise ValueError("這場戰役已經結束了。")
+    if s["status"] not in ("quiz", "feynman", "debate"):
+        raise ValueError("請先完成穿插測驗，再來挑戰 AI。")
+    _, last = _last_debate_row(sid)
+    if last:
+        raise ValueError("辯論已經開戰了——請繼續回應，或暫停挑戰。")
+    taunt = _check_debate_input(s["question"], explanation)
+    if taunt:
+        return taunt
+    explanation = explanation.strip()
+    # 補 explanation 事件：finish_session 的 build_score 靠它計算武器數值
+    analysis = llm_mod.analyze_explanation(explanation)
+    log_event(sid, user_id, "explanation",
+              {"text": explanation[:2000],
+               "build_score": analysis.get("build_score", 0.3)})
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT payload FROM learn_events WHERE session_id = ? AND kind = 'ai_feedback'"
+            " ORDER BY id DESC LIMIT 3", (sid,)).fetchall()
+    history = [{"q": db.jloads(r["payload"], {}).get("followup", ""), "a": ""}
+               for r in rows]
+    fb = llm_mod.feynman_feedback(s["question"], explanation, history)
+    ch = llm_mod.debate_challenge(s["question"], explanation, fb)
+    avg = _suspicion_avg(ch["suspicion"])
+    log_event(sid, user_id, "debate_round",
+              {"round": 1, "explanation": explanation[:500],
+               "feedback": fb["feedback"][:500],
+               "challenge": ch["challenge"], "suspicion": ch["suspicion"],
+               "state": _suspicion_state(avg), "avg": avg,
+               "verdict": "pending", "llm": ch["llm"]})
+    _set_status(sid, "debate")
+    base = {"round": 1, "challenge": ch["challenge"],
+            "suspicion": _public_suspicion(ch["suspicion"]),
+            "llm": ch["llm"], "can_continue": True}
+    if avg >= PERFECT_THRESHOLD:
+        base["perfect"] = True
+        base["verdict_text"] = "完美通關"
+        base["finish"] = finish_session(sid, user_id, debate_score=avg)
+    else:
+        base["perfect"] = False
+    return base
+
+
+def debate_respond(sid: str, user_id: str, text: str) -> dict:
+    """回應上一輪挑戰：AI 評判 → 堵住（可選 R3）／追擊（R+1）／終局。"""
+    s = _own_session(sid, user_id)
+    if s["status"] == "done":
+        raise ValueError("這場戰役已經結束了。")
+    _, last = _last_debate_row(sid)
+    if not last:
+        raise ValueError("辯論還沒開戰，請先呼叫 debate/start。")
+    n = int(last.get("round", 1))
+    verdict_prev = last.get("verdict", "pending")
+    text = (text or "").strip()
+    taunt = _check_debate_input(s["question"], text, last.get("challenge", ""))
+    if taunt:
+        return taunt
+    if verdict_prev == "blocked" and n < 3:
+        # R3（可選）：AI 總結雙方論點 → 用戶最後陳述一句 → 終局判定
+        history = _debate_history(sid)
+        summary = llm_mod.debate_summary(s["question"], [
+            {"round": h.get("round"), "challenge": h.get("challenge", ""),
+             "response": h.get("response", ""), "verdict": h.get("verdict", "")}
+            for h in reversed(history)])
+        judge = llm_mod.debate_judge(s["question"], summary, text)
+        log_event(sid, user_id, "debate_round",
+                  {"round": 3, "summary": summary[:500],
+                   "response": text[:500], "verdict": judge["verdict"],
+                   "judge_note": judge["judge_note"],
+                   "suspicion": judge["suspicion"],
+                   "state": _suspicion_state(_suspicion_avg(judge["suspicion"])),
+                   "avg": _suspicion_avg(judge["suspicion"]),
+                   "llm": judge["llm"]})
+        return _debate_final(sid, user_id, judge, n=3)
+    if verdict_prev != "pending":
+        raise ValueError("這一輪已經評判過了——可暫停挑戰直接授勳。")
+    judge = llm_mod.debate_judge(s["question"], last["challenge"], text)
+    verdict = judge["verdict"]
+    avg = _suspicion_avg(judge["suspicion"])
+    _update_last_debate_event(sid, {
+        "response": text[:500], "verdict": verdict,
+        "judge_note": judge["judge_note"], "suspicion": judge["suspicion"],
+        "state": _suspicion_state(avg), "avg": avg})
+    public = {"round": n, "verdict": verdict,
+              "suspicion": _public_suspicion(judge["suspicion"]),
+              "judge_note": judge["judge_note"], "llm": judge["llm"]}
+    if verdict == "blocked" and avg >= PERFECT_THRESHOLD:
+        public["perfect"] = True
+        public["verdict_text"] = "完美通關"
+        public["finish"] = finish_session(sid, user_id,
+                                          debate_score=_best_debate_avg(sid))
+        return public
+    if verdict == "blocked":
+        if n >= 3:
+            return _debate_final(sid, user_id, judge, n=3)
+        public["next_round"] = 3
+        public["optional"] = True
+        public["can_continue"] = True
+        public["hint"] = "漏洞堵住了！可選擇「深入追擊」進 R3 終局，或暫停挑戰直接授勳。"
+        return public
+    # evaded / partial → AI 追擊
+    if n >= 3:
+        return _debate_final(sid, user_id, judge, n=3)
+    ch = llm_mod.debate_challenge(s["question"], text,
+                                  {"feedback": judge["judge_note"]})
+    log_event(sid, user_id, "debate_round",
+              {"round": n + 1, "challenge": ch["challenge"],
+               "verdict": "pending", "llm": ch["llm"]})
+    public.update({"round": n + 1, "challenge": ch["challenge"],
+                   "can_continue": True,
+                   "hint": "AI 追擊——漏洞還沒堵住，再想想。"})
+    return public
+
+
+def debate_appeal(sid: str, user_id: str) -> dict:
+    """申訴：對上一輪已評判結果重判一次（每輪限一次）。v2：判定可申訴一次。"""
+    s = _own_session(sid, user_id)
+    if s["status"] == "done":
+        raise ValueError("這場戰役已經結束了。")
+    _, last = _last_debate_row(sid)
+    if not last or last.get("verdict") in (None, "pending", "conceded"):
+        raise ValueError("還沒有可申訴的判定。")
+    n = int(last.get("round", 1))
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT payload FROM learn_events WHERE session_id = ? AND kind = 'debate_appeal'",
+            (sid,)).fetchall()
+    if any(db.jloads(r["payload"], {}).get("round") == n for r in rows):
+        raise ValueError("這一輪已經申訴過了。")
+    challenge = last.get("challenge") or last.get("summary", "")
+    response = last.get("response") or last.get("explanation", "")
+    judge = llm_mod.debate_judge(s["question"], challenge, response)
+    verdict = judge["verdict"]
+    avg = _suspicion_avg(judge["suspicion"])
+    _update_last_debate_event(sid, {
+        "verdict": verdict, "appealed": True,
+        "judge_note": judge["judge_note"], "suspicion": judge["suspicion"],
+        "state": _suspicion_state(avg), "avg": avg})
+    log_event(sid, user_id, "debate_appeal", {"round": n})
+    public = {"round": n, "verdict": verdict, "appealed": True,
+              "suspicion": _public_suspicion(judge["suspicion"]),
+              "judge_note": judge["judge_note"], "llm": judge["llm"]}
+    if verdict == "blocked" and avg >= PERFECT_THRESHOLD:
+        public["perfect"] = True
+        public["verdict_text"] = "完美通關"
+        public["finish"] = finish_session(sid, user_id,
+                                          debate_score=_best_debate_avg(sid))
+    elif verdict == "blocked" and n < 3:
+        public["next_round"] = 3
+        public["optional"] = True
+        public["can_continue"] = True
+        public["hint"] = "申訴成功——漏洞堵住了！可選擇「深入追擊」進 R3 終局，或暫停挑戰直接授勳。"
+    else:
+        public["hint"] = "重判維持原判——再想想，或暫停挑戰。"
+        public["can_continue"] = True
+    return public
+
+
+def _debate_final(sid: str, user_id: str, judge: dict, n: int) -> dict:
+    """終局：授勳結算。verdict → 說服成功／部分說服／再練練。"""
+    verdict = judge["verdict"]
+    final_text = {"blocked": "說服成功", "partial": "部分說服"}.get(verdict, "再練練")
+    fin = finish_session(sid, user_id, debate_score=_best_debate_avg(sid))
+    return {"round": n, "verdict": verdict, "verdict_text": final_text,
+            "suspicion": _public_suspicion(judge["suspicion"]),
+            "judge_note": judge["judge_note"], "llm": judge["llm"],
+            "finish": fin}
+
+
+def _daily_debate_capped(user_id: str, topic: str) -> bool:
+    """同一 topic 當日完成數 ≥2 → 獎勵封頂（只給回饋不給分）。"""
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM learn_sessions WHERE user_id = ? AND topic = ?"
+            f" AND status = 'done' AND {db.date_col_eq_today('completed_at')}",
+            (user_id, topic)).fetchone()
+    return (row["n"] if row else 0) >= 2
+
+
+def debate_concede(sid: str, user_id: str) -> dict:
+    """暫停挑戰：按已完成輪數給參與獎（每日同 topic 上限 2 次），授勳結算。"""
+    s = _own_session(sid, user_id)
+    if s["status"] == "done":
+        raise ValueError("這場戰役已經結束了。")
+    rounds = _debate_history(sid)
+    if not rounds:
+        raise ValueError("辯論還沒開戰，沒有什麼好暫停的。")
+    # 已完成輪數：用戶有提交內容的輪（R1 解釋即算參與；v2：完成 R1 即給參與獎）
+    completed = sum(1 for r in rounds
+                    if isinstance(r.get("round"), int)
+                    and (r.get("explanation") or r.get("response")))
+    best = _best_debate_avg(sid)
+    capped = _daily_debate_capped(user_id, s["topic"])
+    award = 0
+    if not capped and completed > 0:
+        from app import economy
+        award = completed * 10
+        economy.earn(user_id, award, f"辯論參與獎（{completed} 輪）")
+    fin = finish_session(sid, user_id, debate_score=best)
+    log_event(sid, user_id, "debate_round",
+              {"round": "concede", "verdict": "conceded",
+               "completed_rounds": completed, "participation_award": award,
+               "reward_capped": capped})
+    return {"participation": True, "completed_rounds": completed,
+            "award_starsand": award, "reward_capped": capped,
+            "best_suspicion_avg": best, "finish": fin,
+            "note": "暫停挑戰——費曼的核心是發現盲點，不是輸贏。"}
+
+
+# ---------------- 武器分類＋標籤 ----------------
+
+ARCHETYPES = ("攻擊型", "防禦型", "輔助型", "經濟型")
+
+
+def classify_badge(attack: int, defense: int, bond: float,
+                   rarity: str = "普通") -> tuple[str, list[str]]:
+    """武器主分類＋標籤。
+    主分類：bond>=0.7 且稀有度>=稀有 → 經濟型；否則 attack／defense／bond*100 取最高。
+    標籤（可多個）：史詩以上→連擊；bond>=0.6→續航；attack>=40→吸血；defense>=40→自動觸發。"""
+    attack, defense = int(attack), int(defense)
+    bond = float(bond or 0)
+    if bond >= 0.7 and rarity in ("稀有", "史詩", "傳說"):
+        arch = "經濟型"
+    else:
+        dims = {"攻擊型": attack, "防禦型": defense, "輔助型": bond * 100}
+        arch = max(dims, key=lambda k: dims[k])
+    tags = []
+    if rarity in ("史詩", "傳說"):
+        tags.append("連擊")
+    if bond >= 0.6:
+        tags.append("續航")
+    if attack >= 40:
+        tags.append("吸血")
+    if defense >= 40:
+        tags.append("自動觸發")
+    return arch, tags
+
+
+def backfill_badge_taxonomy() -> int:
+    """回填舊武器的 archetype/tags（冪等）。回傳回填數。"""
+    n = 0
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, attack, defense, bond, rarity FROM skill_badges"
+            " WHERE archetype = '' OR archetype IS NULL").fetchall()
+        for r in rows:
+            arch, tags = classify_badge(r["attack"], r["defense"],
+                                        r["bond"], r["rarity"])
+            conn.execute("UPDATE skill_badges SET archetype = ?, tags = ? WHERE id = ?",
+                         (arch, json.dumps(tags, ensure_ascii=False), r["id"]))
+            n += 1
+        conn.commit()
+    return n
