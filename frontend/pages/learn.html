@@ -3,91 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>學習主控台 - 曙光教育</title>
-<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<title>學習｜曙光教育</title>
+<link rel="stylesheet" href="../assets/css/design-tokens.css">
 <style>
-body { background: #F4EFE6; color: #2B2620; margin: 0; min-height: 100dvh; }
-.wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-.back { color: #8A8175; text-decoration: none; font-size: 14px; }
-/* 問候區 */
-.hero { background: #FBF8F1; border: 1px solid #E2D9C8; border-radius: 16px; padding: 24px; margin: 16px 0; }
-.hero h1 { font-size: 24px; margin: 0 0 8px; }
-.hero .streak { font-size: 15px; color: #B4552D; font-weight: 700; }
-.hero p { color: #8A8175; font-size: 14px; margin: 8px 0 0; }
-/* 行動按鈕 */
-.cta { display: block; background: #B4552D; color: #fff; text-align: center; padding: 18px; border-radius: 12px; font-size: 18px; font-weight: 800; text-decoration: none; margin: 16px 0; }
-.cta small { display: block; font-size: 13px; font-weight: 400; opacity: .85; margin-top: 4px; }
-/* 數據卡 */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
-.stat { background: #FBF8F1; border: 1px solid #E2D9C8; border-radius: 12px; padding: 16px; text-align: center; }
-.stat .num { font-size: 28px; font-weight: 800; color: #B4552D; }
-.stat .label { font-size: 12px; color: #8A8175; margin-top: 4px; }
-/* 功能網格 */
-.sec-title { font-size: 18px; font-weight: 800; margin: 24px 0 12px; }
-.console-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.console-card { display: block; background: #FBF8F1; border: 1px solid #E2D9C8; border-radius: 12px; padding: 20px 12px; text-align: center; text-decoration: none; color: inherit; transition: transform .2s ease; }
-.console-card:hover { transform: translateY(-3px); }
-.console-card img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; margin: 0 auto 8px; display: block; border: 2px solid #E2D9C8; }
-.console-card h3 { font-size: 14px; margin: 0 0 2px; }
-.console-card p { font-size: 11px; color: #8A8175; margin: 0; }
-.badge-dot { display: inline-block; background: #e74c3c; color: #fff; font-size: 11px; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--learn-bg); color: var(--learn-text); font-family: var(--learn-font-sans); min-height: 100dvh; line-height: 1.7; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 48px 32px 120px; }
+/* 頂部 */
+.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 48px; }
+.top .back { color: var(--learn-muted); text-decoration: none; font-size: 14px; }
+.top .date { font-size: 13px; color: var(--learn-muted); letter-spacing: .05em; }
+/* 主標題：襯線大字 */
+.hero h1 { font-family: var(--learn-font-serif); font-size: clamp(32px, 6vw, 48px); font-weight: 400; line-height: 1.3; margin-bottom: 16px; }
+.hero h1 em { font-style: normal; color: var(--learn-accent); }
+.hero .sub { font-size: 15px; color: var(--learn-muted); max-width: 480px; }
+/* 今日：大留白 */
+.today { margin: 64px 0; padding: 48px 0; border-top: 1px solid var(--learn-line); border-bottom: 1px solid var(--learn-line); }
+.today .label { font-size: 12px; letter-spacing: .15em; color: var(--learn-muted); margin-bottom: 24px; text-transform: uppercase; }
+.today .cta { display: block; text-decoration: none; color: inherit; }
+.today .cta .big { font-family: var(--learn-font-serif); font-size: 28px; margin-bottom: 8px; }
+.today .cta .desc { font-size: 14px; color: var(--learn-muted); }
+.today .cta:hover .big { color: var(--learn-accent); }
+/* 數據：極簡 */
+.stats { display: flex; gap: 48px; margin: 48px 0; }
+.stat .num { font-family: var(--learn-font-serif); font-size: 36px; }
+.stat .lbl { font-size: 12px; color: var(--learn-muted); letter-spacing: .08em; margin-top: 4px; }
+/* 功能：文字列表，非卡片 */
+.sec { margin: 64px 0; }
+.sec h2 { font-family: var(--learn-font-serif); font-size: 22px; font-weight: 400; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--learn-line); }
+.func { display: block; padding: 20px 0; border-bottom: 1px solid var(--learn-line); text-decoration: none; color: inherit; transition: padding-left .2s ease; }
+.func:hover { padding-left: 12px; }
+.func .t { font-size: 17px; font-weight: 600; }
+.func .d { font-size: 14px; color: var(--learn-muted); margin-top: 4px; }
+.func .arrow { float: right; color: var(--learn-muted); }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <a class="back" href="../desktop.html">← 返回首頁</a>
-  <div id="l-dash">
-    <div class="hero">
-      <h1 id="l-greet">早安！</h1>
-      <div class="streak" id="l-streak">載入中…</div>
-      <p id="l-tip"></p>
-    </div>
-    <a class="cta" href="quiz.html" id="l-cta">
-      開始今日學習
-      <small id="l-cta-sub">AI 會幫你選最該做的</small>
-    </a>
-    <div class="stats">
-      <div class="stat"><div class="num" id="l-review">–</div><div class="label">到期複習</div></div>
-      <div class="stat"><div class="num" id="l-stardust">–</div><div class="label">星砂</div></div>
-      <div class="stat"><div class="num" id="l-char">–</div><div class="label">我的角色</div></div>
-    </div>
+  <div class="top">
+    <a class="back" href="../desktop.html">‹ 返回</a>
+    <span class="date" id="l-date"></span>
   </div>
-  <h2 class="sec-title">學習功能</h2>
-  <div class="console-grid">
-    <a class="console-card" href="quiz.html"><img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy"><h3>費曼戰役</h3><p>解釋 · 辯論</p></a>
-    <a class="console-card" href="review.html"><img src="../assets/img/emblem-review.webp?v=3.0.0" alt="" loading="lazy"><h3>複習任務<span class="badge-dot" id="l-review-badge" hidden></span></h3><p>間隔重複</p></a>
-    <a class="console-card" href="library.html"><img src="../assets/img/emblem-library.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>圖書館</h3><p>探索 · 建庫</p></a>
-    <a class="console-card" href="feynman.html"><img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>費曼說服</h3><p>說服 AI</p></a>
-    <a class="console-card" href="mastery.html"><img src="../assets/img/emblem-mastery.webp?v=3.0.0" alt="" loading="lazy"><h3>掌握度</h3><p>進度 · 弱項</p></a>
-    <a class="console-card" href="bookshelf.html"><img src="../assets/img/emblem-bookshelf.webp?v=3.0.0" alt="" loading="lazy"><h3>我的書架</h3><p>課本 · 戰績</p></a>
-    <a class="console-card" href="favorites.html"><img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy"><h3>藏書閣</h3><p>收藏</p></a>
-    <a class="console-card" href="knowledge.html"><img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>知識網絡</h3><p>共享節點</p></a>
-    <a class="console-card" href="character.html"><img src="../assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>角色</h3><p>能力加成</p></a>
+  <div class="hero">
+    <h1>今天，<em>學什麼？</em></h1>
+    <p class="sub">題目是新聞標題，引發你的好奇；真正的學習，從你提出第一個問題開始。</p>
+  </div>
+  <div class="today">
+    <div class="label">Today</div>
+    <a class="cta" href="quiz.html" id="l-cta">
+      <div class="big" id="l-cta-title">開始今日學習</div>
+      <div class="desc" id="l-cta-desc">從一個問題出發</div>
+    </a>
+  </div>
+  <div class="stats" id="l-stats">
+    <div class="stat"><div class="num" id="s-review">–</div><div class="lbl">待複習</div></div>
+    <div class="stat"><div class="num" id="s-points">–</div><div class="lbl">星砂</div></div>
+    <div class="stat"><div class="num" id="s-streak">–</div><div class="lbl">連續天數</div></div>
+  </div>
+  <div class="sec">
+    <h2>學習方式</h2>
+    <div id="l-funcs"></div>
   </div>
 </div>
+<script src="../assets/js/core/nav.js"></script>
 <script type="module">
-import { get } from "../assets/js/core/api.js";
-import { isLoggedIn } from "../assets/js/core/auth.js";
-const h = new Date().getHours();
-document.getElementById("l-greet").textContent = h < 12 ? "早安！" : h < 18 ? "午安！" : "晚安！";
+import { get } from "../core/api.js";
+import { isLoggedIn } from "../core/auth.js";
+// 日期
+document.getElementById('l-date').textContent = new Date().toLocaleDateString('zh-TW', {month:'long', day:'numeric', weekday:'long'});
+// 功能列表
+const funcs = [
+  { href: 'quiz.html', t: '費曼戰役', d: '用自己的話說服 AI，真正理解才算過關' },
+  { href: 'duel.html', t: '知識對決', d: '與他人一較高下，在競爭中學習' },
+  { href: 'review.html', t: '複習', d: 'SM-2 間隔重複，記得更牢' },
+  { href: 'explore.html', t: '圖書館探索', d: '閱讀與提問，解鎖知識武器' },
+  { href: 'library.html', t: '知識庫', d: '建立你的知識網絡' },
+];
+document.getElementById('l-funcs').innerHTML = funcs.map(f =>
+  `<a class="func" href="${f.href}"><span class="arrow">→</span><div class="t">${f.t}</div><div class="d">${f.d}</div></a>`
+).join('');
+// 數據
 if (isLoggedIn()) {
-  get("/dashboard").then(d => {
-    const streak = d.streak || 0;
-    document.getElementById("l-streak").textContent =
-      streak > 0 ? `已連續學習 ${streak} 天` : "今天開始累積連續天數吧！";
-    document.getElementById("l-tip").textContent =
-      streak >= 7 ? "太棒了！保持這個節奏。" : "每天 15 分鐘，就能保住連續紀錄。";
-    const due = d.review_due || 0;
-    document.getElementById("l-review").textContent = due;
-    if (due > 0) {
-      const b = document.getElementById("l-review-badge");
-      b.hidden = false; b.textContent = due;
-      document.getElementById("l-cta-sub").textContent = `有 ${due} 題到期複習，先搞定它們`;
-      document.getElementById("l-cta").href = "review.html";
+  get('/dashboard').then(d => {
+    document.getElementById('s-review').textContent = d.due_review ?? 0;
+    document.getElementById('s-points').textContent = d.points ?? 0;
+    document.getElementById('s-streak').textContent = d.streak ?? 0;
+    if ((d.due_review ?? 0) > 0) {
+      document.getElementById('l-cta-title').textContent = `複習 ${d.due_review} 個知識點`;
+      document.getElementById('l-cta-desc').textContent = '記憶需要及時鞏固';
+      document.getElementById('l-cta').href = 'review.html';
     }
-    document.getElementById("l-stardust").textContent = d.stardust ?? 0;
-    document.getElementById("l-char").textContent = d.character?.name || "未選";
   }).catch(() => {});
+} else {
+  document.getElementById('l-stats').style.display = 'none';
 }
 </script>
 </body>
