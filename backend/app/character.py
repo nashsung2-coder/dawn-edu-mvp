@@ -95,28 +95,12 @@ def set_user_character(user_id: str, character_id: str) -> dict:
     """設定用戶角色。"""
     if character_id not in CHARACTERS:
         raise ValueError(f"未知的角色「{character_id}」。")
+    ph = "%s" if db.is_postgres() else "?"
     with db.get_conn() as conn:
-        # 確保欄位存在
-        try:
-            ph = "%s" if db.is_postgres() else "?"
-            conn.execute(
-                f"UPDATE users SET character_id = {ph} WHERE id = {ph}",
-                (character_id, user_id))
-            conn.commit()
-        except Exception:
-            # 欄位不存在，先加
-            if db.is_postgres():
-                conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS character_id TEXT DEFAULT ''")
-            else:
-                try:
-                    conn.execute("ALTER TABLE users ADD COLUMN character_id TEXT DEFAULT ''")
-                except Exception:
-                    pass
-            ph = "%s" if db.is_postgres() else "?"
-            conn.execute(
-                f"UPDATE users SET character_id = {ph} WHERE id = {ph}",
-                (character_id, user_id))
-            conn.commit()
+        conn.execute(
+            f"UPDATE users SET character_id = {ph} WHERE id = {ph}",
+            (character_id, user_id))
+        conn.commit()
     return {"ok": True, "character": {"id": character_id, **CHARACTERS[character_id]}}
 
 

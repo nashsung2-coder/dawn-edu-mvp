@@ -239,6 +239,7 @@ CREATE TABLE IF NOT EXISTS users (
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
     tier TEXT NOT NULL DEFAULT 'basic',
+    character_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -693,6 +694,7 @@ CREATE TABLE IF NOT EXISTS users (
     points INTEGER NOT NULL DEFAULT 0,
     inventory TEXT NOT NULL DEFAULT '{}',
     tier TEXT NOT NULL DEFAULT 'basic',
+    character_id TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
