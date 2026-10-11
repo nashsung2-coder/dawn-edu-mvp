@@ -945,6 +945,20 @@ def feynman_app_challenge(body: AppChallengeIn, request: Request):
     return {"ok": True, "challenge": llm_mod.generate_application_challenge(body.topic, body.explanation)}
 
 
+class ThinkingGapIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    user_answer: str = Field(min_length=1, max_length=2000)
+    correct_answer: str = Field(min_length=1, max_length=2000)
+
+
+@app.post("/api/v1/learn/thinking-gap", summary="此念有隙：答錯時的思考斷裂分析")
+def learn_thinking_gap(body: ThinkingGapIn, request: Request):
+    _current_user(request)
+    from app import llm as llm_mod
+    return {"ok": True, "analysis": llm_mod.analyze_thinking_gap(
+        body.question, body.user_answer, body.correct_answer)}
+
+
 # ---------------- 角色系統 ----------------
 
 @app.get("/api/v1/characters", summary="角色列表")

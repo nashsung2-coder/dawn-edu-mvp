@@ -696,3 +696,34 @@ def generate_application_challenge(topic: str, explanation: str) -> dict:
         "task": "用生活中的例子，把這個概念講清楚。",
         "hints": ["想想這個概念在哪裡出現過", "用比喻會更容易理解"],
     }
+
+
+def analyze_thinking_gap(question: str, user_answer: str, correct_answer: str) -> dict:
+    """此念有隙：分析答錯時的思考斷裂點，不顯示紅叉而是顯示思考路徑分析。"""
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是學習診斷師。學生答錯了一題，不要責備，而是分析他的思考路徑在哪裡斷裂。"
+                        "用繁體中文，回傳 JSON：{\"thinking_path\": \"學生的思考路徑描述（80字內）\", "
+                        "\"gap_point\": \"斷裂點分析：混淆了什麼概念（80字內）\", "
+                        "\"correct_logic\": \"正確的邏輯鏈（100字內）\", "
+                        "\"example_fix\": \"用具體例子說明正確理解（80字內）\"}。"
+                        "語氣要溫柔、鼓勵，像在陪他一起找答案。只回 JSON。"},
+            {"role": "user", "content": f"題目：{question}\n學生的答案：{user_answer}\n正確答案：{correct_answer}"},
+        ]
+        out = _nim_call(msgs, max_tokens=800, temperature=0.5)
+        if out:
+            try:
+                import json as js
+                start = out.find("{")
+                end = out.rfind("}") + 1
+                if start >= 0 and end > start:
+                    return js.loads(out[start:end])
+            except Exception:
+                pass
+    return {
+        "thinking_path": "你從題目出發，嘗試用已知的概念去套，但中間有個關鍵連結沒接上。",
+        "gap_point": "可能混淆了兩個相似但不同的概念，建議回頭看看它們的定義差異。",
+        "correct_logic": "先釐清每個概念的定義，再看它們之間的因果關係，就能找到正確答案。",
+        "example_fix": "試著舉一個生活中的例子，把抽象概念具體化。",
+    }
