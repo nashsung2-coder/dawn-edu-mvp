@@ -79,20 +79,49 @@ def rename_pet(user_id: str, name: str) -> dict:
 
 
 PET_INTERACTIONS = {
-    "feed": {"mood": 15, "exp": 10, "text": "餵食了星砂餅乾，寵物很開心！"},
+    "feed": {"mood": 15, "exp": 10, "text": "餵食了星砂餅乾，寵物很開心！",
+             "requires": "pet_food", "consume": 1},
     "play": {"mood": 20, "exp": 15, "text": "陪寵物玩耍，羈絆加深了！"},
     "pat": {"mood": 10, "exp": 5, "text": "摸摸寵物的頭，它發出滿足的呼嚕聲。"},
 }
 
+# 寵物食物：可在市集購買，有庫存上限
+PET_FOOD = {
+    "pet_food": {"name": "星砂餅乾", "cost": 5, "max_stack": 99,
+                 "desc": "寵物最愛的零食，餵食+15心情。"},
+}
+
 
 def interact_pet(user_id: str, action: str) -> dict:
-    """寵物互動：餵食/玩耍/摸頭，提升心情與經驗。"""
+    """寵物互動：餵食/玩耍/摸頭，提升心情與經驗。
+    
+    餵食需要消耗星砂餅乾（庫存不足時報錯）。
+    """
+    import json as _json
     if action not in PET_INTERACTIONS:
         raise ValueError(f"未知的互動：{action}")
     pet = get_pet(user_id)
     if not pet:
         raise ValueError("你還沒有寵物，先去孵化吧。")
     cfg = PET_INTERACTIONS[action]
+    # 檢查並消耗所需物品（如星砂餅乾）
+    if "requires" in cfg:
+        req = cfg["requires"]
+        need = cfg.get("consume", 1)
+        with db.get_conn() as conn:
+            row = conn.execute(
+                "SELECT inventory FROM users WHERE id = ?", (user_id,)).fetchone()
+            inv = db.jloads(row["inventory"] if isinstance(row, dict) else row[0], {})
+            have = inv.get(req, 0)
+            if have < need:
+                food_name = PET_FOOD.get(req, {}).get("name", req)
+                raise ValueError(f"星砂餅乾不足（需要 {need}，目前 {have}）。去市集買一點吧！")
+            inv[req] = have - need
+            if inv[req] <= 0:
+                del inv[req]
+            conn.execute("UPDATE users SET inventory = ? WHERE id = ?",
+                         (_json.dumps(inv, ensure_ascii=False), user_id))
+            conn.commit()
     mood = min(100, pet["mood"] + cfg["mood"])
     p = pet_gain_exp(user_id, cfg["exp"], f"互動：{action}")
     with db.get_conn() as conn:
@@ -101,6 +130,36 @@ def interact_pet(user_id: str, action: str) -> dict:
     p = get_pet(user_id)
     p["interaction_text"] = cfg["text"]
     return p
+
+
+def buy_pet_food(user_id: str, qty: int = 1) -> dict:
+    """購買星砂餅乾（有庫存上限 99）。"""
+    import json as _json
+    from app import economy as economy_mod
+    if qty < 1 or qty > 10:
+        raise ValueError("一次最多買 10 個。")
+    food = PET_FOOD["pet_food"]
+    total_cost = food["cost"] * qty
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT points, inventory FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            raise KeyError("user not found")
+        points = row["points"] if isinstance(row, dict) else row[0]
+        inv_raw = row["inventory"] if isinstance(row, dict) else row[1]
+        inv = db.jloads(inv_raw, {})
+        if (points or 0) < total_cost:
+            raise ValueError(f"星砂不足（需要 {total_cost}，目前 {points or 0}）。")
+        current = inv.get("pet_food", 0)
+        if current + qty > food["max_stack"]:
+            raise ValueError(f"星砂餅乾已達上限（{food['max_stack']} 個）。")
+        inv["pet_food"] = current + qty
+        conn.execute(
+            "UPDATE users SET points = points - ?, inventory = ? WHERE id = ?",
+            (total_cost, _json.dumps(inv, ensure_ascii=False), user_id))
+        conn.commit()
+    return {"ok": True, "qty": qty, "total_cost": total_cost,
+            "pet_food": inv["pet_food"], "points": (points or 0) - total_cost}
 
 
 # ---------------- 島嶼與建築 ----------------

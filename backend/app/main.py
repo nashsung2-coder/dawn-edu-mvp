@@ -298,6 +298,16 @@ def game_state(request: Request):
     return {"ok": True, **economy.get_state(user["id"])}
 
 
+@app.get("/api/v1/game/shop", summary="武器商店目錄（含即時價格）")
+def game_shop():
+    """回傳武器目錄，前端不得寫死價格。"""
+    return {"ok": True, "weapons": [
+        {"id": k, "name": v["name"], "cost": v["cost"],
+         "type": v["type"], "desc": v["desc"]}
+        for k, v in economy.WEAPONS.items()
+    ]}
+
+
 @app.post("/api/v1/game/earn", summary="獲得星砂")
 def game_earn(body: EarnIn, request: Request):
     user = _current_user(request)
@@ -880,6 +890,30 @@ def world_pet_interact(body: PetInteractIn, request: Request):
         return {"ok": True, "pet": world_mod.interact_pet(user["id"], body.action)}
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+class PetFoodBuyIn(BaseModel):
+    qty: int = Field(default=1, ge=1, le=10, description="購買數量（1-10）")
+
+
+@app.post("/api/v1/world/pet/food/buy", summary="購買星砂餅乾")
+def world_pet_food_buy(body: PetFoodBuyIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, **world_mod.buy_pet_food(user["id"], body.qty)}
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/world/pet/food", summary="寵物食物資訊")
+def world_pet_food_info(request: Request):
+    user = _current_user(request)
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT inventory FROM users WHERE id = ?", (user["id"],)).fetchone()
+    inv = db.jloads(row["inventory"] if isinstance(row, dict) else row[0], {}) if row else {}
+    return {"ok": True, "food": world_mod.PET_FOOD["pet_food"],
+            "owned": inv.get("pet_food", 0)}
 
 
 class IslandIn(BaseModel):
