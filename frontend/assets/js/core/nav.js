@@ -18,8 +18,9 @@
   var html = '';
   zones.forEach(function(z) {
     var href = z.href;
-    // 路徑修正：在 pages/ 下用相對路徑
-    if (path.indexOf('/pages/') === -1) href = z.href.replace('pages/', '');
+    // 路徑修正：在 pages/ 目錄下，連結用相對路徑（去掉 pages/ 前綴）
+    if (path.indexOf('/pages/') !== -1) href = z.href.replace('pages/', '');
+    // 不在 pages/ 下（如首頁），保持 pages/ 前綴
     var active = path.indexOf(z.href.split('/').pop().replace('.html','')) !== -1 ? ' active' : '';
     html += '<a href="' + href + '" data-zone="' + z.id + '" class="' + active.trim() + '">'
       + '<span class="ni">' + z.icon + '</span><span>' + z.label + '</span></a>';
