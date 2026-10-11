@@ -842,6 +842,46 @@ def review_stats(request: Request):
     return {"ok": True, **review_mod.review_stats(user["id"])}
 
 
+# ---------------- 知識節點倉庫 ----------------
+
+class KnowledgeNodeIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    answer: str = Field(default="", max_length=2000)
+    explanation: str = Field(default="", max_length=5000)
+    concepts: list[str] = Field(default_factory=list)
+    source: str = Field(default="review")
+    is_public: bool = Field(default=True)
+
+
+@app.post("/api/v1/knowledge/nodes", summary="從題目建立知識節點")
+def knowledge_create(body: KnowledgeNodeIn, request: Request):
+    user = _current_user(request)
+    from app import knowledge as kn_mod
+    return kn_mod.create_node(
+        user["id"], body.question, body.answer, body.explanation,
+        body.concepts, body.source, body.is_public)
+
+
+@app.get("/api/v1/knowledge/nodes", summary="瀏覽公開知識節點")
+def knowledge_list(concept: str = Query(""), limit: int = Query(30, ge=1, le=100)):
+    from app import knowledge as kn_mod
+    return {"ok": True, "nodes": kn_mod.list_public(limit, concept)}
+
+
+@app.get("/api/v1/knowledge/nodes/mine", summary="我的知識節點")
+def knowledge_mine(request: Request):
+    user = _current_user(request)
+    from app import knowledge as kn_mod
+    return {"ok": True, "nodes": kn_mod.list_mine(user["id"])}
+
+
+@app.post("/api/v1/knowledge/nodes/{node_id}/upvote", summary="按讚知識節點")
+def knowledge_upvote(node_id: str, request: Request):
+    _current_user(request)
+    from app import knowledge as kn_mod
+    return kn_mod.upvote(node_id)
+
+
 # ---------------- 分級 ----------------
 @app.get("/api/v1/tier", summary="我的方案")
 def get_my_tier(request: Request):
