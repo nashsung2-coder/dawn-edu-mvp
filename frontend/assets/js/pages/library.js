@@ -37,6 +37,14 @@ async function renderHome() {
     const mine = libs.filter(l => l.owner_id && l.is_owner !== false && isMine(l));
 
     view.innerHTML = `
+      <div class="l-banner">
+        <img src="../assets/img/emblem-library.webp?v=3.0.0" alt="知識星海圖書館" loading="lazy">
+        <div class="l-banner-text">
+          <h2>知識星海圖書館</h2>
+          <p>探索他人的知識庫，用你的擅長建立自己的庫</p>
+        </div>
+      </div>
+
       ${recs.length ? `
       <section class="l-stars" aria-label="興趣星辰">
         <h2>興趣星辰</h2>
