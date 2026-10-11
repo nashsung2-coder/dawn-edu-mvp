@@ -11,12 +11,30 @@ const view = document.getElementById("m-view");
 const walletEl = document.getElementById("m-wallet");
 const IMG = "../assets/img/game";
 
-/* 武器商店品項：id / 名稱 / 價格（2026-10-10 實測後端價格）/ 效果 */
-const SHOP_ITEMS = [
-  { id: "dart",   name: "星塵飛鏢", desc: "迅捷的單體攻擊，對決中先手加成", price: 20, icon: "🗡️" },
-  { id: "wave",   name: "潮汐巨浪", desc: "範圍傷害，適合據點攻防",       price: 20, icon: "🌊" },
-  { id: "shield", name: "曙光護盾", desc: "抵擋一次傷害，關鍵時刻保命",   price: 30, icon: "🛡️" },
-];
+/* 武器商店品項：從後端 /game/shop 即時取得，零寫死價格 */
+let SHOP_ITEMS = [];
+const SHOP_ICONS = { dart: "🗡️", wave: "🌊", shield: "🛡️" };
+
+async function loadShopItems() {
+  try {
+    const r = await get("/game/shop");
+    const weapons = r.weapons || r.data?.weapons || [];
+    if (weapons.length) {
+      SHOP_ITEMS = weapons.map(w => ({
+        id: w.id, name: w.name, desc: w.desc,
+        price: w.cost, icon: SHOP_ICONS[w.id] || "📦",
+      }));
+      return;
+    }
+  } catch (e) { /* 掉回預設 */ }
+  // 後端取不到時的保底（會在 console 警告）
+  console.warn("[market] 無法從後端取得商店目錄，使用保底價格");
+  SHOP_ITEMS = [
+    { id: "dart", name: "星塵飛鏢", desc: "迅捷的單體攻擊", price: 20, icon: "🗡️" },
+    { id: "wave", name: "潮汐巨浪", desc: "範圍傷害", price: 50, icon: "🌊" },
+    { id: "shield", name: "曙光護盾", desc: "抵擋一次傷害", price: 30, icon: "🛡️" },
+  ];
+}
 
 /* 注入商店風樣式（只用裸名 token） */
 function ensureStyle() {
@@ -360,6 +378,7 @@ async function useWeapon(itemId, btn) {
   }
   view.innerHTML = skeleton(200);
   try {
+    await loadShopItems();  // 先從後端拿即時價格
     await renderAll();
   } catch (e) {
     view.innerHTML = `<div class="state-error">

@@ -118,6 +118,18 @@ function renderNoPet() {
 }
 
 /* ---- 有靈獸：狀態 ＋ 互動 ＋ 改名 ---- */
+async function loadFoodCount() {
+  try {
+    const r = await get("/world/pet/food");
+    const owned = r.owned ?? r.data?.owned ?? 0;
+    const el = document.getElementById("p-food-count");
+    if (el) el.textContent = `${owned} 個`;
+  } catch (e) {
+    const el = document.getElementById("p-food-count");
+    if (el) el.textContent = "未知";
+  }
+}
+
 function renderPet(bubbleText) {
   const pet = PET;
   const mood = Number(pet.mood);
@@ -167,6 +179,10 @@ function renderPet(bubbleText) {
             <span style="font-size:24px" aria-hidden="true">${c.icon}</span><br>${c.label}</button>`
         ).join("")}
       </div>
+      <div id="p-food-row" style="margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:12px;text-align:center">
+        <span style="font-size:14px">🍪 星砂餅乾：<strong id="p-food-count">載入中…</strong></span>
+        <button class="btn btn-ghost" id="p-buy-food" style="margin-left:8px;font-size:13px;padding:6px 12px">買 1 個（5 星砂）</button>
+      </div>
     </div>
 
     <div class="card p-rename">
@@ -184,6 +200,19 @@ function renderPet(bubbleText) {
   view.querySelectorAll(".p-act").forEach(btn => {
     btn.onclick = () => interact(btn.dataset.act, btn);
   });
+
+  /* 星砂餅乾：顯示庫存＋購買 */
+  loadFoodCount();
+  document.getElementById("p-buy-food").onclick = async () => {
+    try {
+      const r = await post("/world/pet/food/buy", { qty: 1 });
+      const count = r.pet_food ?? r.data?.pet_food ?? 0;
+      document.getElementById("p-food-count").textContent = `${count} 個`;
+      toast(`購買成功！星砂餅乾 ${count} 個（-5 星砂）`);
+    } catch (e) {
+      toast(`購買失敗：${e.message}`);
+    }
+  };
 
   document.getElementById("p-rename-btn").onclick = async () => {
     const name = document.getElementById("p-newname").value.trim();
