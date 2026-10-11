@@ -349,6 +349,69 @@ def game_state(request: Request):
     return {"ok": True, **economy.get_state(user["id"])}
 
 
+@app.get("/api/v1/dashboard", summary="主控台儀表板數據")
+def dashboard(request: Request):
+    """學習+遊戲主控台需要的汇总數據。"""
+    from app import character as char_mod
+    user = _current_user(request)
+    uid = user["id"]
+    ph = "%s" if db.is_postgres() else "?"
+    out = {"ok": True}
+    with db.get_conn() as conn:
+        # 星砂
+        try:
+            st = economy.get_state(uid)
+            out["stardust"] = st.get("points", 0)
+        except Exception:
+            out["stardust"] = 0
+        # 複習到期數
+        try:
+            r = conn.execute(
+                f"SELECT COUNT(*) as c FROM review_cards WHERE user_id = {ph} AND next_review_at <= datetime('now')"
+                if not db.is_postgres() else
+                f"SELECT COUNT(*) as c FROM review_cards WHERE user_id = {ph} AND next_review_at <= NOW()",
+                (uid,)).fetchone()
+            out["review_due"] = (r["c"] if isinstance(r, dict) else r[0]) if r else 0
+        except Exception:
+            out["review_due"] = 0
+        # 角色
+        try:
+            out["character"] = char_mod.get_user_character(uid)
+        except Exception:
+            out["character"] = None
+        # 寵物
+        try:
+            from app import world as world_mod
+            pet = world_mod.get_pet(uid)
+            out["pet"] = {"name": pet.get("name"), "level": pet.get("level", 1)} if pet else None
+        except Exception:
+            out["pet"] = None
+        # 連續天數（用 learn_sessions 的日期去重計算）
+        try:
+            rows = conn.execute(
+                f"SELECT DISTINCT date(created_at) as d FROM learn_sessions WHERE user_id = {ph} ORDER BY d DESC LIMIT 30"
+                if not db.is_postgres() else
+                f"SELECT DISTINCT date(created_at) as d FROM learn_sessions WHERE user_id = {ph} ORDER BY d DESC LIMIT 30",
+                (uid,)).fetchall()
+            dates = [r["d"] if isinstance(r, dict) else r[0] for r in rows]
+            streak = 0
+            from datetime import date, timedelta
+            today = date.today()
+            for i, d in enumerate(dates):
+                ds = str(d)[:10]
+                expected = (today - timedelta(days=i)).isoformat()
+                if ds == expected:
+                    streak += 1
+                elif i == 0 and ds == (today - timedelta(days=1)).isoformat():
+                    streak += 1  # 昨天有，今天還沒
+                else:
+                    break
+            out["streak"] = streak
+        except Exception:
+            out["streak"] = 0
+    return out
+
+
 @app.get("/api/v1/game/shop", summary="武器商店目錄（含即時價格）")
 def game_shop():
     """回傳武器目錄，前端不得寫死價格。"""
