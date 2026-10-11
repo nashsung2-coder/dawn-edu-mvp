@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app import auth as auth_mod
 from app import db
 from app import economy
+from app import kb as kb_mod
 from app import learn as learn_mod
 from app import llm as llm_mod
 from app import world as world_mod
@@ -1075,6 +1076,126 @@ def world_attr_spend(body: AttrSpendIn, request: Request):
                                            body.points, body.route)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
+
+
+# ---------------- 知識庫 ----------------
+
+class KBLibraryIn(BaseModel):
+    title: str = Field(description="庫名")
+    description: str = Field(default="", description="簡介")
+    visibility: str = Field(default="public", description="public/private")
+    tags: list[str] = Field(default_factory=list, description="標籤")
+
+
+class KBLibraryUpdateIn(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+    tags: list[str] | None = None
+
+
+class KBPageIn(BaseModel):
+    title: str = Field(description="頁面標題")
+    content: str = Field(default="", description="Markdown 內容")
+
+
+class KBPageUpdateIn(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    sort_order: int | None = None
+
+
+@app.get("/api/v1/kb/libraries", summary="探索知識庫")
+def kb_list(request: Request, search: str = Query(""), tag: str = Query(""),
+            limit: int = Query(50, le=100)):
+    user = _current_user(request)
+    return {"ok": True, "libraries": kb_mod.list_libraries(
+        viewer_id=user["id"], limit=limit, search=search, tag=tag)}
+
+
+@app.post("/api/v1/kb/libraries", summary="建立知識庫")
+def kb_create(body: KBLibraryIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "library": kb_mod.create_library(
+            user["id"], body.title, body.description, body.visibility, body.tags)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/kb/libraries/{lib_id}", summary="知識庫詳情")
+def kb_detail(lib_id: str, request: Request):
+    user = _current_user(request)
+    lib = kb_mod.get_library(lib_id, user["id"])
+    if not lib:
+        raise HTTPException(404, "找不到這個庫。")
+    return {"ok": True, "library": lib}
+
+
+@app.patch("/api/v1/kb/libraries/{lib_id}", summary="更新知識庫")
+def kb_update(lib_id: str, body: KBLibraryUpdateIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "library": kb_mod.update_library(
+            user["id"], lib_id, body.title, body.description,
+            body.visibility, body.tags)}
+    except (KeyError, PermissionError) as e:
+        raise HTTPException(400 if isinstance(e, KeyError) else 403, str(e))
+
+
+@app.delete("/api/v1/kb/libraries/{lib_id}", summary="刪除知識庫")
+def kb_delete(lib_id: str, request: Request):
+    user = _current_user(request)
+    try:
+        kb_mod.delete_library(user["id"], lib_id)
+        return {"ok": True}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+
+
+@app.post("/api/v1/kb/libraries/{lib_id}/pages", summary="新增頁面")
+def kb_page_add(lib_id: str, body: KBPageIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "page": kb_mod.add_page(
+            user["id"], lib_id, body.title, body.content)}
+    except (PermissionError, ValueError) as e:
+        raise HTTPException(403 if isinstance(e, PermissionError) else 400, str(e))
+
+
+@app.get("/api/v1/kb/pages/{page_id}", summary="頁面詳情")
+def kb_page_get(page_id: str, request: Request):
+    user = _current_user(request)
+    page = kb_mod.get_page(page_id, user["id"])
+    if not page:
+        raise HTTPException(404, "找不到這個頁面。")
+    return {"ok": True, "page": page}
+
+
+@app.patch("/api/v1/kb/pages/{page_id}", summary="更新頁面")
+def kb_page_update(page_id: str, body: KBPageUpdateIn, request: Request):
+    user = _current_user(request)
+    try:
+        return {"ok": True, "page": kb_mod.update_page(
+            user["id"], page_id, body.title, body.content, body.sort_order)}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+
+
+@app.delete("/api/v1/kb/pages/{page_id}", summary="刪除頁面")
+def kb_page_delete(page_id: str, request: Request):
+    user = _current_user(request)
+    try:
+        kb_mod.delete_page(user["id"], page_id)
+        return {"ok": True}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+
+
+@app.get("/api/v1/kb/recommend", summary="興趣星辰：AI 推薦")
+def kb_recommend(request: Request, limit: int = Query(6, le=12)):
+    user = _current_user(request)
+    return {"ok": True, "libraries": kb_mod.recommend_libraries(user["id"], limit)}
 
 
 @app.get("/", summary="健康檢查")

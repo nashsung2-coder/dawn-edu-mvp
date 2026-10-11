@@ -376,6 +376,31 @@ CREATE TABLE IF NOT EXISTS review_cards (
 CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
     ON review_cards(user_id, next_review_at);
 
+-- 知識庫（貢獻/圖書館）MVP
+CREATE TABLE IF NOT EXISTS kb_libraries (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    visibility TEXT NOT NULL DEFAULT 'public',
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_kblib_owner ON kb_libraries(owner_id);
+CREATE INDEX IF NOT EXISTS idx_kblib_vis ON kb_libraries(visibility, updated_at);
+
+CREATE TABLE IF NOT EXISTS kb_pages (
+    id TEXT PRIMARY KEY,
+    library_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_kbpage_lib ON kb_pages(library_id, sort_order);
+
 -- 題庫快取：LLM 生成的題目存起來，下次同主題直接用（解決 35 秒等待）
 CREATE TABLE IF NOT EXISTS question_cache (
     id TEXT PRIMARY KEY,
@@ -662,6 +687,31 @@ CREATE TABLE IF NOT EXISTS review_cards (
 );
 CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
     ON review_cards(user_id, next_review_at);
+
+-- 知識庫（Postgres 版）
+CREATE TABLE IF NOT EXISTS kb_libraries (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    visibility TEXT NOT NULL DEFAULT 'public',
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_kblib_owner ON kb_libraries(owner_id);
+CREATE INDEX IF NOT EXISTS idx_kblib_vis ON kb_libraries(visibility, updated_at);
+
+CREATE TABLE IF NOT EXISTS kb_pages (
+    id TEXT PRIMARY KEY,
+    library_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_kbpage_lib ON kb_pages(library_id, sort_order);
 
 -- 題庫快取（Postgres 版）
 CREATE TABLE IF NOT EXISTS question_cache (
