@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>遊戲主控台 - 曙光教育</title>
+<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<style>
+body { background: #0B0E2A; color: #EAF6FF; margin: 0; min-height: 100dvh; }
+.console-head { padding: 32px 24px 16px; max-width: 900px; margin: 0 auto; }
+.console-head a { color: #8B93C9; text-decoration: none; font-size: 14px; }
+.console-head h1 { font-size: 32px; margin: 8px 0 4px; }
+.console-head p { color: #8B93C9; margin: 0; }
+.console-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px; padding: 16px 24px 48px; max-width: 900px; margin: 0 auto;
+}
+.console-card {
+  display: block; background: #12163A; border: 1px solid #23264F;
+  border-radius: 16px; padding: 24px 16px; text-align: center;
+  text-decoration: none; color: inherit;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.console-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,229,255,.2); }
+.console-card img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin: 0 auto 12px; display: block; border: 2px solid #23264F; }
+.console-card h3 { font-size: 16px; margin: 0 0 4px; }
+.console-card p { font-size: 12px; color: #8B93C9; margin: 0; }
+</style>
+</head>
+<body>
+<div class="console-head">
+  <a href="../desktop.html">← 返回首頁</a>
+  <h1>遊戲主控台</h1>
+  <p>指揮官，你的艦隊在等你。</p>
+</div>
+<div class="console-grid">
+  <a class="console-card" href="island.html">
+    <img src="../assets/img/emblem-island.webp?v=3.0.0" alt="" loading="lazy">
+    <h3>島嶼世界</h3><p>開疆拓土 · 家園</p>
+  </a>
+  <a class="console-card" href="explore.html">
+    <img src="../assets/img/emblem-explore.webp?v=3.0.0" alt="" loading="lazy">
+    <h3>探索冒險</h3><p>未知領域 · 寶藏</p>
+  </a>
+  <a class="console-card" href="market.html">
+    <img src="../assets/img/emblem-market.webp?v=3.0.0" alt="" loading="lazy">
+    <h3>星際市集</h3><p>交易 · 星砂錢包</p>
+  </a>
+  <a class="console-card" href="duel.html">
+    <img src="../assets/img/emblem-duel.webp?v=3.0.0" alt="" loading="lazy">
+    <h3>知識對決</h3><p>1v1 · 武器對戰</p>
+  </a>
+  <a class="console-card" href="pet.html">
+    <img src="../assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy">
+    <h3>靈獸夥伴</h3><p>培養 · 互動</p>
+  </a>
+  <a class="console-card" href="radar.html">
+    <img src="../assets/img/emblem-radar.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
+    <h3>三維雷達</h3><p>掃描 · 發現</p>
+  </a>
+</div>
+</body>
+</html>
