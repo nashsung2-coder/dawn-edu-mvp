@@ -378,7 +378,7 @@ function bindPortal() {
       const isl = r.island || {};
       const pet = r.pet;
       resultDiv.innerHTML = `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;text-align:left;background:var(--bg-soft)">
-        <h4 style="margin:0 0 8px">🏝️ ${escapeHtml(r.host_name)} 的島嶼</h4>
+        <h4 style="margin:0 0 8px">${escapeHtml(r.host_name)} 的島嶼</h4>
         <p style="margin:4px 0;font-size:14px">島名：${escapeHtml(isl.name || "無名島")}</p>
         <p style="margin:4px 0;font-size:14px">領土：${escapeHtml(String(isl.territory ?? 0))} 單位</p>
         ${pet ? `<p style="margin:4px 0;font-size:14px">靈獸：${escapeHtml(pet.name || "無名")}（${escapeHtml(pet.species || "")} Lv.${pet.level || 1}）</p>` : ""}

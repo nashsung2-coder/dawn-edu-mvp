@@ -13,9 +13,9 @@ const userline = document.getElementById("p-userline");
 
 /* 後端 world.py PET_INTERACTIONS 的真實數值（樂觀更新用同一份） */
 const INTERACTIONS = {
-  feed: { icon: "🍖", label: "餵食", mood: 15, exp: 10, text: "餵食了星砂餅乾，寵物很開心！" },
-  play: { icon: "🎮", label: "玩耍", mood: 20, exp: 15, text: "陪寵物玩耍，羈絆加深了！" },
-  pat:  { icon: "👋", label: "摸頭", mood: 10, exp: 5,  text: "摸摸寵物的頭，它發出滿足的呼嚕聲。" },
+  feed: { icon: "", label: "餵食", mood: 15, exp: 10, text: "餵食了星砂餅乾，寵物很開心！" },
+  play: { icon: "", label: "玩耍", mood: 20, exp: 15, text: "陪寵物玩耍，羈絆加深了！" },
+  pat:  { icon: "", label: "摸頭", mood: 10, exp: 5,  text: "摸摸寵物的頭，它發出滿足的呼嚕聲。" },
 };
 
 function escapeHtml(s) {
@@ -108,7 +108,7 @@ function renderNoPet() {
       const pet = r.pet || r.data || r;
       if (!pet || !pet.id) throw new Error("後端未回傳靈獸資料");
       PET = pet;
-      toast(`孵化成功！${pet.name} 誕生了 🎉`);
+      toast(`孵化成功！${pet.name} 誕生了！`);
       announce(`孵化成功！${pet.name} 加入了你的小屋`);
       renderPet();
     } catch (e) {
@@ -139,7 +139,7 @@ function renderPet(bubbleText) {
 
   view.innerHTML = `<div class="p-pet">
     ${bubbleText
-      ? `<div class="p-bubble" role="status" aria-live="polite" style="display:inline-block;padding:10px 18px;border:1px solid var(--line);border-radius:16px;background:var(--card);margin-bottom:12px;font-size:14px">💬 ${escapeHtml(bubbleText)}</div>`
+      ? `<div class="p-bubble" role="status" aria-live="polite" style="display:inline-block;padding:10px 18px;border:1px solid var(--line);border-radius:16px;background:var(--card);margin-bottom:12px;font-size:14px">${escapeHtml(bubbleText)}</div>`
       : `<div class="p-bubble" id="p-bubble-slot" style="visibility:hidden;display:inline-block;padding:10px 18px;margin-bottom:12px" aria-hidden="true">·</div>`}
     <div><img src="${petImg(lv)}" alt="靈獸（${petStageName(lv)}）" class="p-pet-img"
       style="width:170px;height:170px;object-fit:cover;border-radius:50%;border:2px solid var(--line);margin:0 auto 12px;display:block"></div>
@@ -180,7 +180,7 @@ function renderPet(bubbleText) {
         ).join("")}
       </div>
       <div id="p-food-row" style="margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:12px;text-align:center">
-        <span style="font-size:14px">🍪 星砂餅乾：<strong id="p-food-count">載入中…</strong></span>
+        <span style="font-size:14px">星砂餅乾：<strong id="p-food-count">載入中…</strong></span>
         <button class="btn btn-ghost" id="p-buy-food" style="margin-left:8px;font-size:13px;padding:6px 12px">買 1 個（5 星砂）</button>
       </div>
     </div>

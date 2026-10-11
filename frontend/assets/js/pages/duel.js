@@ -39,7 +39,7 @@ function arenaHero(subtitle) {
       onerror="this.style.display='none'">
     <div style="position:relative;padding:36px 20px 28px;text-align:center;
         background:linear-gradient(180deg,rgba(12,7,26,.35) 0%,rgba(12,7,26,.88) 100%)">
-      <p style="color:#ffd97a;letter-spacing:6px;font-size:12px;margin:0 0 8px">⚔ KNOWLEDGE DUEL ⚔</p>
+      <p style="color:#ffd97a;letter-spacing:6px;font-size:12px;margin:0 0 8px">KNOWLEDGE DUEL</p>
       <h2 style="color:#fff;font-size:26px;margin:0 0 8px;text-shadow:0 2px 12px rgba(0,0,0,.6)">知識對決</h2>
       <p style="color:#e8ddf5;font-size:14px;margin:0">${subtitle}</p>
     </div>
@@ -80,7 +80,7 @@ async function renderLanding() {
 
   view.innerHTML = arenaHero("在共同領域一決高下，勝者贏得星砂與榮耀") + `
     <div class="card" style="margin-bottom:16px;border:1px solid var(--line)">
-      <h2 style="margin-top:0">🛡 選擇對決領域</h2>
+      <h2 style="margin-top:0">選擇對決領域</h2>
       <p style="color:var(--muted);font-size:13px;margin:0 0 4px">只能用你已佔領的標籤開戰（對手也必須擁有該標籤）</p>
       <div role="radiogroup" aria-label="對決領域"
         style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px">` +
@@ -94,7 +94,7 @@ async function renderLanding() {
       ).join("") + `</div>
     </div>
     <div class="card" style="margin-bottom:16px">
-      <h2 style="margin-top:0">🎯 指定對手</h2>
+      <h2 style="margin-top:0">指定對手</h2>
       <input id="d-opponent" type="text" placeholder="對手的使用者 ID（例如 u_xxxx）"
         aria-label="對手使用者 ID" autocomplete="off"
         style="width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font-size:15px">
@@ -161,7 +161,7 @@ function renderVS(duelId, me, opponentId, tag, questions) {
       background:linear-gradient(135deg,rgba(20,12,40,.92),rgba(60,30,90,.92));
       border:1px solid ${side === "left" ? "#4da3ff" : "#ff5a5a"}">
       <div style="font-size:12px;letter-spacing:3px;color:var(--muted)">
-        ${side === "left" ? "🔵 挑戰者" : "🔴 應戰者"}</div>
+        ${side === "left" ? "挑戰者" : "應戰者"}</div>
       <div style="font-size:18px;font-weight:800;color:#fff;margin:6px 0;overflow:hidden;text-overflow:ellipsis">${escapeHtml(name)}</div>
       <div style="font-size:13px;color:#d9cdf0">${sub}</div>
     </div>`;
@@ -182,7 +182,7 @@ function renderVS(duelId, me, opponentId, tag, questions) {
     <button class="btn btn-primary" id="d-enter"
       style="width:100%;padding:16px;font-size:17px;font-weight:800;letter-spacing:3px;
       background:linear-gradient(135deg,#b8860b,#ffd97a);border:none;color:#2a1a05;cursor:pointer">
-      🥊 進入第 1 回合
+      進入第 1 回合
     </button>`;
 
   document.getElementById("d-enter").onclick = () =>
@@ -293,7 +293,7 @@ function renderResult(r, total, tag) {
         ? `<p style="color:#a8e6a3;font-size:13px;margin:12px 0 0">✓ 對決已結算</p>`
         : `<p style="color:var(--muted);font-size:13px;margin:12px 0 0">等待對手作答後結算</p>`}
     </div>` +
-    (feedback.length ? `<h2 style="margin:0 0 12px">📜 逐回合回顧</h2>` +
+    (feedback.length ? `<h2 style="margin:0 0 12px">逐回合回顧</h2>` +
       feedback.map(fb => `
         <div class="card" style="margin-bottom:12px;
           border-left:5px solid ${fb.correct ? "#4caf50" : "#f44336"}">

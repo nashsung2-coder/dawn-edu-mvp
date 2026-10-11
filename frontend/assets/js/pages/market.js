@@ -22,7 +22,7 @@ async function loadShopItems() {
     if (weapons.length) {
       SHOP_ITEMS = weapons.map(w => ({
         id: w.id, name: w.name, desc: w.desc,
-        price: w.cost, icon: SHOP_ICONS[w.id] || "📦",
+        price: w.cost, target_label: w.target_label, use_hint: w.use_hint,
       }));
       return;
     }
@@ -106,8 +106,8 @@ function renderBanner() {
   walletEl.innerHTML = `<div class="m-banner">
     <img src="${IMG}/market-street.webp?v=3.0.0" alt="星際市集街道" loading="lazy">
     <div class="m-banner-wallet">
-      <span class="m-label">🪙 我的星砂</span>
-      <span class="m-coins">✦ ${fmt(walletPts)}</span>
+      <span class="m-label">我的星砂</span>
+      <span class="m-coins">${fmt(walletPts)} 星砂</span>
     </div>
   </div>`;
 }
@@ -142,19 +142,19 @@ async function renderAll() {
       <div id="m-market">${skeleton()}</div>
     </section>
     <section aria-label="我的上架">
-      <div class="m-sec-title"><h2>📦 我的上架</h2><span class="m-count" id="m-count-mine"></span></div>
+      <div class="m-sec-title"><h2>我的上架</h2><span class="m-count" id="m-count-mine"></span></div>
       <div id="m-mine">${skeleton(80)}</div>
     </section>
     <section aria-label="上架物品">
-      <div class="m-sec-title"><h2>🛒 上架物品</h2></div>
+      <div class="m-sec-title"><h2>上架物品</h2></div>
       <div id="m-listform">${skeleton(120)}</div>
     </section>
     <section aria-label="武器商店">
-      <div class="m-sec-title"><h2>⚔️ 武器商店</h2><span class="m-count">常駐</span></div>
+      <div class="m-sec-title"><h2>武器商店</h2><span class="m-count">常駐</span></div>
       <div id="m-shop" class="m-cards"></div>
     </section>
     <section aria-label="我的武器庫">
-      <div class="m-sec-title"><h2>🎒 我的武器庫</h2></div>
+      <div class="m-sec-title"><h2>我的武器庫</h2></div>
       <div id="m-inv">${skeleton(80)}</div>
     </section>`;
   await loadMe();
@@ -356,10 +356,11 @@ function renderInventory(inventory) {
   el.innerHTML = `<div class="m-cards">` + entries.map(([id, n]) => {
     const m = meta[id] || {};
     return `<div class="m-card">
-      <div class="m-icon" aria-hidden="true">${m.icon || "🎒"}</div>
       <h3>${escapeHtml(m.name || id)}</h3>
       <p class="m-seller">數量 × ${n}</p>
       ${m.desc ? `<p class="m-desc">${escapeHtml(m.desc)}</p>` : ""}
+      ${m.target_label ? `<p class="m-target" style="font-size:12px;color:var(--accent)">${escapeHtml(m.target_label)}</p>` : ""}
+      ${m.use_hint ? `<p class="m-hint" style="font-size:12px;color:var(--muted)">${escapeHtml(m.use_hint)}</p>` : ""}
       <button class="btn btn-ghost" data-use="${escapeHtml(id)}">使用一個</button>
     </div>`;
   }).join("") + `</div>`;
