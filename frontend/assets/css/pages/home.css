@@ -42,7 +42,38 @@
 .sys-grid { display: grid; gap: var(--sp-4); margin-top: var(--sp-8); }
 .zone-learn .sys-grid { grid-template-columns: repeat(2, 1fr); }
 .zone-game .sys-grid { grid-template-columns: repeat(2, 1fr); }
-.sys-card { text-align: center; padding: var(--sp-6) var(--sp-4); }
+.sys-card {
+  text-align: center; padding: var(--sp-6) var(--sp-4);
+  /* 進場動畫 */
+  opacity: 0; transform: translateY(20px);
+  animation: cardEnter .5s ease-out forwards;
+  /* hover 回饋 */
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.sys-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+.sys-card:active {
+  transform: scale(.97);
+}
+/* 交錯延遲 */
+.sys-grid .sys-card:nth-child(1) { animation-delay: .05s; }
+.sys-grid .sys-card:nth-child(2) { animation-delay: .1s; }
+.sys-grid .sys-card:nth-child(3) { animation-delay: .15s; }
+.sys-grid .sys-card:nth-child(4) { animation-delay: .2s; }
+.sys-grid .sys-card:nth-child(5) { animation-delay: .25s; }
+.sys-grid .sys-card:nth-child(6) { animation-delay: .3s; }
+.sys-grid .sys-card:nth-child(7) { animation-delay: .35s; }
+.sys-grid .sys-card:nth-child(8) { animation-delay: .4s; }
+@keyframes cardEnter {
+  to { opacity: 1; transform: translateY(0); }
+}
+/* 減少動態偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .sys-card { opacity: 1; transform: none; animation: none; }
+  .ink-river::after { animation: none; }
+}
 .sys-card img {
   width: 96px; height: 96px; object-fit: cover; border-radius: 50%;
   margin: 0 auto var(--sp-3); border: 2px solid var(--line);
