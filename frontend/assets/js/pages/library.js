@@ -160,6 +160,15 @@ async function renderDetail(libId) {
       const exp = er.exploration || {};
       const prog = Math.round(exp.progress || 0);
       const milestones = exp.milestones || [];
+      // 算還差多少到下一級
+      let nextHint = "";
+      for (const m of milestones) {
+        if (prog < m.threshold) {
+          const need = Math.ceil((m.threshold - prog) / 8); // 每頁 8%
+          nextHint = `再讀約 ${need} 頁可達「${m.label}」`;
+          break;
+        }
+      }
       expHtml = `<div class="l-explore" style="margin:16px 0;padding:16px;background:var(--surface);border-radius:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <strong>探索進度</strong><span>${prog}%</span>
@@ -169,6 +178,7 @@ async function renderDetail(libId) {
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
           已讀 ${exp.pages_read || 0} 頁 · 提問 ${exp.questions_asked || 0} 次
+          ${nextHint ? ` · <span style="color:var(--accent)">${nextHint}</span>` : " · 已達最高級！"}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${milestones.map(m => `

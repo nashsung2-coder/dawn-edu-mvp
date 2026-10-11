@@ -204,12 +204,19 @@ function renderMarket(listings) {
     const price = l.price ?? 0;
     const seller = l.seller || l.seller_name || "—";
     const kind = l.trade_kind === "barter" ? `以物易物：${escapeHtml(l.want_text || "詳談")}` : "";
+    // 武器等級預覽
+    const isWeapon = l.item_type === "weapon";
+    const lvHtml = isWeapon && l.weapon_level ? `
+      <p class="m-desc" style="color:var(--accent)">
+        ${escapeHtml(l.weapon_name || "")} Lv.${l.weapon_level}
+        → 購買後降為 Lv.${l.weapon_level_after}
+      </p>` : "";
     return `<div class="m-card" data-card="${escapeHtml(String(lid))}">
-      <div class="m-icon" aria-hidden="true">🏷️</div>
       <h3>${escapeHtml(listingName(l))}</h3>
       <p class="m-seller">賣家 ${escapeHtml(seller)}</p>
       ${kind ? `<p class="m-desc">${kind}</p>` : ""}
-      <p class="m-price">✦ ${fmt(price)}</p>
+      ${lvHtml}
+      <p class="m-price">${fmt(price)} 星砂</p>
       <button class="btn btn-primary" data-buy="${escapeHtml(String(lid))}" data-price="${price}">購買</button>
     </div>`;
   }).join("") + `</div>`;
