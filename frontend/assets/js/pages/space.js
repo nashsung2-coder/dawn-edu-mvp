@@ -2,7 +2,13 @@
    伺服器只給座標/HP/攻擊資訊，所有畫面由前端本地渲染。 */
 import { get, post } from "../core/api.js";
 import { isLoggedIn } from "../core/auth.js";
-import { toast } from "../core/a11y.js";
+// toast 本地實現，避免 a11y.js 依賴問題
+function toast(msg) {
+  try {
+    const el = document.getElementById("sp-toast");
+    if (el) { el.textContent = msg; el.hidden = false; setTimeout(() => el.hidden = true, 2500); }
+  } catch(e) {}
+}
 
 const canvas = document.getElementById("sp-canvas");
 const ctx = canvas.getContext("2d");
