@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>未知之境 - 曙光教育</title>
+<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<style>
+body { background: #050510; color: #EAF6FF; margin: 0; overflow: hidden; }
+#sp-wrap { position: fixed; inset: 0; }
+#sp-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+#sp-hud { position: fixed; top: 0; left: 0; right: 0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; z-index: 10; }
+#sp-hud > * { pointer-events: auto; }
+#sp-hud .back { color: #8B93C9; text-decoration: none; font-size: 14px; background: rgba(11,14,42,.8); padding: 8px 16px; border-radius: 8px; }
+#sp-coords { font-size: 12px; color: #8B93C9; background: rgba(11,14,42,.8); padding: 8px 12px; border-radius: 8px; }
+#sp-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(11,14,42,.95); border-top: 1px solid #23264F; padding: 16px; z-index: 10; max-height: 40vh; overflow-y: auto; }
+#sp-panel[hidden] { display: none; }
+#sp-panel h3 { margin: 0 0 8px; font-size: 16px; }
+#sp-panel p { font-size: 13px; color: #8B93C9; margin: 0 0 12px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+#sp-toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(11,14,42,.95); border: 1px solid #00E5FF; padding: 10px 20px; border-radius: 8px; z-index: 20; font-size: 14px; }
+#sp-toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div id="sp-wrap"><canvas id="sp-canvas"></canvas></div>
+<div id="sp-hud">
+  <a class="back" href="game.html">← 返回</a>
+  <div id="sp-coords">x: 5000, y: 5000</div>
+</div>
+<div id="sp-toast" hidden></div>
+<div id="sp-panel" hidden></div>
+<script type="module" src="../assets/js/pages/space.js?v=3.0.0"></script>
+</body>
+</html>

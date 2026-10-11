@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>太空對戰 - 曙光教育</title>
+<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<style>
+body { background: #050510; color: #EAF6FF; margin: 0; overflow: hidden; }
+#bt-wrap { position: fixed; inset: 0; }
+#bt-canvas { display: block; width: 100%; height: 100%; }
+#bt-hud { position: fixed; top: 0; left: 0; right: 0; padding: 12px; display: flex; justify-content: space-between; z-index: 10; }
+.hp-bar { width: 200px; }
+.hp-bar .name { font-size: 13px; margin-bottom: 4px; }
+.hp-bar .track { background: #23264F; border-radius: 999px; height: 14px; overflow: hidden; }
+.hp-bar .fill { height: 100%; border-radius: 999px; transition: width .5s ease; }
+#bt-actions { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px; display: flex; gap: 12px; justify-content: center; z-index: 10; background: rgba(11,14,42,.9); }
+#bt-log { position: fixed; top: 70px; right: 12px; width: 220px; max-height: 40vh; overflow-y: auto; font-size: 12px; color: #8B93C9; z-index: 10; }
+</style>
+</head>
+<body>
+<div id="bt-wrap"><canvas id="bt-canvas"></canvas></div>
+<div id="bt-hud">
+  <div class="hp-bar"><div class="name" id="bt-p1-name">我</div><div class="track"><div class="fill" id="bt-p1-hp" style="width:100%;background:#00E5FF"></div></div></div>
+  <a href="space.html" style="color:#8B93C9;text-decoration:none;font-size:13px">✕ 離開</a>
+  <div class="hp-bar" style="text-align:right"><div class="name" id="bt-p2-name">對手</div><div class="track"><div class="fill" id="bt-p2-hp" style="width:100%;background:#ff6b6b"></div></div></div>
+</div>
+<div id="bt-log"></div>
+<div id="bt-actions">
+  <button class="btn btn-primary" id="bt-atk" style="padding:14px 32px;font-size:16px">攻擊</button>
+</div>
+<script type="module" src="../assets/js/pages/space-battle.js?v=3.0.0"></script>
+</body>
+</html>
