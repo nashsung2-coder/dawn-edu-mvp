@@ -114,8 +114,19 @@ async function renderHome() {
       };
     }
   } catch (e) {
-    view.innerHTML = `<div class="state-error"><p>載入失敗：${escapeHtml(e.message)}</p>
+    // 友善錯誤訊息 + 自動重試一次（Render 可能在休眠喚醒）
+    var msg = e.message || '';
+    var friendly = msg.includes('Failed to fetch') || msg.includes('Network')
+      ? '連線有點慢，正在重試…'
+      : '載入失敗：' + msg;
+    view.innerHTML = `<div class="state-error"><p>${escapeHtml(friendly)}</p>
       <button class="btn btn-primary" onclick="location.reload()">重試</button></div>`;
+    // 自動重試一次
+    setTimeout(function() {
+      if (view.innerHTML.indexOf('連線有點慢') !== -1) {
+        renderHome();
+      }
+    }, 3000);
   }
 }
 
@@ -428,13 +439,50 @@ function escInline(s) {
 /* ---- 新增/編輯頁面 ---- */
 
 async function addPageUI(libId) {
-  const title = prompt("頁面標題：");
-  if (!title || !title.trim()) return;
-  try {
-    await post(`/kb/libraries/${libId}/pages`, { title: title.trim(), content: "" });
-    toast("已新增頁面，點進去開始寫吧！");
-    renderDetail(libId);
-  } catch (e) { toast(`新增失敗：${e.message}`); }
+  // 用 modal 代替 prompt（手機友善）
+  var title = null;
+  // 建立臨時 modal
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = '<div style="background:#fff;border-radius:12px;padding:20px;max-width:400px;width:100%">'
+    + '<h3 style="margin:0 0 12px">新增頁面</h3>'
+    + '<input id="lp-title" type="text" placeholder="頁面標題" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px">'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    + '<button id="lp-cancel" style="padding:10px 20px;border:1px solid #ddd;background:#fff;border-radius:8px">取消</button>'
+    + '<button id="lp-ok" style="padding:10px 20px;border:none;background:#1a1a1a;color:#fff;border-radius:8px">新增</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  
+  return new Promise(function(resolve) {
+    var input = overlay.querySelector('#lp-title');
+    input.focus();
+    overlay.querySelector('#lp-cancel').onclick = function() {
+      document.body.removeChild(overlay);
+      resolve();
+    };
+    overlay.querySelector('#lp-ok').onclick = async function() {
+      title = input.value.trim();
+      if (!title) { input.focus(); return; }
+      var btn = overlay.querySelector('#lp-ok');
+      btn.disabled = true; btn.textContent = '新增中…';
+      try {
+        await post("/kb/libraries/" + libId + "/pages", { title: title, content: "" });
+        document.body.removeChild(overlay);
+        toast("已新增頁面，點進去開始寫吧！");
+        renderDetail(libId);
+      } catch (e) {
+        toast("新增失敗：" + e.message);
+        btn.disabled = false; btn.textContent = '新增';
+      }
+      resolve();
+    };
+    overlay.onclick = function(e) {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+        resolve();
+      }
+    };
+  });
 }
 
 async function editPageUI(pageId) {
@@ -541,15 +589,21 @@ function openModal(title, lib = null, onOk = null) {
     };
     if (!data.title) { toast("庫名不能為空"); return; }
     if (onOk) { onOk(data); return; }
-    // 預設：建立
+    // 預設：建立（防止重複點擊）
+    okBtn.disabled = true;
+    okBtn.textContent = "建立中…";
     try {
       const r = await post("/kb/libraries", data);
       const newLib = r.library || r.data?.library;
-      toast(`「${data.title}」建立成功！`);
       closeModal();
+      toast(`「${data.title}」建立成功！`);
       if (newLib?.id) renderDetail(newLib.id);
       else renderHome();
     } catch (e) { toast(`建立失敗：${e.message}`); }
+    finally {
+      okBtn.disabled = false;
+      okBtn.textContent = "建立";
+    }
   };
   document.getElementById("l-m-title").focus();
 }
