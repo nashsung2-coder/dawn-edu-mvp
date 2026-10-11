@@ -98,6 +98,10 @@
 /* 中央區主題 */
 .theme-center {
   --bg: #FAFAF8;
+  --bg-soft: #F0EDE6;
   --ink: #1a1a1a;
   --muted: #6b6b6b;
+  --line: #E0DCD4;
+  --accent: #B4552D;
+  --card: #FFFFFF;
 }
