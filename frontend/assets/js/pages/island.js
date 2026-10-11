@@ -11,23 +11,24 @@ const view = document.getElementById("i-view");
 const sub = document.getElementById("i-sub");
 
 /* ---- 真實獎勵表（後端 game.py EXPAND_ACTIONS + ACTION_RESOURCE_REWARD，curl 實測驗證） ---- */
+/* 設計：不用 emoji 圖示，用文字＋留白，乾淨為主 */
 const EXPAND_ACTIONS = [
-  { key: "complete_topic", icon: "🌱", label: "完成主題", desc: "完成一個學習主題",
+  { key: "complete_topic", label: "完成主題", desc: "完成一個學習主題",
     reward: "領土 +1.0 · 好奇種子 ×1 · 星砂 ×10", delta: 1.0 },
-  { key: "fix_myth", icon: "👁️", label: "破除迷思", desc: "修正一個錯誤觀念",
+  { key: "fix_myth", label: "破除迷思", desc: "修正一個錯誤觀念",
     reward: "領土 +1.0 · 觀察之眼 ×1 · 星砂 ×10", delta: 1.0 },
-  { key: "ask_question", icon: "❓", label: "提出好問題", desc: "提出一個新問題",
+  { key: "ask_question", label: "提出好問題", desc: "提出一個新問題",
     reward: "領土 +0.5 · 好奇種子 ×1 · 星砂 ×10", delta: 0.5 },
-  { key: "complete_quest", icon: "⚔️", label: "完成任務", desc: "完成一個任務委託",
+  { key: "complete_quest", label: "完成任務", desc: "完成一個任務委託",
     reward: "領土 +2.0 · 變因齒輪 ×1 · 心流之泉 ×1 · 星砂 ×10", delta: 2.0 },
-  { key: "co_study", icon: "🤝", label: "共學", desc: "與夥伴完成共修任務",
+  { key: "co_study", label: "共學", desc: "與夥伴完成共修任務",
     reward: "領土 +1.5 · 連結之網 ×1 · 星砂 ×10", delta: 1.5 },
 ];
 
 const BUILDINGS = [
-  { type: "圖書館", icon: "📚", desc: "加速文獻理解：測驗前可多看一次提示" },
-  { type: "訓練場", icon: "🏋️", desc: "提升武器默契成長速度" },
-  { type: "瞭望塔", icon: "🗼", desc: "探索加成：劇情選項多一條線索" },
+  { type: "圖書館", desc: "加速文獻理解：測驗前可多看一次提示" },
+  { type: "訓練場", desc: "提升武器默契成長速度" },
+  { type: "瞭望塔", desc: "探索加成：劇情選項多一條線索" },
 ];
 const BUILD_MAX = 5;
 
@@ -161,7 +162,7 @@ function dashboardHtml() {
         `<span style="${S.tag};cursor:default">${escapeHtml(k)} ×${escapeHtml(String(v))}</span>`).join("")
     : `<span style="${S.muted};font-size:13px">開疆拓土可獲得資源</span>`;
   return `<div class="card" style="${S.card}">
-    <h2 style="margin:0 0 4px">🏝️ ${escapeHtml(st.name || "無名島")}</h2>
+    <h2 style="margin:0 0 4px">${escapeHtml(st.name || "無名島")}</h2>
     <p style="font-size:28px;font-weight:700;margin:4px 0" aria-label="領土">
       ${escapeHtml(String(st.territory ?? 0))} <span style="font-size:14px;font-weight:400;color:var(--muted)">單位領土</span></p>
     <div aria-label="今日開拓進度">
@@ -180,7 +181,7 @@ function questsHtml() {
   const used = Number(st?.used_today) || 0;
   const cap = Number(st?.daily_cap) || 5;
   return `<div class="card" style="${S.card}">
-    <h3 style="margin-top:0">⚔️ 開疆拓土</h3>
+    <h3 style="margin-top:0">開疆拓土</h3>
     <p style="${S.muted};font-size:13px;margin:0">選一個學習行動，島嶼立即擴張。點下去馬上有效果！</p>
     <div style="${S.questGrid}" role="group" aria-label="開疆任務">` +
     EXPAND_ACTIONS.map(a => {
@@ -189,10 +190,9 @@ function questsHtml() {
         ${capped || !st ? "disabled" : ""}
         aria-label="${a.label}：${a.reward}${capped ? "（今日額度已滿）" : ""}"
         style="${S.questCard}${capped || !st ? ";opacity:.45" : ""}">
-        <span style="font-size:28px" aria-hidden="true">${a.icon}</span>
         <strong style="font-size:15px">${a.label}</strong>
         <span style="font-size:12px;${S.muted}">${a.desc}</span>
-        <span style="font-size:12px;color:var(--accent,#4f8cff)">🎁 ${a.reward}</span>
+        <span style="font-size:12px;color:var(--accent,#4f8cff)">${a.reward}</span>
         ${capped ? `<span style="font-size:12px;color:var(--muted)">今日額度已滿</span>` : ""}
       </button>`;
     }).join("") + `</div></div>`;
@@ -202,7 +202,7 @@ function buildSlotsHtml() {
   const named = ST.named;
   if (!named.length) {
     return `<div class="card" style="${S.card}">
-      <h3 style="margin-top:0">🏗️ 建築</h3>
+      <h3 style="margin-top:0">建築</h3>
       <p style="${S.muted};font-size:13px">還沒有命名的島嶼。先到下方「我的島嶼」命名一座，才能蓋建築。</p>
     </div>`;
   }
@@ -211,7 +211,7 @@ function buildSlotsHtml() {
   const built = {};
   (isl.buildings || []).forEach(b => { built[b.btype] = Number(b.level) || 0; });
   return `<div class="card" style="${S.card}">
-    <h3 style="margin-top:0">🏗️ 建築</h3>
+    <h3 style="margin-top:0">建築</h3>
     <label for="i-build-island" style="${S.label}">選擇島嶼</label>
     <select id="i-build-island" style="${S.select}" aria-label="選擇島嶼">
       ${named.map(it => `<option value="${escapeHtml(it.id)}" ${it.id === isl.id ? "selected" : ""}>${escapeHtml(it.name || "無名島")}</option>`).join("")}
@@ -224,7 +224,6 @@ function buildSlotsHtml() {
       const pips = Array.from({ length: BUILD_MAX }, (_, i) =>
         `<span aria-hidden="true" style="color:${i < lv ? "var(--accent,#4f8cff)" : "var(--line)"}">●</span>`).join("");
       return `<div style="border:1px solid var(--line);border-radius:14px;padding:12px">
-        <div style="font-size:28px" aria-hidden="true">${b.icon}</div>
         <strong>${b.type}</strong>
         <span style="font-size:12px;${S.muted}"> Lv.${lv}/${BUILD_MAX}</span>
         <div aria-label="${b.type}等級 ${lv}" style="font-size:10px;letter-spacing:2px">${pips}</div>
@@ -244,11 +243,11 @@ function tagsHtml() {
     ? ST.tagCloud.map(t => {
         const on = occupied.has(t.code);
         return `<button style="${S.tag}${on ? ";" + S.tagOn : ""}" data-tag="${escapeHtml(t.code)}"
-          aria-pressed="${on}" title="${escapeHtml(t.dim)}">${on ? "★ " : ""}${escapeHtml(t.label)}</button>`;
+          aria-pressed="${on}" title="${escapeHtml(t.dim)}">${escapeHtml(t.label)}</button>`;
       }).join("")
     : `<span style="${S.muted};font-size:13px">標籤載入中…</span>`;
   return `<div class="card" style="${S.card}">
-    <h3 style="margin-top:0">🚩 佔領標籤</h3>
+    <h3 style="margin-top:0">佔領標籤</h3>
     <p style="${S.muted};font-size:13px;margin:0 0 8px">點標籤直接佔領，已佔領的會高亮。佔領提升島嶼知識密度。</p>
     <div role="group" aria-label="標籤雲">${cloud}</div>
     <div style="display:flex;gap:8px;margin-top:12px">
@@ -261,11 +260,11 @@ function tagsHtml() {
 function namedHtml() {
   const named = ST.named;
   return `<div class="card" style="${S.card}">
-    <h3 style="margin-top:0">🗺️ 我的島嶼</h3>
+    <h3 style="margin-top:0">我的島嶼</h3>
     ${named.length ? `<div class="i-grid">` + named.map(it =>
       `<div class="card" style="margin:0"><h4 style="margin:0 0 4px">${escapeHtml(it.name || "無名島")}</h4>
        <p style="${S.muted};font-size:13px;margin:0">${escapeHtml(it.topic || "")}
-       ${(it.buildings?.length) ? ` · 🏗️ ${it.buildings.map(b => `${escapeHtml(b.btype)} Lv.${b.level}`).join("、")}` : ""}</p></div>`
+       ${(it.buildings?.length) ? ` · ${it.buildings.map(b => `${escapeHtml(b.btype)} Lv.${b.level}`).join("、")}` : ""}</p></div>`
     ).join("") + `</div>`
     : `<p style="${S.muted};font-size:13px">還沒有命名的島嶼</p>`}
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
@@ -280,7 +279,7 @@ function namedHtml() {
 function logsHtml() {
   const logs = ST.logs;
   return `<div class="card" style="${S.card}">
-    <h3 style="margin-top:0">📜 領土日誌</h3>
+    <h3 style="margin-top:0">領土日誌</h3>
     ${logs.length ? `<ul style="${S.logs}">` + logs.slice(0, 10).map(l =>
       `<li style="${S.logRow}"><span>${escapeHtml(l.action || l.kind || l.text || "")}</span>
        <span style="${S.muted};font-size:12px">${escapeHtml((l.created_at || "").slice(0, 10))}</span></li>`
@@ -399,7 +398,7 @@ async function occupyTag(tag, btn) {
     const r = await post(`/islands/${userId}/occupy`, { tag });
     if (r.island) ST.status = r.island;
     else if (ST.status && !had) ST.status.occupied_tags = [...new Set([...(ST.status.occupied_tags || []), tag])];
-    toast(r.reason || `已佔領「${tag}」🚩`);
+    toast(r.reason || `已佔領「${tag}」`);
     paint();
   } catch (e) {
     /* 回滾樂觀高亮 */
@@ -427,7 +426,7 @@ function bindNamed() {
     } catch { /* 用預設值 */ }
     try {
       const r = await post("/world/islands", { name, topic, session_id }, { idempotent: true });
-      toast(`「${r.island?.name || name}」已在星海中浮現 🗺️`);
+      toast(`「${r.island?.name || name}」已在星海中浮現`);
       try {
         const nr = await swr("world:islands", "/world/islands");
         const d = nr.data;
