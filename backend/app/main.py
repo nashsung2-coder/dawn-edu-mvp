@@ -276,6 +276,14 @@ def island_expand(user_id: str, body: ExpandIn, request: Request):
     _own_island(request, user_id)
     result = expand_island(user_id, body.action)
     if not result.get("ok"):
+        # 需要先學習：回結構化錯誤，前端可顯示 CTA
+        if result.get("need_learn"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "reason": result["reason"],
+                         "need_learn": True, "link": result.get("link", "pages/quiz.html")},
+            )
         raise HTTPException(400, result["reason"])
     # 開疆拓土由伺服器發放星砂（純遊戲）
     result["points"] = economy.award_expand(user_id)
