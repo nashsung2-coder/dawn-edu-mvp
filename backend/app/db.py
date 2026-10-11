@@ -411,6 +411,28 @@ CREATE TABLE IF NOT EXISTS kb_pages (
 );
 CREATE INDEX IF NOT EXISTS idx_kbpage_lib ON kb_pages(library_id, sort_order);
 
+-- 圖書館探索進度：讀頁面＋提問 → 探索度
+CREATE TABLE IF NOT EXISTS library_exploration (
+    user_id TEXT NOT NULL,
+    library_id TEXT NOT NULL,
+    progress REAL NOT NULL DEFAULT 0,
+    pages_read INTEGER NOT NULL DEFAULT 0,
+    questions_asked INTEGER NOT NULL DEFAULT 0,
+    weapon_claimed_lv INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, library_id)
+);
+
+-- 圖書館專屬武器：每庫一支，探索度決定等級
+CREATE TABLE IF NOT EXISTS library_weapons (
+    library_id TEXT PRIMARY KEY,
+    weapon_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    base_dmg_min INTEGER NOT NULL DEFAULT 10,
+    base_dmg_max INTEGER NOT NULL DEFAULT 20,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 知識節點倉庫：從一道題目長出知識連結（可共享成學習網絡）
 CREATE TABLE IF NOT EXISTS knowledge_nodes (
     id TEXT PRIMARY KEY,
@@ -748,6 +770,28 @@ CREATE TABLE IF NOT EXISTS kb_pages (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_kbpage_lib ON kb_pages(library_id, sort_order);
+
+-- 圖書館探索進度（Postgres 版）
+CREATE TABLE IF NOT EXISTS library_exploration (
+    user_id TEXT NOT NULL,
+    library_id TEXT NOT NULL,
+    progress REAL NOT NULL DEFAULT 0,
+    pages_read INTEGER NOT NULL DEFAULT 0,
+    questions_asked INTEGER NOT NULL DEFAULT 0,
+    weapon_claimed_lv INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, library_id)
+);
+
+-- 圖書館專屬武器（Postgres 版）
+CREATE TABLE IF NOT EXISTS library_weapons (
+    library_id TEXT PRIMARY KEY,
+    weapon_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    base_dmg_min INTEGER NOT NULL DEFAULT 10,
+    base_dmg_max INTEGER NOT NULL DEFAULT 20,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- 題庫快取（Postgres 版）
 CREATE TABLE IF NOT EXISTS question_cache (

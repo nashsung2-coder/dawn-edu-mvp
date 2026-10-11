@@ -263,15 +263,20 @@ def publish_listing(seller_id: str, item_type: str, item_id: str,
                     price: int = 0, trade_kind: str = "sell",
                     want_text: str = "") -> dict:
     """上架：武器(skill_badges) 或 島嶼(learn_islands)。武器上架時快照分類＋標籤。"""
-    if item_type not in ("badge", "island"):
-        raise ValueError("只能交易武器或島嶼。")
+    if item_type not in ("badge", "island", "weapon"):
+        raise ValueError("只能交易技能章、學習島、武器。")
     if trade_kind not in ("sell", "barter"):
         raise ValueError("交易方式只能是 sell（星砂）或 barter（以物易物）。")
-    table = "skill_badges" if item_type == "badge" else "learn_islands"
+    table = {"badge": "skill_badges", "island": "learn_islands", "weapon": "user_weapons"}.get(item_type, "learn_islands")
     with db.get_conn() as conn:
         own = conn.execute(
             f"SELECT id FROM {table} WHERE id = ? AND user_id = ?",
             (item_id, seller_id)).fetchone()
+        # user_weapons 用複合主鍵，改查 weapon_id
+        if not own and item_type == "weapon":
+            own = conn.execute(
+                "SELECT weapon_id FROM user_weapons WHERE weapon_id = ? AND user_id = ?",
+                (item_id, seller_id)).fetchone()
         if not own:
             raise KeyError("這不是你的物品。")
         dup = conn.execute(
@@ -324,12 +329,31 @@ def buy_listing(buyer_id: str, listing_id: str) -> dict:
         economy.spend(buyer_id, lst["price"], f"市集購入 {lst['item_type']}")
         economy.earn(lst["seller_id"], lst["price"], f"市集售出 {lst['item_type']}")
         # 過戶
-        table = "skill_badges" if lst["item_type"] == "badge" else "learn_islands"
         if lst["item_type"] == "badge":
+            table = "skill_badges"
             conn.execute(
                 "UPDATE skill_badges SET user_id = ?, bond = 0 WHERE id = ?",
                 (buyer_id, lst["item_id"]))
+        elif lst["item_type"] == "weapon":
+            # 武器交易：等級降一級（最低 1 級）
+            w = conn.execute(
+                "SELECT * FROM user_weapons WHERE weapon_id = ? AND user_id = ?",
+                (lst["item_id"], lst["seller_id"])).fetchone()
+            if w:
+                wd = dict(w)
+                new_lv = max(1, wd["level"] - 1)
+                # 刪除賣家的，給買家新的（降級版）
+                conn.execute(
+                    "DELETE FROM user_weapons WHERE weapon_id = ? AND user_id = ?",
+                    (lst["item_id"], lst["seller_id"]))
+                conn.execute(
+                    """INSERT INTO user_weapons
+                    (user_id, weapon_id, name, level, library_id, dmg_min, dmg_max)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (buyer_id, wd["weapon_id"], wd["name"], new_lv, wd["library_id"],
+                     max(5, wd["dmg_min"] - 5), max(8, wd["dmg_max"] - 8)))
         else:
+            table = "learn_islands"
             conn.execute(
                 "UPDATE learn_islands SET user_id = ? WHERE id = ?",
                 (buyer_id, lst["item_id"]))
@@ -337,7 +361,7 @@ def buy_listing(buyer_id: str, listing_id: str) -> dict:
                      (listing_id,))
         conn.commit()
     return {"ok": True, "item_type": lst["item_type"], "price": lst["price"],
-            "note": "過戶完成。武器默契已歸零——真正的默契要靠你自己的學習重新建立。"}
+            "note": "過戶完成。" + ("武器等級降了一級——想拿回高等級，去探索它的原生圖書館吧！" if lst["item_type"] == "weapon" else "武器默契已歸零——真正的默契要靠你自己的學習重新建立。")}
 
 
 def cancel_listing(seller_id: str, listing_id: str) -> dict:
