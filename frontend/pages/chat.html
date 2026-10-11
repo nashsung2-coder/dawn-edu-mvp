@@ -9,47 +9,69 @@ body { font-family: sans-serif; margin: 0; background: #f5f5f5; }
 .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fff; border-bottom: 1px solid #ddd; }
 .topbar h1 { font-size: 18px; margin: 0; flex: 1; }
 .topbar .back { font-size: 28px; text-decoration: none; color: #333; }
-.container { max-width: 720px; margin: 0 auto; padding: 16px; }
-.btn { display: inline-block; padding: 32px 16px; font-size: 18px; font-weight: 800; background: #1a1a1a; color: #fff; border: none; border-radius: 12px; cursor: pointer; text-align: center; }
+.container { max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 100px; }
+.btn { display: inline-block; padding: 32px 16px; font-size: 18px; font-weight: 800; background: #1a1a1a; color: #fff; border: none; border-radius: 12px; cursor: pointer; text-align: center; width: 100%; }
 .btn small { display: block; font-size: 13px; font-weight: 400; opacity: .8; margin-top: 8px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
 .card { border: 1px solid #ddd; border-radius: 12px; padding: 20px; background: #fff; margin-top: 16px; }
 input.txt { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
 .btn-sm { padding: 10px 20px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+/* 聊天室 */
+.msgs { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; min-height: 200px; }
+.msg { max-width: 75%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; }
+.msg.me { align-self: flex-end; background: #1a1a1a; color: #fff; }
+.msg.them { align-self: flex-start; background: #fff; border: 1px solid #ddd; }
+.msg .meta { font-size: 11px; opacity: .6; margin-top: 4px; }
+.inputbar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ddd; padding: 12px 16px; display: flex; gap: 8px; }
+.inputbar input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 24px; font-size: 14px; }
+.inputbar button { padding: 12px 24px; background: #1a1a1a; color: #fff; border: none; border-radius: 24px; cursor: pointer; }
+.conv-item { display: block; padding: 16px; background: #fff; border: 1px solid #ddd; border-radius: 12px; margin-bottom: 8px; text-decoration: none; color: inherit; }
+.conv-item .name { font-weight: 800; }
+.conv-item .preview { font-size: 13px; color: #666; margin-top: 4px; }
 </style>
 </head>
 <body>
 <header class="topbar">
-  <a href="../desktop.html" class="back">‹</a>
-  <h1>即時通訊</h1>
+  <a href="../desktop.html" class="back" id="back-btn">‹</a>
+  <h1 id="title">即時通訊</h1>
 </header>
 <main class="container" id="c-view">
   <p>載入中...</p>
 </main>
 <script>
-// 內嵌版：無外部依賴
+// 內嵌版：完整聊天功能
 (function() {
   var view = document.getElementById('c-view');
+  var titleEl = document.getElementById('title');
+  var backBtn = document.getElementById('back-btn');
   var API = 'https://dawn-edu-mvp.onrender.com/api/v1';
+  var currentChat = null; // { type: 'dm', name: 'xxx' }
+  var pollTimer = null;
   
   function getToken() {
-    // 支援多種 token key（相容不同版本的登入）
     try { return localStorage.getItem('dawn:v1:auth-token') || localStorage.getItem('dawn.token') || ''; } catch(e) { return ''; }
   }
-  
   function isLoggedIn() { return !!getToken(); }
-  
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, function(c) {
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
   }
-  
   async function apiGet(path) {
-    var res = await fetch(API + path, {
-      headers: { 'Authorization': 'Bearer ' + getToken() }
-    });
+    var res = await fetch(API + path, { headers: { 'Authorization': 'Bearer ' + getToken() } });
     if (!res.ok) throw new Error('API 錯誤: ' + res.status);
+    return res.json();
+  }
+  async function apiPost(path, data) {
+    var res = await fetch(API + path, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      var err = await res.json().catch(function(){ return {}; });
+      throw new Error(err.detail || ('API 錯誤: ' + res.status));
+    }
     return res.json();
   }
   
@@ -59,7 +81,12 @@ input.txt { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 
       + '<a href="settings.html" class="btn-sm" style="text-decoration:none;display:inline-block">去登入</a></div>';
   }
   
+  // 首頁：對話列表 + 搜尋
   function showHome() {
+    stopPoll();
+    currentChat = null;
+    titleEl.textContent = '即時通訊';
+    backBtn.href = '../desktop.html';
     view.innerHTML = '<div class="grid2">'
       + '<button class="btn" id="b-dm">個人聊天<small>輸入對方暱稱即可找到</small></button>'
       + '<button class="btn" id="b-grp">發起群聊<small>建立多人聊天室</small></button>'
@@ -68,15 +95,27 @@ input.txt { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 
     document.getElementById('b-dm').onclick = function() {
       document.getElementById('form').innerHTML = '<div class="card"><h3>個人聊天</h3>'
         + '<div style="display:flex;gap:8px"><input class="txt" id="dm-name" placeholder="輸入對方暱稱">'
-        + '<button class="btn-sm" id="dm-go">開始</button></div><p id="dm-msg"></p></div>';
-      document.getElementById('dm-go').onclick = async function() {
+        + '<button class="btn-sm" id="dm-search">搜尋</button></div><p id="dm-msg"></p><div id="dm-result"></div></div>';
+      document.getElementById('dm-search').onclick = async function() {
         var name = document.getElementById('dm-name').value.trim();
         var msg = document.getElementById('dm-msg');
+        var resultDiv = document.getElementById('dm-result');
         if (!name) { msg.textContent = '請輸入暱稱'; return; }
         msg.textContent = '搜尋中...';
+        resultDiv.innerHTML = '';
         try {
           var r = await apiGet('/chat/search?name=' + encodeURIComponent(name));
-          msg.textContent = r.user ? '找到：' + r.user.name : '找不到用戶';
+          if (r.user) {
+            msg.textContent = '';
+            resultDiv.innerHTML = '<div class="card" style="display:flex;align-items:center;gap:12px">'
+              + '<div style="flex:1"><div style="font-weight:800">' + esc(r.user.name) + '</div></div>'
+              + '<button class="btn-sm" id="dm-start">開始聊天</button></div>';
+            document.getElementById('dm-start').onclick = function() {
+              openDM(r.user.name);
+            };
+          } else {
+            msg.textContent = '找不到用戶';
+          }
         } catch(e) { msg.textContent = '失敗：' + e.message; }
       };
     };
@@ -88,13 +127,89 @@ input.txt { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 
     loadList();
   }
   
+  // 開啟 1對1 聊天室
+  async function openDM(name) {
+    stopPoll();
+    currentChat = { type: 'dm', name: name };
+    titleEl.textContent = name;
+    backBtn.href = '#';
+    backBtn.onclick = function(e) { e.preventDefault(); showHome(); };
+    
+    view.innerHTML = '<div class="msgs" id="msgs"><p>載入中...</p></div>'
+      + '<div class="inputbar"><input id="msg-input" placeholder="輸入訊息..."><button id="msg-send">發送</button></div>';
+    
+    document.getElementById('msg-send').onclick = sendMsg;
+    document.getElementById('msg-input').onkeypress = function(e) {
+      if (e.key === 'Enter') sendMsg();
+    };
+    
+    await loadMsgs();
+    // 每 5 秒自動刷新
+    pollTimer = setInterval(loadMsgs, 5000);
+  }
+  
+  async function loadMsgs() {
+    if (!currentChat) return;
+    var msgsEl = document.getElementById('msgs');
+    try {
+      var r = await apiGet('/chat/with/' + encodeURIComponent(currentChat.name) + '?limit=50');
+      var msgs = r.messages || r.data || [];
+      if (msgs.length === 0) {
+        msgsEl.innerHTML = '<p style="text-align:center;color:#999">還沒有訊息，打個招呼吧！</p>';
+      } else {
+        msgsEl.innerHTML = msgs.map(function(m) {
+          var isMe = m.is_mine || m.sender === 'me';
+          return '<div class="msg ' + (isMe ? 'me' : 'them') + '">'
+            + esc(m.content || m.text || '')
+            + '<div class="meta">' + esc(m.created_at || '') + '</div></div>';
+        }).join('');
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+      }
+    } catch(e) {
+      msgsEl.innerHTML = '<p style="text-align:center;color:#999">載入失敗</p>';
+    }
+  }
+  
+  async function sendMsg() {
+    var input = document.getElementById('msg-input');
+    var text = input.value.trim();
+    if (!text || !currentChat) return;
+    input.value = '';
+    try {
+      await apiPost('/chat/send', { receiver_name: currentChat.name, content: text });
+      await loadMsgs();
+    } catch(e) {
+      alert('發送失敗：' + e.message);
+    }
+  }
+  
+  function stopPoll() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    // 移除 inputbar
+    var bar = document.querySelector('.inputbar');
+    if (bar) bar.remove();
+  }
+  
   async function loadList() {
     var el = document.getElementById('list');
     try {
       var c = await apiGet('/chat/conversations').catch(function(){ return {conversations:[]}; });
-      var g = await apiGet('/chat/groups').catch(function(){ return {groups:[]}; });
-      var n = (c.conversations||[]).length + (g.groups||[]).length;
-      el.innerHTML = n === 0 ? '<p>還沒有聊天，開始第一個對話吧！</p>' : '<p>共有 ' + n + ' 個聊天</p>';
+      var convs = c.conversations || [];
+      if (convs.length === 0) {
+        el.innerHTML = '<p>還沒有聊天，開始第一個對話吧！</p>';
+      } else {
+        el.innerHTML = convs.map(function(cv) {
+          var name = cv.other_name || cv.name || '未知';
+          var preview = cv.last_message || cv.preview || '';
+          return '<a class="conv-item" href="#" data-name="' + esc(name) + '">'
+            + '<div class="name">' + esc(name) + '</div>'
+            + '<div class="preview">' + esc(preview) + '</div></a>';
+        }).join('');
+        // 綁定點擊
+        el.querySelectorAll('.conv-item').forEach(function(a) {
+          a.onclick = function(e) { e.preventDefault(); openDM(a.dataset.name); };
+        });
+      }
     } catch(e) { el.innerHTML = '<p>載入失敗</p>'; }
   }
   
