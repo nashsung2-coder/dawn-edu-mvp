@@ -6,108 +6,30 @@
 <title>曙光教育 3.0</title>
 <meta name="description" content="遊戲化適性學習：左岸靜修，右岸星海。">
 <link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
-<link rel="stylesheet" href="assets/css/pages/home.css?v=3.1.0">
+<link rel="stylesheet" href="assets/css/pages/home.css?v=3.2.0">
 </head>
 <body>
+<header class="topbar">
+  <span class="brand">曙光教育</span>
+  <nav>
+    <a href="pages/chat.html">即時通訊</a>
+    <a href="pages/character.html">我的角色</a>
+    <a href="pages/settings.html">帳戶</a>
+  </nav>
+</header>
 <div id="gateway">
-  <!-- 左：學習區 -->
-  <section class="zone zone-learn" aria-label="學習區">
-    <p class="zone-label">左岸 · 靜修</p>
-    <h1 class="zone-title">學習</h1>
-    <p class="zone-desc">刪除干擾，進入專注。點一枚徽章，進入那個世界。</p>
-    <div class="card-grid">
-      <a class="home-card" href="pages/quiz.html">
-        <img src="assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>費曼戰役</h3><p>解釋 · 辯論 · 授勳</p>
-      </a>
-      <a class="home-card" href="pages/mastery.html">
-        <img src="assets/img/emblem-mastery.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>掌握度</h3><p>主題進度 · 弱項提醒</p>
-      </a>
-      <a class="home-card" href="pages/favorites.html">
-        <img src="assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>藏書閣</h3><p>知識湖 · 收藏</p>
-      </a>
-      <a class="home-card" href="pages/bookshelf.html">
-        <img src="assets/img/emblem-bookshelf.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>我的書架</h3><p>個人化課本 · 戰績</p>
-      </a>
-      <a class="home-card" href="pages/review.html">
-        <img src="assets/img/emblem-review.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>複習任務</h3><p>間隔重複 · 不遺忘</p>
-      </a>
-      <a class="home-card" href="pages/library.html">
-        <img src="assets/img/emblem-library.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>知識星海圖書館</h3><p>探索 · 建庫 · 費曼</p>
-      </a>
-      <a class="home-card" href="pages/feynman.html">
-        <img src="assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>費曼說服</h3><p>說服 AI · 入課本</p>
-      </a>
-      <a class="home-card" href="pages/knowledge.html">
-        <img src="assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>知識網絡</h3><p>共享節點 · 學習網</p>
-      </a>
-      <a class="home-card" href="pages/character.html">
-        <img src="assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>角色選擇</h3><p>六種角色 · 能力加成</p>
-      </a>
-    </div>
-  </section>
-
-  <!-- 中：連結區 -->
-  <section class="zone zone-center" aria-label="連結區">
-    <p class="zone-label">中央 · 樞紐</p>
-    <h1 class="zone-title">連結</h1>
-    <p class="zone-desc">與夥伴即時通訊，管理你的帳戶。</p>
-    <div class="card-grid">
-      <a class="home-card" href="pages/chat.html">
-        <img src="assets/img/emblem-duel.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>即時通訊</h3><p>與夥伴聊天 · 組隊</p>
-      </a>
-      <a class="home-card" href="pages/settings.html">
-        <img src="assets/img/emblem-settings.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>帳戶管理</h3><p>個人資料 · 設定</p>
-      </a>
-      <a class="home-card" href="pages/character.html">
-        <img src="assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>我的角色</h3><p>查看當前角色 · 切換</p>
-      </a>
-    </div>
-  </section>
-
-  <!-- 右：遊戲區 -->
-  <section class="zone zone-game" aria-label="遊戲區">
-    <p class="zone-label">右岸 · 星海</p>
-    <h1 class="zone-title">遊戲</h1>
-    <p class="zone-desc">指揮官，你的艦隊在等你。</p>
-    <div class="card-grid">
-      <a class="home-card" href="pages/island.html">
-        <img src="assets/img/emblem-island.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>島嶼世界</h3><p>開疆拓土 · 家園</p>
-      </a>
-      <a class="home-card" href="pages/explore.html">
-        <img src="assets/img/emblem-explore.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>探索冒險</h3><p>未知領域 · 寶藏</p>
-      </a>
-      <a class="home-card" href="pages/market.html">
-        <img src="assets/img/emblem-market.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>星際市集</h3><p>交易 · 星砂錢包</p>
-      </a>
-      <a class="home-card" href="pages/duel.html">
-        <img src="assets/img/emblem-duel.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>知識對決</h3><p>1v1 · 武器對戰</p>
-      </a>
-      <a class="home-card" href="pages/pet.html">
-        <img src="assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy">
-        <h3>靈獸夥伴</h3><p>培養 · 互動</p>
-      </a>
-      <a class="home-card" href="pages/radar.html">
-        <img src="assets/img/emblem-radar.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-        <h3>三維雷達</h3><p>掃描 · 發現</p>
-      </a>
-    </div>
-  </section>
+  <a class="gate gate-learn" href="pages/learn.html">
+    <img class="gate-icon" src="assets/img/emblem-quiz.webp?v=3.0.0" alt="">
+    <h1 class="gate-title">學習</h1>
+    <p class="gate-desc">刪除干擾，進入專注。費曼戰役、圖書館、複習任務都在這裡。</p>
+    <p class="gate-hint">點此進入 →</p>
+  </a>
+  <a class="gate gate-game" href="pages/game.html">
+    <img class="gate-icon" src="assets/img/emblem-island.webp?v=3.0.0" alt="">
+    <h1 class="gate-title">遊戲</h1>
+    <p class="gate-desc">指揮官，你的艦隊在等你。島嶼、市集、對決、靈獸都在這裡。</p>
+    <p class="gate-hint">點此進入 →</p>
+  </a>
 </div>
 <script type="module" src="assets/js/pages/home.js?v=3.0.0"></script>
 </body>
