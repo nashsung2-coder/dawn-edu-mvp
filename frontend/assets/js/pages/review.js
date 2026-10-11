@@ -118,7 +118,20 @@ async function renderLanding() {
       ${tier.battlesLeft !== null ? `<span>今日剩餘戰役 ${escapeHtml(String(tier.battlesLeft))} 場</span>` : ""}
     </div>
     ${dueCards.length
-      ? `<button class="btn btn-primary r-start" id="r-start">開始複習（${dueCards.length} 張）</button>`
+      ? `<div class="r-mode-select" style="margin:16px 0">
+           <p style="font-size:14px;color:var(--muted);margin-bottom:8px">選擇複習模式</p>
+           <div style="display:flex;gap:12px;justify-content:center">
+             <button class="btn btn-ghost" id="r-mode-flow" style="flex:1;max-width:200px">
+               <strong>心流複習</strong><br>
+               <span style="font-size:12px">安靜專注，無時間壓力</span>
+             </button>
+             <button class="btn btn-ghost" id="r-mode-game" style="flex:1;max-width:200px">
+               <strong>遊戲化複習</strong><br>
+               <span style="font-size:12px">挑戰模式，答對集氣</span>
+             </button>
+           </div>
+         </div>
+         <button class="btn btn-primary r-start" id="r-start" hidden>開始複習（${dueCards.length} 張）</button>`
       : `<div class="state-empty">
            <img src="../assets/img/empty-zen.webp?v=3.0.0" alt="空卷軸插圖">
            <p>今天沒有到期的卡片，好好休息吧。</p>
@@ -128,22 +141,45 @@ async function renderLanding() {
   </div>`;
 
   const startBtn = document.getElementById("r-start");
-  if (startBtn) startBtn.onclick = () => renderCard(dueCards, 0, stats);
+  const flowBtn = document.getElementById("r-mode-flow");
+  const gameBtn = document.getElementById("r-mode-game");
+  let reviewMode = "flow";
+  if (flowBtn) {
+    flowBtn.onclick = () => {
+      reviewMode = "flow";
+      flowBtn.classList.add("btn-primary"); flowBtn.classList.remove("btn-ghost");
+      gameBtn.classList.remove("btn-primary"); gameBtn.classList.add("btn-ghost");
+      startBtn.hidden = false;
+      startBtn.textContent = `開始心流複習（${dueCards.length} 張）`;
+    };
+    gameBtn.onclick = () => {
+      reviewMode = "game";
+      gameBtn.classList.add("btn-primary"); gameBtn.classList.remove("btn-ghost");
+      flowBtn.classList.remove("btn-primary"); flowBtn.classList.add("btn-ghost");
+      startBtn.hidden = false;
+      startBtn.textContent = `開始遊戲化複習（${dueCards.length} 張）`;
+    };
+  }
+  if (startBtn) startBtn.onclick = () => renderCard(dueCards, 0, stats, reviewMode);
   focusMain();
 }
 
 /* ---- 逐張複習：問題 → 顯示提示 → 自評 ---- */
-function renderCard(cards, idx, stats) {
+function renderCard(cards, idx, stats, mode = "flow") {
   const card = cards[idx];
   const total = cards.length;
   const q = cardQuestion(card);
   const topic = cardTopic(card);
+  const isGame = mode === "game";
 
   view.innerHTML = `<div class="r-progress" role="progressbar" aria-valuenow="${idx + 1}"
       aria-valuemin="1" aria-valuemax="${total}" aria-label="複習進度">
       <div class="r-progress-fill" style="width:${Math.round(((idx + 1) / total) * 100)}%"></div>
     </div>
-    <p class="r-count">第 ${idx + 1} / ${total} 張</p>
+    <p class="r-count">第 ${idx + 1} / ${total} 張${isGame ? " · 遊戲化模式" : " · 心流模式"}</p>
+    ${isGame ? `<div class="r-game-hud" style="text-align:center;margin-bottom:12px">
+      <span style="font-size:14px">連擊 <strong id="r-combo">0</strong></span>
+    </div>` : ""}
     <div class="card r-card">
       ${topic ? `<p class="r-topic">${escapeHtml(topic)}</p>` : ""}
       <h2 class="r-question">${escapeHtml(q)}</h2>
@@ -157,16 +193,17 @@ function renderCard(cards, idx, stats) {
     document.getElementById("r-hint-slot").innerHTML =
       `<div class="r-hint">${hint ? escapeHtml(hint) : "（這張卡片沒有提示）"}</div>`;
     document.getElementById("r-show").style.display = "none";
-    renderGrades(cards, idx, stats);
+    renderGrades(cards, idx, stats, mode);
     announce("已顯示提示，請誠實自評你的回憶程度");
   };
   focusMain();
 }
 
-function renderGrades(cards, idx, stats) {
+function renderGrades(cards, idx, stats, mode = "flow") {
   const card = cards[idx];
   const slot = document.getElementById("r-grade-slot");
-  slot.innerHTML = `<p class="r-grade-title">你回憶起來了嗎？</p>
+  const isGame = mode === "game";
+  slot.innerHTML = `<p class="r-grade-title">${isGame ? "回憶成功！選擇你的掌握度" : "你回憶起來了嗎？"}</p>
     <div class="r-grades" role="group" aria-label="自評等級">` +
     GRADES.map(g =>
       `<button class="r-grade g${g.v}" data-g="${g.v}" aria-label="${g.v} 分：${g.label}，${g.hint}">
@@ -175,11 +212,11 @@ function renderGrades(cards, idx, stats) {
     ).join("") + `</div>`;
 
   slot.querySelectorAll(".r-grade").forEach(btn => {
-    btn.onclick = () => gradeCard(cards, idx, stats, +btn.dataset.g, btn);
+    btn.onclick = () => gradeCard(cards, idx, stats, +btn.dataset.g, btn, mode);
   });
 }
 
-async function gradeCard(cards, idx, stats, grade, btn) {
+async function gradeCard(cards, idx, stats, grade, btn, mode = "flow") {
   btn.disabled = true;
   announce(`已評 ${grade} 分，記錄中`);
   const cid = cardId(cards[idx]);
@@ -195,11 +232,43 @@ async function gradeCard(cards, idx, stats, grade, btn) {
   }
   const nextText = nextDays !== null ? `下次 ${nextDays} 天後再見` : "已排入下次複習";
   const slot = document.getElementById("r-grade-slot");
+  const card = cards[idx];
+  const q = cardQuestion(card);
+  const hint = cardHint(card);
   slot.innerHTML = `<p class="r-next">${escapeHtml(nextText)}</p>
-    <button class="btn btn-primary" id="r-next-btn">${idx + 1 < cards.length ? "下一張 →" : "完成 🎉"}</button>`;
+    <button class="btn btn-ghost" id="r-save-node" style="margin-bottom:8px">存入知識倉庫</button>
+    <div id="r-node-form" hidden style="margin-bottom:12px;text-align:left">
+      <input id="r-node-concepts" type="text" placeholder="相關概念（用逗號分隔，如：光合作用，葉綠體）"
+        style="width:100%;padding:8px;margin-bottom:8px" aria-label="相關概念">
+      <label style="font-size:13px"><input type="checkbox" id="r-node-public" checked> 公開分享（加入學習網絡）</label>
+      <button class="btn btn-primary" id="r-node-submit" style="margin-top:8px">確認存入</button>
+    </div>
+    <button class="btn btn-primary" id="r-next-btn">${idx + 1 < cards.length ? "下一張" : "完成"}</button>`;
   document.getElementById("r-next-btn").onclick = () => {
-    if (idx + 1 < cards.length) renderCard(cards, idx + 1, stats);
+    if (idx + 1 < cards.length) renderCard(cards, idx + 1, stats, mode);
     else renderDone(stats, cards.length);
+  };
+  // 存入知識倉庫
+  document.getElementById("r-save-node").onclick = () => {
+    const form = document.getElementById("r-node-form");
+    form.hidden = !form.hidden;
+  };
+  document.getElementById("r-node-submit").onclick = async () => {
+    const concepts = document.getElementById("r-node-concepts").value
+      .split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    const isPublic = document.getElementById("r-node-public").checked;
+    try {
+      await post("/knowledge/nodes", {
+        question: q, answer: hint || "", explanation: hint || "",
+        concepts, source: "review", is_public: isPublic,
+      });
+      announce("已存入知識倉庫");
+      document.getElementById("r-save-node").textContent = "已存入知識倉庫";
+      document.getElementById("r-save-node").disabled = true;
+      document.getElementById("r-node-form").hidden = true;
+    } catch (e) {
+      announce(`存入失敗：${e.message}`);
+    }
   };
   document.getElementById("r-next-btn").focus();
 }
