@@ -44,7 +44,14 @@ async function rawFetch(method, path, { body, timeout, idempotencyKey } = {}) {
       throw new ApiError("HTTP_401", "登入已過期，請重新登入", 401);
     }
     if (!res.ok) {
-      const msg = await res.text().catch(() => "");
+      const raw = await res.text().catch(() => "");
+      // 嘗試解析 JSON，提取 detail 欄位（FastAPI 格式）
+      let msg = raw;
+      try {
+        const j = JSON.parse(raw);
+        if (j.detail) msg = j.detail;
+        else if (j.message) msg = j.message;
+      } catch (e) { /* 不是 JSON，用原始文字 */ }
       const code = res.status >= 500 ? "HTTP_5xx"
         : res.status === 429 ? "HTTP_429"
         : `HTTP_${res.status}`;
