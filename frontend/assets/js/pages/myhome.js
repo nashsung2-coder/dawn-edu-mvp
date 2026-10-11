@@ -1,7 +1,22 @@
 /* 我的家：溫馨小屋版 */
 import { get, post } from "../core/api.js";
 import { isLoggedIn, getUserId } from "../core/auth.js";
-import { focusMain, toast } from "../core/a11y.js";
+// toast 本地實現
+function toast(msg) {
+  try {
+    let el = document.getElementById('mh-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'mh-toast';
+      el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;z-index:9999';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 2500);
+  } catch(e) {}
+}
+function focusMain() {}
 
 const view = document.getElementById("mh-view");
 const userId = getUserId();
