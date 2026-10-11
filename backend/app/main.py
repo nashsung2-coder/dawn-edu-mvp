@@ -944,6 +944,36 @@ def feynman_app_challenge(body: AppChallengeIn, request: Request):
     from app import llm as llm_mod
     return {"ok": True, "challenge": llm_mod.generate_application_challenge(body.topic, body.explanation)}
 
+
+# ---------------- 角色系統 ----------------
+
+@app.get("/api/v1/characters", summary="角色列表")
+def characters_list():
+    from app import character as char_mod
+    return {"ok": True, "characters": char_mod.get_characters()}
+
+
+@app.get("/api/v1/characters/me", summary="我的角色")
+def characters_me(request: Request):
+    user = _current_user(request)
+    from app import character as char_mod
+    char = char_mod.get_user_character(user["id"])
+    return {"ok": True, "character": char}
+
+
+class CharacterSetIn(BaseModel):
+    character_id: str = Field(min_length=1, max_length=50)
+
+
+@app.post("/api/v1/characters/me", summary="選擇角色")
+def characters_set(body: CharacterSetIn, request: Request):
+    user = _current_user(request)
+    from app import character as char_mod
+    try:
+        return char_mod.set_user_character(user["id"], body.character_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
 @app.get("/api/v1/libraries/{lib_id}/exploration", summary="我的探索進度")
 def lib_exploration(lib_id: str, request: Request):
     user = _current_user(request)
