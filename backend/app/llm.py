@@ -559,3 +559,110 @@ def debate_summary(question: str, rounds: list[dict]) -> str:
     n = len(rounds)
     return (f"這場辯論走了 {n} 輪：AI 質疑了你的論點漏洞，你逐一回應。現在請用一句話"
             f"做最終陳述——如果只能留一句話給後來的人，你會怎麼總結「{question[:30]}」？")
+
+
+def evaluate_explanation(topic: str, explanation: str) -> dict:
+    """評估用戶解釋的完整度（0-100 分）。
+    回傳 {score, feedback, followup, missing_points}。"""
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是嚴格但友善的老師。學生要用自己的話解釋一個概念來說服你。"
+                        "評估他的解釋完整度（0-100 分），用繁體中文回應。"
+                        "回傳 JSON：{\"score\": 分數, \"feedback\": \"你的評價（100字內）\", "
+                        "\"followup\": \"如果沒滿分，問一個能引導他補足缺口的追問（50字內）\", "
+                        "\"missing_points\": [\"缺失的要點1\", \"缺失的要點2\"]}。"
+                        "只回 JSON，不要其他文字。"},
+            {"role": "user", "content": f"主題：{topic}\n學生的解釋：{explanation}"},
+        ]
+        out = _nim_call(msgs, max_tokens=800, temperature=0.3)
+        if out:
+            try:
+                import json as js
+                # 找 JSON
+                start = out.find("{")
+                end = out.rfind("}") + 1
+                if start >= 0 and end > start:
+                    return js.loads(out[start:end])
+            except Exception:
+                pass
+    # 規則式降級
+    import re
+    score = 40
+    if len(explanation) > 100: score += 10
+    if len(explanation) > 300: score += 10
+    if any(w in explanation for w in ("因為", "所以", "導致")): score += 10
+    if any(w in explanation for w in ("例如", "比如", "舉例")): score += 10
+    if any(w in explanation for w in ("但是", "然而", "相反")): score += 5
+    score = min(85, score)
+    return {
+        "score": score,
+        "feedback": "你的解釋有基本架構，但還可以更深入。試著多講一點因果關係和具體例子。",
+        "followup": f"關於「{topic}」，你能說說它為什麼會這樣運作嗎？",
+        "missing_points": ["因果機制", "具體例子"],
+    }
+
+
+def build_textbook_entry(topic: str, explanation: str, evaluation: dict) -> dict:
+    """用用戶的話重整＋補數據，生成課本條目。"""
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是課本編輯。學生用自己的話解釋了一個概念且通過了評估。"
+                        "請用他的話為基礎，重新整理成結構清晰的課本條目，並補充相關數據或背景知識。"
+                        "用繁體中文，回傳 JSON：{\"title\": \"標題\", "
+                        "\"user_voice_summary\": \"用學生的話重整的核心解釋（200字內）\", "
+                        "\"ai_supplement\": \"AI 補充的數據/背景（200字內）\", "
+                        "\"key_points\": [\"要點1\", \"要點2\", \"要點3\"]}。"
+                        "只回 JSON。"},
+            {"role": "user", "content": f"主題：{topic}\n學生的解釋：{explanation}\n"
+                                        f"評估缺失點：{evaluation.get('missing_points', [])}"},
+        ]
+        out = _nim_call(msgs, max_tokens=1000, temperature=0.5)
+        if out:
+            try:
+                import json as js
+                start = out.find("{")
+                end = out.rfind("}") + 1
+                if start >= 0 and end > start:
+                    return js.loads(out[start:end])
+            except Exception:
+                pass
+    return {
+        "title": topic,
+        "user_voice_summary": explanation[:500],
+        "ai_supplement": "（AI 補充功能暫時不可用）",
+        "key_points": evaluation.get("missing_points", []),
+    }
+
+
+def generate_guiding_questions(topic: str, context: str = "") -> list:
+    """生成引導問題（提問鷹架）：用戶不知問什麼時，給 2-3 個可選問題。"""
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是學習引導師。學生正在學習一個主題，但不知道該問什麼問題。"
+                        "請生成 3 個由淺入深的引導問題，幫助他深入思考。"
+                        "用繁體中文，回傳 JSON 陣列：[\"問題1\", \"問題2\", \"問題3\"]。"
+                        "問題1要是基礎理解，問題2要是因果機制，問題3要是應用延伸。"
+                        "只回 JSON 陣列，不要其他文字。"},
+            {"role": "user", "content": f"主題：{topic}\n上下文：{context[:500]}"},
+        ]
+        out = _nim_call(msgs, max_tokens=500, temperature=0.7)
+        if out:
+            try:
+                import json as js
+                start = out.find("[")
+                end = out.rfind("]") + 1
+                if start >= 0 and end > start:
+                    result = js.loads(out[start:end])
+                    if isinstance(result, list) and len(result) >= 2:
+                        return result[:3]
+            except Exception:
+                pass
+    # 降級：通用模板
+    return [
+        f"「{topic}」的核心概念是什麼？能用一句話說清楚嗎？",
+        f"「{topic}」為什麼會這樣運作？背後的因果機制是什麼？",
+        f"如果把「{topic}」應用到生活中，會產生什麼變化？",
+    ]

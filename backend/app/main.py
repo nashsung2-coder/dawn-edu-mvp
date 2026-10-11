@@ -883,6 +883,55 @@ def knowledge_upvote(node_id: str, request: Request):
 
 # ---------------- 圖書館探索 ----------------
 
+# ---------------- 費曼說服 ----------------
+
+class FeynmanStartIn(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    library_id: str = Field(default="")
+
+
+class FeynmanExplainIn(BaseModel):
+    explanation: str = Field(min_length=20, max_length=5000)
+
+
+@app.post("/api/v1/feynman/persuade", summary="開始說服挑戰")
+def feynman_persuade_start(body: FeynmanStartIn, request: Request):
+    user = _current_user(request)
+    from app import feynman as fy_mod
+    return fy_mod.start_persuasion(user["id"], body.topic, body.library_id)
+
+
+@app.post("/api/v1/feynman/persuade/{sid}", summary="提交解釋，AI 評估")
+def feynman_persuade_submit(sid: str, body: FeynmanExplainIn, request: Request):
+    user = _current_user(request)
+    from app import feynman as fy_mod
+    try:
+        return fy_mod.submit_explanation(sid, user["id"], body.explanation)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/feynman/persuade/{sid}", summary="說服挑戰狀態")
+def feynman_persuade_status(sid: str, request: Request):
+    user = _current_user(request)
+    from app import feynman as fy_mod
+    try:
+        return fy_mod.get_session(sid, user["id"])
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+class GuidingQIn(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    context: str = Field(default="", max_length=1000)
+
+
+@app.post("/api/v1/feynman/guiding-questions", summary="生成引導問題（提問鷹架）")
+def feynman_guiding_questions(body: GuidingQIn, request: Request):
+    _current_user(request)
+    from app import llm as llm_mod
+    return {"ok": True, "questions": llm_mod.generate_guiding_questions(body.topic, body.context)}
+
 @app.get("/api/v1/libraries/{lib_id}/exploration", summary="我的探索進度")
 def lib_exploration(lib_id: str, request: Request):
     user = _current_user(request)
