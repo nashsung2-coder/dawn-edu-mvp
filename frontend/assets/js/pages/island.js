@@ -144,6 +144,72 @@ function heroHtml() {
     style="${S.hero}" loading="eager">`;
 }
 
+/* 中央家園：寵物＋領地＋探索進度＋傳送門 */
+let HOME_PET = null;
+
+async function loadHomePet() {
+  try {
+    const r = await get("/world/pet");
+    HOME_PET = r.pet || r.data?.pet || null;
+  } catch (e) { HOME_PET = null; }
+}
+
+function homeHtml() {
+  const st = ST.status;
+  if (!st) return "";
+  const territory = Number(st.territory) || 0;
+  const pet = HOME_PET;
+
+  // 探索進度：用領土等級推算（之後可接真實探索 API）
+  const explorePct = Math.min(100, Math.round((territory / 50) * 100));
+
+  return `<div class="card" style="${S.card};text-align:center;position:relative;overflow:hidden">
+    <h2 style="margin:0 0 12px">我的家</h2>
+    <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap">
+      ${pet ? `
+      <div style="text-align:center">
+        <img src="${petImgForHome(pet.level)}" alt="${escapeHtml(pet.name || "靈獸")}"
+          style="width:100px;height:100px;object-fit:cover;border-radius:50%;border:2px solid var(--line)">
+        <div style="font-size:13px;margin-top:6px"><strong>${escapeHtml(pet.name || "無名")}</strong> Lv.${pet.level || 1}</div>
+        <a href="pet.html" style="font-size:12px;color:var(--accent)">去看靈獸 →</a>
+      </div>` : `
+      <div style="text-align:center;color:var(--muted);font-size:13px">
+        <div style="font-size:40px">🥚</div>
+        <p>還沒有靈獸<br><a href="pet.html" style="color:var(--accent)">去孵化 →</a></p>
+      </div>`}
+      <div style="text-align:center;min-width:140px">
+        <div style="font-size:32px;font-weight:800">${territory}</div>
+        <div style="font-size:12px;color:var(--muted)">領土單位</div>
+      </div>
+      <div style="text-align:center;min-width:140px">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:4px">探索進度</div>
+        <div style="${S.barWrap};width:120px;margin:0 auto">
+          <div style="${S.barFill};width:${explorePct}%"></div>
+        </div>
+        <div style="font-size:12px;margin-top:4px">${explorePct}%</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+      <h3 style="margin:0 0 8px;font-size:15px">傳送門</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 8px">拜訪好友的島嶼，看看他們的領地（啟動需 20 星砂）</p>
+      <div style="display:flex;gap:8px;justify-content:center;max-width:400px;margin:0 auto">
+        <input id="i-portal-name" type="text" placeholder="好友的名字"
+          aria-label="好友名字"
+          style="flex:1;padding:10px 14px;border:1px solid var(--line);border-radius:999px;font-size:14px">
+        <button class="btn btn-primary" id="i-portal-go" style="white-space:nowrap">傳送</button>
+      </div>
+      <div id="i-portal-result" style="margin-top:12px"></div>
+    </div>
+  </div>`;
+}
+
+function petImgForHome(level) {
+  const lv = Number(level) || 1;
+  if (lv >= 10) return "../assets/img/game/pet-adult.webp?v=3.0.0";
+  if (lv >= 5) return "../assets/img/game/pet-baby.webp?v=3.0.0";
+  return "../assets/img/game/pet-egg.webp?v=3.0.0";
+}
+
 function dashboardHtml() {
   const st = ST.status;
   if (!st) {
@@ -288,11 +354,44 @@ function logsHtml() {
 }
 
 function paint() {
-  view.innerHTML = heroHtml() + dashboardHtml() + questsHtml()
+  view.innerHTML = heroHtml() + homeHtml() + dashboardHtml() + questsHtml()
     + buildSlotsHtml() + tagsHtml() + namedHtml() + logsHtml();
   bindAll();
   bindNamed();
+  bindPortal();
   focusMain();
+}
+
+function bindPortal() {
+  const btn = document.getElementById("i-portal-go");
+  if (!btn) return;
+  btn.onclick = async () => {
+    const nameInput = document.getElementById("i-portal-name");
+    const resultDiv = document.getElementById("i-portal-result");
+    const name = nameInput.value.trim();
+    if (!name) { toast("請輸入好友的名字"); return; }
+    btn.disabled = true;
+    btn.textContent = "傳送中…";
+    resultDiv.innerHTML = "";
+    try {
+      const r = await post(`/islands/${userId}/portal`, { host_name: name });
+      const isl = r.island || {};
+      const pet = r.pet;
+      resultDiv.innerHTML = `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;text-align:left;background:var(--bg-soft)">
+        <h4 style="margin:0 0 8px">🏝️ ${escapeHtml(r.host_name)} 的島嶼</h4>
+        <p style="margin:4px 0;font-size:14px">島名：${escapeHtml(isl.name || "無名島")}</p>
+        <p style="margin:4px 0;font-size:14px">領土：${escapeHtml(String(isl.territory ?? 0))} 單位</p>
+        ${pet ? `<p style="margin:4px 0;font-size:14px">靈獸：${escapeHtml(pet.name || "無名")}（${escapeHtml(pet.species || "")} Lv.${pet.level || 1}）</p>` : ""}
+        <p style="margin:8px 0 0;font-size:12px;color:var(--muted)">傳送消耗 20 星砂</p>
+      </div>`;
+      toast(`已拜訪 ${r.host_name} 的島嶼！`);
+    } catch (e) {
+      resultDiv.innerHTML = `<p style="color:var(--danger,#ef4444);font-size:14px">${escapeHtml(e.message)}</p>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "傳送";
+    }
+  };
 }
 
 /* ================= 互動綁定 ================= */
@@ -479,5 +578,6 @@ function bindNamed() {
     return;
   }
   await loadAll();
+  await loadHomePet();
   paint();
 })();
