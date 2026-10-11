@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -137,7 +137,10 @@ def auth_me(request: Request):
 
 # ---------------- 標籤 ----------------
 @app.get("/api/v1/tags", summary="依維度分組的標籤樹")
-def list_tags():
+def list_tags(response: Response):
+    # 邊緣快取 1 小時
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    response.headers["CDN-Cache-Control"] = "public, max-age=3600"
     with db.get_conn() as conn:
         dims = conn.execute("SELECT code, name FROM tag_dimensions ORDER BY code").fetchall()
         tree = []
@@ -306,7 +309,10 @@ def island_portal(user_id: str, body: PortalIn, request: Request):
 
 
 @app.get("/api/v1/islands/skin/options", summary="換膚選項")
-def island_skin_options():
+def island_skin_options(response: Response):
+    # 邊緣快取 24 小時
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    response.headers["CDN-Cache-Control"] = "public, max-age=86400"
     from app import game as game_mod
     return {"ok": True, "options": game_mod.get_skin_options()}
 
@@ -435,7 +441,10 @@ def space_state(request: Request, x: float = Query(5000), y: float = Query(5000)
 
 
 @app.get("/api/v1/space/planets", summary="所有星球")
-def space_planets():
+def space_planets(response: Response):
+    # 邊緣快取 24 小時：星球是固定的
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    response.headers["CDN-Cache-Control"] = "public, max-age=86400"
     from app import space as space_mod
     return {"ok": True, "planets": space_mod.get_planets()}
 
@@ -1118,8 +1127,11 @@ def learn_thinking_gap(body: ThinkingGapIn, request: Request):
 # ---------------- 角色系統 ----------------
 
 @app.get("/api/v1/characters", summary="角色列表")
-def characters_list():
+def characters_list(response: Response):
     from app import character as char_mod
+    # 邊緣快取 1 小時：角色列表是靜態的
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    response.headers["CDN-Cache-Control"] = "public, max-age=3600"
     return {"ok": True, "characters": char_mod.get_characters()}
 
 
