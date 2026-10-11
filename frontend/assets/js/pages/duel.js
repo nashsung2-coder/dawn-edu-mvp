@@ -300,10 +300,13 @@ function renderResult(r, total, tag) {
           <h3 style="margin-top:0">第 ${fb.round} 回合
             <span style="color:${fb.correct ? "#4caf50" : "#f44336"}">${fb.correct ? "✅ 答對" : "❌ 答錯"}</span></h3>
           <p>你的選擇：<strong>${escapeHtml(fb.your_choice ?? "")}</strong></p>
-          ${fb.correct ? "" : `<p>正確答案：<strong style="color:#4caf50">${escapeHtml(fb.correct_answer ?? "")}</strong></p>`}
+          ${fb.correct ? "" : `<p>正確答案：<strong style="color:#4caf50">${escapeHtml(fb.correct_answer ?? "")}</strong></p>
+            <button class="btn btn-ghost d-gap" data-idx="${feedback.indexOf(fb)}"
+              style="font-size:12px;margin-top:8px">此念有隙 · 看思考斷裂分析</button>
+            <div class="d-gap-box" style="margin-top:8px" hidden></div>`}
           ${fb.concept_note ? `<div style="margin-top:10px;padding:10px 12px;border-radius:8px;
             background:var(--card);border:1px dashed var(--line)">
-            <p style="font-size:12px;color:var(--muted);margin:0 0 4px">💡 觀念提醒</p>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 4px">觀念提醒</p>
             <p style="font-size:13px;margin:0">${escapeHtml(fb.concept_note)}</p></div>` : ""}
         </div>`).join("") : "") + `
     <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
@@ -312,6 +315,34 @@ function renderResult(r, total, tag) {
     </div>`;
 
   document.getElementById("d-again").onclick = renderLanding;
+
+  // 此念有隙：答錯時的思考斷裂分析
+  view.querySelectorAll(".d-gap").forEach(btn => {
+    btn.onclick = async () => {
+      const fb = feedback[+btn.dataset.idx];
+      const box = btn.nextElementSibling;
+      btn.disabled = true; btn.textContent = "分析中…";
+      try {
+        const r = await post("/learn/thinking-gap", {
+          question: fb.question || "",
+          user_answer: fb.your_choice || "",
+          correct_answer: fb.correct_answer || "",
+        });
+        const a = r.analysis || {};
+        box.hidden = false;
+        box.innerHTML = `
+          <div style="padding:12px;background:var(--surface);border-radius:8px;font-size:13px">
+            <p><strong>你的思考路徑：</strong>${escapeHtml(a.thinking_path || "")}</p>
+            <p><strong>斷裂點：</strong>${escapeHtml(a.gap_point || "")}</p>
+            <p><strong>正確邏輯：</strong>${escapeHtml(a.correct_logic || "")}</p>
+            <p><strong>例子：</strong>${escapeHtml(a.example_fix || "")}</p>
+          </div>`;
+        btn.textContent = "已展開分析";
+      } catch (e) {
+        btn.disabled = false; btn.textContent = "此念有隙 · 看思考斷裂分析";
+      }
+    };
+  });
   announce(`對決結束：${win ? "勝利" : "敗北"}，得分 ${score}，共 ${r.total ?? total} 題`);
   focusMain();
 }
