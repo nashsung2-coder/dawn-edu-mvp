@@ -35,7 +35,12 @@ async function rawFetch(method, path, { body, timeout, idempotencyKey } = {}) {
     if (res.status === 401) {
       clearAuth();
       broadcast({ type: "auth:logout" });
-      location.href = "/pages/settings.html?reason=login";
+      // 避免在登入頁重複跳轉，也避免 API 並發時多次跳轉
+      const here = location.pathname;
+      if (!here.includes("settings.html") && !window.__authRedirecting) {
+        window.__authRedirecting = true;
+        location.href = "settings.html?reason=login";
+      }
       throw new ApiError("HTTP_401", "登入已過期，請重新登入", 401);
     }
     if (!res.ok) {
