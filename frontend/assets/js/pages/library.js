@@ -179,6 +179,10 @@ async function renderDetail(libId) {
             </span>`).join("")}
         </div>
         <button class="btn btn-primary" id="l-claim-weapon" style="margin-top:12px;font-size:13px">領取探索武器</button>
+        <div style="margin-top:12px">
+          <button class="btn btn-ghost" id="l-guide-q" style="font-size:13px">不知道問什麼？讓 AI 引導你</button>
+          <div id="l-guide-box" style="margin-top:8px"></div>
+        </div>
       </div>`;
     } catch (e) { /* 未登入或無記錄就不顯示 */ }
 
@@ -224,6 +228,32 @@ async function renderDetail(libId) {
           toast(`獲得「${r.weapon_name}」Lv.${r.level}（${r.label}）！`);
           renderDetail(libId);
         } catch (e) { toast(e.message); }
+      };
+    }
+
+    // 提問鷹架：不知道問什麼時，AI 給引導問題
+    const guideBtn = document.getElementById("l-guide-q");
+    if (guideBtn) {
+      guideBtn.onclick = async () => {
+        guideBtn.disabled = true; guideBtn.textContent = "生成中…";
+        try {
+          const r = await post("/feynman/guiding-questions", {
+            topic: lib.title, context: lib.description || "" });
+          const qs = r.questions || [];
+          const box = document.getElementById("l-guide-box");
+          box.innerHTML = qs.map((q, i) => `
+            <button class="btn btn-ghost l-guide-q" data-q="${escapeHtml(q)}"
+              style="display:block;width:100%;text-align:left;margin:6px 0;font-size:14px">
+              ${i + 1}. ${escapeHtml(q)}
+            </button>`).join("");
+          box.querySelectorAll(".l-guide-q").forEach(b => {
+            b.onclick = () => {
+              // 點問題 → 去費曼說服
+              location.href = `feynman.html?topic=${encodeURIComponent(b.dataset.q)}&lib=${libId}`;
+            };
+          });
+        } catch (e) { toast(e.message); }
+        guideBtn.disabled = false; guideBtn.textContent = "不知道問什麼？讓 AI 引導你";
       };
     }
 
@@ -441,10 +471,8 @@ async function feynmanForPage(pageId) {
 }
 
 function goFeynman(topic, label) {
-  // 跳到費曼戰役頁，帶上主題
-  sessionStorage.setItem("kb_feynman_topic", topic);
-  sessionStorage.setItem("kb_feynman_label", label);
-  location.href = "quiz.html?from=kb";
+  // 跳到費曼說服頁，帶上主題
+  location.href = `feynman.html?topic=${encodeURIComponent(topic)}`;
 }
 
 /* ============ 建庫 ============ */
