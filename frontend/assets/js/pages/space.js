@@ -17,6 +17,7 @@
   resize();
   
   var camX = 5000, camY = 5000;
+  var targetX = null, targetY = null; // 移動目標
   var coordsEl = document.getElementById('sp-coords');
   
   // 星球數據（硬編碼，省掉 API 呼叫）
@@ -48,7 +49,28 @@
     return [W/2 + (ux - camX) * SCALE, H/2 + (uy - camY) * SCALE];
   }
   
+  function toUniverse(sx, sy) {
+    return [camX + (sx - W/2) / SCALE, camY + (sy - H/2) / SCALE];
+  }
+  
+  // 每幀更新位置
+  function update() {
+    if (targetX !== null) {
+      var dx = targetX - camX, dy = targetY - camY;
+      var dist = Math.hypot(dx, dy);
+      var speed = 80; // 宇宙單位/幀
+      if (dist < speed) {
+        camX = targetX; camY = targetY;
+        targetX = targetY = null;
+      } else {
+        camX += dx / dist * speed;
+        camY += dy / dist * speed;
+      }
+    }
+  }
+  
   function draw() {
+    update(); // 先更新位置
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, W, H);
     var t = Date.now() / 1000;
@@ -94,14 +116,47 @@
     requestAnimationFrame(draw);
   }
   
-  // 點擊移動
+  // 點擊：移動飛船，或點擊星球顯示資訊
   canvas.addEventListener('click', function(e) {
-    // 簡單：點擊哪就顯示提示
-    var toast = document.getElementById('sp-toast');
-    if (toast) {
-      toast.textContent = '點擊位置：' + e.clientX + ', ' + e.clientY;
-      toast.hidden = false;
-      setTimeout(function(){ toast.hidden = true; }, 2000);
+    var rect = canvas.getBoundingClientRect();
+    var sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    
+    // 檢查是否點到星球
+    for (var i = 0; i < PLANETS.length; i++) {
+      var pl = PLANETS[i];
+      var pos = toScreen(pl.x, pl.y);
+      var pr = pl.radius * SCALE;
+      var d = Math.hypot(sx - pos[0], sy - pos[1]);
+      if (d < pr + 10) {
+        // 點到星球：顯示資訊
+        var toast = document.getElementById('sp-toast');
+        var panel = document.getElementById('sp-panel');
+        if (toast) {
+          toast.textContent = pl.name + '（' + pl.type + '）';
+          toast.hidden = false;
+          setTimeout(function(){ toast.hidden = true; }, 2500);
+        }
+        if (panel) {
+          panel.innerHTML = '<h3>' + pl.name + '</h3>'
+            + '<p>類型：' + pl.type + '</p>'
+            + '<p>座標：' + pl.x + ', ' + pl.y + '</p>'
+            + '<button onclick="document.getElementById(\'sp-panel\').hidden=true" style="margin-top:8px;padding:8px 16px">關閉</button>';
+          panel.hidden = false;
+        }
+        return; // 不移動
+      }
+    }
+    
+    // 沒點到星球：移動到該位置
+    var uv = toUniverse(sx, sy);
+    targetX = Math.max(0, Math.min(10000, uv[0]));
+    targetY = Math.max(0, Math.min(10000, uv[1]));
+    
+    var toast2 = document.getElementById('sp-toast');
+    if (toast2) {
+      toast2.textContent = '前往：' + Math.round(targetX) + ', ' + Math.round(targetY);
+      toast2.hidden = false;
+      setTimeout(function(){ toast2.hidden = true; }, 1500);
     }
   });
   
