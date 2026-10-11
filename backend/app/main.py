@@ -843,7 +843,6 @@ def review_stats(request: Request):
 
 
 # ---------------- 知識節點倉庫 ----------------
-
 class KnowledgeNodeIn(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     answer: str = Field(default="", max_length=2000)
@@ -880,6 +879,39 @@ def knowledge_upvote(node_id: str, request: Request):
     _current_user(request)
     from app import knowledge as kn_mod
     return kn_mod.upvote(node_id)
+
+
+# ---------------- 圖書館探索 ----------------
+
+@app.get("/api/v1/libraries/{lib_id}/exploration", summary="我的探索進度")
+def lib_exploration(lib_id: str, request: Request):
+    user = _current_user(request)
+    from app import exploration as exp_mod
+    return exp_mod.get_exploration(user["id"], lib_id)
+
+
+@app.post("/api/v1/libraries/{lib_id}/read", summary="記錄讀了一頁")
+def lib_read(lib_id: str, request: Request):
+    user = _current_user(request)
+    from app import exploration as exp_mod
+    return exp_mod.record_page_read(user["id"], lib_id)
+
+
+@app.post("/api/v1/libraries/{lib_id}/ask", summary="記錄問了一個問題")
+def lib_ask(lib_id: str, request: Request):
+    user = _current_user(request)
+    from app import exploration as exp_mod
+    return exp_mod.record_question(user["id"], lib_id)
+
+
+@app.post("/api/v1/libraries/{lib_id}/claim-weapon", summary="領取探索武器")
+def lib_claim_weapon(lib_id: str, request: Request):
+    user = _current_user(request)
+    from app import exploration as exp_mod
+    try:
+        return exp_mod.claim_weapon(user["id"], lib_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # ---------------- 分級 ----------------
