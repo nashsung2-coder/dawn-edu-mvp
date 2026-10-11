@@ -408,6 +408,57 @@ CREATE TABLE IF NOT EXISTS chat_group_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_group_msg ON chat_group_messages(group_id, created_at);
 
+-- 太空探索：玩家座標
+CREATE TABLE IF NOT EXISTS space_positions (
+    user_id TEXT PRIMARY KEY,
+    x REAL NOT NULL DEFAULT 5000,
+    y REAL NOT NULL DEFAULT 5000,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 太空對戰
+CREATE TABLE IF NOT EXISTS space_battles (
+    id TEXT PRIMARY KEY,
+    p1_id TEXT NOT NULL,
+    p2_id TEXT NOT NULL,
+    p1_hp INTEGER NOT NULL DEFAULT 100,
+    p2_hp INTEGER NOT NULL DEFAULT 100,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    winner_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS space_battle_actions (
+    id TEXT PRIMARY KEY,
+    battle_id TEXT NOT NULL,
+    attacker_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    damage INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_space_battle ON space_battle_actions(battle_id, created_at);
+);
+
+-- 太空對戰
+CREATE TABLE IF NOT EXISTS space_battles (
+    id TEXT PRIMARY KEY,
+    p1_id TEXT NOT NULL,
+    p2_id TEXT NOT NULL,
+    p1_hp INTEGER NOT NULL DEFAULT 100,
+    p2_hp INTEGER NOT NULL DEFAULT 100,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    winner_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS space_battle_actions (
+    id TEXT PRIMARY KEY,
+    battle_id TEXT NOT NULL,
+    attacker_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    damage INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_space_battle ON space_battle_actions(battle_id, created_at);
+
 -- 知識庫（貢獻/圖書館）MVP
 CREATE TABLE IF NOT EXISTS kb_libraries (
     id TEXT PRIMARY KEY,
@@ -810,6 +861,35 @@ CREATE TABLE IF NOT EXISTS chat_group_messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_chat_group_msg ON chat_group_messages(group_id, created_at);
+
+-- 太空探索：玩家座標（Postgres 版）
+CREATE TABLE IF NOT EXISTS space_positions (
+    user_id TEXT PRIMARY KEY,
+    x REAL NOT NULL DEFAULT 5000,
+    y REAL NOT NULL DEFAULT 5000,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 太空對戰（Postgres 版）
+CREATE TABLE IF NOT EXISTS space_battles (
+    id TEXT PRIMARY KEY,
+    p1_id TEXT NOT NULL,
+    p2_id TEXT NOT NULL,
+    p1_hp INTEGER NOT NULL DEFAULT 100,
+    p2_hp INTEGER NOT NULL DEFAULT 100,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    winner_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS space_battle_actions (
+    id TEXT PRIMARY KEY,
+    battle_id TEXT NOT NULL,
+    attacker_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    damage INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_space_battle ON space_battle_actions(battle_id, created_at);
 
 -- 知識庫（Postgres 版）
 CREATE TABLE IF NOT EXISTS kb_libraries (

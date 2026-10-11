@@ -412,6 +412,99 @@ def dashboard(request: Request):
     return out
 
 
+# ---------------- 太空探索 ----------------
+
+class SpaceMoveIn(BaseModel):
+    x: float = Field(ge=0, le=10000)
+    y: float = Field(ge=0, le=10000)
+
+
+@app.post("/api/v1/space/move", summary="更新太空座標")
+def space_move(body: SpaceMoveIn, request: Request):
+    from app import space as space_mod
+    user = _current_user(request)
+    return space_mod.update_position(user["id"], body.x, body.y)
+
+
+@app.get("/api/v1/space/state", summary="太空狀態：附近玩家、星球、熱點")
+def space_state(request: Request, x: float = Query(5000), y: float = Query(5000),
+                radius: float = Query(2000, le=5000)):
+    from app import space as space_mod
+    user = _current_user(request)
+    return space_mod.get_nearby(user["id"], x, y, radius)
+
+
+@app.get("/api/v1/space/planets", summary="所有星球")
+def space_planets():
+    from app import space as space_mod
+    return {"ok": True, "planets": space_mod.get_planets()}
+
+
+@app.post("/api/v1/space/land/{planet_id}", summary="降落星球")
+def space_land(planet_id: str, request: Request):
+    from app import space as space_mod
+    user = _current_user(request)
+    try:
+        return space_mod.land_on_planet(user["id"], planet_id)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400 if isinstance(e, ValueError) else 404, str(e))
+
+
+class SpaceChallengeIn(BaseModel):
+    target_name: str = Field(min_length=1, max_length=50)
+
+
+@app.post("/api/v1/space/battle/challenge", summary="發起太空對戰")
+def space_challenge(body: SpaceChallengeIn, request: Request):
+    from app import space as space_mod
+    user = _current_user(request)
+    try:
+        return space_mod.challenge_player(user["id"], body.target_name)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400 if isinstance(e, ValueError) else 404, str(e))
+
+
+@app.post("/api/v1/space/battle/{battle_id}/accept", summary="接受對戰")
+def space_accept(battle_id: str, request: Request):
+    from app import space as space_mod
+    user = _current_user(request)
+    try:
+        return space_mod.accept_battle(user["id"], battle_id)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400 if isinstance(e, ValueError) else 404, str(e))
+
+
+class SpaceAttackIn(BaseModel):
+    damage: int = Field(ge=0, le=50)
+
+
+@app.post("/api/v1/space/battle/{battle_id}/attack", summary="對戰攻擊（伺服器只記HP）")
+def space_attack(battle_id: str, body: SpaceAttackIn, request: Request):
+    from app import space as space_mod
+    user = _current_user(request)
+    try:
+        return space_mod.battle_attack(user["id"], battle_id, body.damage)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400 if isinstance(e, ValueError) else 404, str(e))
+
+
+@app.get("/api/v1/space/battle/{battle_id}", summary="對戰狀態")
+def space_battle_get(battle_id: str, request: Request):
+    from app import space as space_mod
+    _current_user(request)
+    try:
+        return space_mod.get_battle(battle_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/api/v1/space/battles", summary="我的對戰列表")
+def space_battles(request: Request):
+    from app import space as space_mod
+    user = _current_user(request)
+    return {"ok": True, "battles": space_mod.list_my_battles(user["id"])}
+
+
 @app.get("/api/v1/game/shop", summary="武器商店目錄（含即時價格）")
 def game_shop():
     """回傳武器目錄，前端不得寫死價格。"""
