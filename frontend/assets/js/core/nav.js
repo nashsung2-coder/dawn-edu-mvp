@@ -29,10 +29,12 @@
   document.body.appendChild(nav);
   document.body.classList.add('has-nav');
   
-  // 載入 CSS
-  var link = document.createElement('link');
-  link.rel = 'stylesheet';
-  var cssPath = path.indexOf('/pages/') !== -1 ? '../assets/css/nav.css' : 'assets/css/nav.css';
-  link.href = cssPath;
-  document.head.appendChild(link);
+  // 載入 CSS（導覽列 + 全站響應式）
+  var base = path.indexOf('/pages/') !== -1 ? '../assets/css/' : 'assets/css/';
+  [['nav.css'], ['responsive.css']].forEach(function(f) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = base + f[0];
+    document.head.appendChild(link);
+  });
 })();
