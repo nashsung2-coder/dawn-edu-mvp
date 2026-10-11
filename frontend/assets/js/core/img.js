@@ -10,23 +10,12 @@
   // 圖片根路徑（相對於網站根）
   var BASE = '/assets/img';
   
-  // 代碼 → 檔案路徑映射表
+  // 代碼 → 檔案路徑映射表（只放已存在的圖）
   var MAP = {
     pet: {
       'egg': 'game/pet-egg.webp',
       'baby': 'game/pet-baby.webp',
       'adult': 'game/pet-adult.webp',
-    },
-    bg: {
-      'cabin-warm': 'bg/cabin-warm.webp',
-      'cabin-night': 'bg/cabin-night.webp',
-      'space': 'bg/space.webp',
-    },
-    furniture: {
-      'chair-01': 'furniture/chair-01.webp',
-      'table-01': 'furniture/table-01.webp',
-      'bed-01': 'furniture/bed-01.webp',
-      'lamp-01': 'furniture/lamp-01.webp',
     },
     emblem: {
       'duel': 'emblem-duel.webp',
@@ -40,12 +29,6 @@
       'favorites': 'emblem-favorites.webp',
       'mastery': 'emblem-mastery.webp',
     },
-    character: {
-      'scholar': 'characters/scholar.webp',
-      'warrior': 'characters/warrior.webp',
-      'explorer': 'characters/explorer.webp',
-      'sage': 'characters/sage.webp',
-    }
   };
   
   // 版本號（更新圖片時改這裡，強制刷新快取）
