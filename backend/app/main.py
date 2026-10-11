@@ -1023,6 +1023,31 @@ def learn_textbook(request: Request):
             "llm": llm_mod.has_llm()}
 
 
+@app.get("/api/v1/bookshelf/feynman", summary="我的費曼課本條目")
+def bookshelf_feynman(request: Request):
+    user = _current_user(request)
+    with db.get_conn() as conn:
+        ph = "%s" if db.is_postgres() else "?"
+        try:
+            rows = conn.execute(
+                f"""SELECT id, title, content, created_at FROM bookshelf_entries
+                    WHERE user_id = {ph} AND source = 'feynman'
+                    ORDER BY created_at DESC""",
+                (user["id"],)).fetchall()
+            entries = []
+            for r in rows:
+                d = dict(r)
+                try:
+                    import json as js
+                    d["entry"] = js.loads(d.get("content") or "{}")
+                except Exception:
+                    d["entry"] = {}
+                entries.append(d)
+            return {"ok": True, "entries": entries}
+        except Exception:
+            return {"ok": True, "entries": []}
+
+
 # ---------------- 遊戲世界：寵物／島嶼／市集／探索／每週 ----------------
 class PetNameIn(BaseModel):
     name: str = Field(description="寵物名字")
