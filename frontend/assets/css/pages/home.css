@@ -86,11 +86,18 @@
 
 /* 手機：上下分，橫向河 */
 @media (max-width: 768px) {
-  #gateway { grid-template-columns: 1fr; grid-template-rows: 1fr 44px 1fr; }
+  #gateway { grid-template-columns: 1fr; grid-template-rows: 1fr 44px 1fr 44px 1fr; }
   .ink-river {
     background: linear-gradient(90deg,
       transparent 0%, #2B262066 30%, #00E5FF44 70%, transparent 100%);
   }
-  .zone-learn, .zone-game { padding: var(--sp-8) var(--sp-4); }
+  .zone-learn, .zone-game, .zone-center { padding: var(--sp-8) var(--sp-4); }
   .sys-card img { width: 72px; height: 72px; }
+}
+
+/* 中央區主題 */
+.theme-center {
+  --bg: #FAFAF8;
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
 }
