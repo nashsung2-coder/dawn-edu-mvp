@@ -932,6 +932,18 @@ def feynman_guiding_questions(body: GuidingQIn, request: Request):
     from app import llm as llm_mod
     return {"ok": True, "questions": llm_mod.generate_guiding_questions(body.topic, body.context)}
 
+
+class AppChallengeIn(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    explanation: str = Field(default="", max_length=2000)
+
+
+@app.post("/api/v1/feynman/application-challenge", summary="生成應用挑戰")
+def feynman_app_challenge(body: AppChallengeIn, request: Request):
+    _current_user(request)
+    from app import llm as llm_mod
+    return {"ok": True, "challenge": llm_mod.generate_application_challenge(body.topic, body.explanation)}
+
 @app.get("/api/v1/libraries/{lib_id}/exploration", summary="我的探索進度")
 def lib_exploration(lib_id: str, request: Request):
     user = _current_user(request)

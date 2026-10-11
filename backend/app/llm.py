@@ -666,3 +666,33 @@ def generate_guiding_questions(topic: str, context: str = "") -> list:
         f"「{topic}」為什麼會這樣運作？背後的因果機制是什麼？",
         f"如果把「{topic}」應用到生活中，會產生什麼變化？",
     ]
+
+
+def generate_application_challenge(topic: str, explanation: str) -> dict:
+    """生成應用挑戰：用剛學的概念解小情境題。"""
+    if has_llm():
+        msgs = [
+            {"role": "system",
+             "content": "你是學習設計師。學生剛學了一個概念，請設計一個小情境應用題，"
+                        "讓他把剛學的知識用出來。題目要具體、有趣、貼近生活。"
+                        "用繁體中文，回傳 JSON：{\"scenario\": \"情境描述（100字內）\", "
+                        "\"task\": \"要完成的任務（50字內）\", "
+                        "\"hints\": [\"提示1\", \"提示2\"]}。"
+                        "只回 JSON。"},
+            {"role": "user", "content": f"主題：{topic}\n學生的理解：{explanation[:500]}"},
+        ]
+        out = _nim_call(msgs, max_tokens=600, temperature=0.7)
+        if out:
+            try:
+                import json as js
+                start = out.find("{")
+                end = out.rfind("}") + 1
+                if start >= 0 and end > start:
+                    return js.loads(out[start:end])
+            except Exception:
+                pass
+    return {
+        "scenario": f"想像你要向一個完全沒聽過「{topic}」的朋友解釋它，你會怎麼說？",
+        "task": "用生活中的例子，把這個概念講清楚。",
+        "hints": ["想想這個概念在哪裡出現過", "用比喻會更容易理解"],
+    }
