@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>曙光教育 3.0</title>
+<title>曙光教育</title>
 <meta name="description" content="遊戲化適性學習：左岸靜修，右岸星海。">
-<!-- PWA -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0B0E2A">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,8 +13,105 @@
 <meta name="apple-mobile-web-app-title" content="曙光教育">
 <link rel="apple-touch-icon" href="assets/img/pwa-icon-192.webp">
 <link rel="icon" type="image/webp" href="assets/img/pwa-icon-192.webp">
-<link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
-<link rel="stylesheet" href="assets/css/pages/home.css?v=3.2.0">
+<style>
+/* 首頁：滿版三等份，無捲動 */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: "Noto Sans TC", sans-serif;
+  display: flex; flex-direction: column;
+  height: 100dvh; overflow: hidden;
+  background: #0B0E2A; color: #fff;
+}
+/* 頂欄 */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 24px; height: 52px; flex-shrink: 0;
+  background: rgba(11,14,42,.9); border-bottom: 1px solid #23264F;
+  font-size: 14px; z-index: 5;
+}
+.topbar .brand { font-weight: 900; font-size: 17px; letter-spacing: .06em; }
+.topbar nav { display: flex; gap: 6px; }
+.topbar nav a {
+  color: #8B93C9; text-decoration: none; padding: 7px 14px;
+  border-radius: 999px; transition: all .2s ease; font-weight: 500; font-size: 13px;
+}
+.topbar nav a:hover { color: #fff; background: #23264F; }
+/* 主區：三等份 */
+.gates {
+  flex: 1; display: grid; min-height: 0;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas: "learn space" "home home";
+}
+.gate {
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-decoration: none; color: inherit;
+  position: relative; overflow: hidden;
+  transition: transform .2s ease;
+  padding: 20px;
+}
+.gate:hover { transform: scale(1.01); }
+.gate:active { transform: scale(.99); }
+.gate > * { position: relative; z-index: 1; }
+/* 學習：暖金 */
+.gate-learn {
+  grid-area: learn;
+  background: linear-gradient(135deg, #2A1F0D 0%, #4A3410 50%, #6B4A15 100%);
+  border-right: 1px solid #ffffff18; border-bottom: 1px solid #ffffff18;
+}
+.gate-learn::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(50% 50% at 30% 70%, #FFB35C33, transparent 70%);
+}
+/* 宇宙：深藍星空 */
+.gate-space {
+  grid-area: space;
+  background: linear-gradient(135deg, #0B0E2A 0%, #141842 50%, #1E2460 100%);
+  border-bottom: 1px solid #ffffff18;
+}
+.gate-space::before {
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent),
+    radial-gradient(1px 1px at 60% 70%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 80% 20%, #fff, transparent),
+    radial-gradient(1px 1px at 40% 80%, #fff, transparent),
+    radial-gradient(2px 2px at 70% 40%, #fff, transparent);
+  opacity: .5;
+}
+/* 家：暖橘 */
+.gate-home {
+  grid-area: home;
+  background: linear-gradient(180deg, #5C3D2E 0%, #8A5A3A 50%, #B07A4A 100%);
+}
+.gate-home::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(60% 40% at 50% 100%, #FFB35C44, transparent 70%);
+}
+.gate-icon {
+  width: 72px; height: 72px; border-radius: 50%;
+  object-fit: cover; margin-bottom: 14px;
+  border: 2px solid #ffffff44;
+  box-shadow: 0 6px 20px rgba(0,0,0,.3);
+}
+.gate-title { font-size: 36px; font-weight: 900; margin: 0 0 8px; letter-spacing: .15em; }
+.gate-desc { font-size: 14px; opacity: .7; margin: 0; text-align: center; line-height: 1.6; }
+.gate-hint { margin-top: 12px; font-size: 12px; opacity: .4; letter-spacing: .08em; }
+/* 手機：直式三等份 */
+@media (max-width: 640px) {
+  .gates {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    grid-template-areas: "learn" "space" "home";
+  }
+  .gate-learn { border-right: none; }
+  .gate-title { font-size: 28px; }
+  .gate-icon { width: 56px; height: 56px; margin-bottom: 10px; }
+  .gate-desc { font-size: 13px; }
+}
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -26,26 +122,37 @@
     <a href="pages/settings.html">帳戶</a>
   </nav>
 </header>
-<div id="gateway">
-  <a class="gate gate-learn" href="pages/learn.html">
+<main class="gates">
+  <a class="gate gate-learn" href="pages/learn.html" aria-label="進入學習">
     <img class="gate-icon" src="assets/img/emblem-quiz.webp?v=3.0.0" alt="">
     <h1 class="gate-title">學習</h1>
-    <p class="gate-desc">刪除干擾，進入專注。費曼戰役、圖書館、複習任務都在這裡。</p>
-    <p class="gate-hint">點此進入 →</p>
+    <p class="gate-desc">費曼戰役 · 知識對決<br>從問題出發，深入學習</p>
+    <span class="gate-hint">點擊進入 →</span>
   </a>
-  <a class="gate gate-home" href="pages/myhome.html">
-    <img class="gate-icon" src="assets/img/emblem-island.webp?v=3.0.0" alt="">
+  <a class="gate gate-space" href="pages/space.html" aria-label="進入宇宙">
+    <img class="gate-icon" src="assets/img/emblem-explore.webp?v=3.0.0" alt="">
+    <h1 class="gate-title">宇宙</h1>
+    <p class="gate-desc">未知之境 · 星際探索<br>開飛船，降落星球，挑戰關卡</p>
+    <span class="gate-hint">點擊進入 →</span>
+  </a>
+  <a class="gate gate-home" href="pages/myhome.html" aria-label="進入我的家">
+    <img class="gate-icon" src="assets/img/emblem-bookshelf.webp?v=3.0.0" alt="">
     <h1 class="gate-title">我的家</h1>
-    <p class="gate-desc">你的島嶼，你的歸宿。寵物、領地、傳送門都在這裡。</p>
-    <p class="gate-hint">點此進入 →</p>
+    <p class="gate-desc">靈獸夥伴 · 領地 · 傳送門 — 歡迎回家</p>
+    <span class="gate-hint">點擊進入 →</span>
   </a>
-  <a class="gate gate-game" href="pages/game.html">
-    <img class="gate-icon" src="assets/img/emblem-island.webp?v=3.0.0" alt="">
-    <h1 class="gate-title">遊戲</h1>
-    <p class="gate-desc">指揮官，你的艦隊在等你。市集、對決、探索都在這裡。</p>
-    <p class="gate-hint">點此進入 →</p>
-  </a>
-</div>
-<script type="module" src="assets/js/pages/home.js?v=3.0.0"></script>
+</main>
+<script type="module">
+/* PWA */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+/* 記住裝置 */
+try {
+  localStorage.setItem('dawn.device', innerWidth <= 640 ? 'mobile' : 'desktop');
+} catch (e) {}
+</script>
 </body>
 </html>
