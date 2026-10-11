@@ -1,111 +1,107 @@
-/* 首頁：左中右三欄（zen 左 / center 中 / neon 右） */
+/* 首頁 v2：重構版。簡單、穩固、不花俏。
+   三欄：學習（左）/ 連結（中）/ 遊戲（右）。手機版垂直堆疊。 */
 
-#gateway { display: grid; grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) 44px minmax(0, 1fr); min-height: 100dvh; }
+#gateway {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  min-height: 100dvh;
+}
 
-/* 左：禪區 */
-.zone-learn { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); min-width: 0; }
+/* 各區基礎 */
+.zone {
+  padding: 48px 32px;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+.zone > * { position: relative; z-index: 1; }
+
+/* 左：學習區（暖米色） */
+.zone-learn {
+  background: #F4EFE6;
+  color: #2B2620;
+  --card-bg: #FBF8F1;
+  --card-border: #E2D9C8;
+  --muted: #8A8175;
+  --accent: #B4552D;
+}
 .zone-learn::before {
   content: ""; position: absolute; inset: 0;
   background: url("../../img/home-zen-bg.webp") center / cover no-repeat;
-  opacity: .5; pointer-events: none;
+  opacity: .4; pointer-events: none;
 }
-.zone-learn > * { position: relative; }
 
-/* 右：霓虹區 */
-.zone-game { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); min-width: 0; }
+/* 中：連結區（淺灰白） */
+.zone-center {
+  background: #FAFAF8;
+  color: #1a1a1a;
+  --card-bg: #FFFFFF;
+  --card-border: #E0DCD4;
+  --muted: #6b6b6b;
+  --accent: #B4552D;
+  border-left: 1px solid #E0DCD4;
+  border-right: 1px solid #E0DCD4;
+}
+
+/* 右：遊戲區（深藍） */
+.zone-game {
+  background: #0B0E2A;
+  color: #EAF6FF;
+  --card-bg: #12163A;
+  --card-border: #23264F;
+  --muted: #8B93C9;
+  --accent: #00E5FF;
+}
 .zone-game::before {
   content: ""; position: absolute; inset: 0;
   background: url("../../img/home-neon-bg.webp") center / cover no-repeat;
-  opacity: .6; pointer-events: none;
+  opacity: .5; pointer-events: none;
 }
-.zone-game > * { position: relative; }
 
-/* 中：中央區 */
-.zone-center { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-6); background: var(--bg); color: var(--ink); min-width: 0; }
-.zone-center > * { position: relative; }
-.zone-center .sys-grid { grid-template-columns: 1fr; }
+/* 標題 */
+.zone-label { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+.zone-title { font-size: 32px; font-weight: 800; margin: 0 0 8px; letter-spacing: .05em; }
+.zone-desc { font-size: 14px; color: var(--muted); margin: 0 0 24px; }
 
-/* 中線：墨水分界河 */
-.ink-river {
-  position: relative; z-index: var(--z-river);
-  background: linear-gradient(180deg,
-    transparent 0%, #2B262066 30%, #00E5FF44 70%, transparent 100%);
+/* 卡片網格 */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
-.ink-river::after {
-  content: ""; position: absolute; inset: 0;
-  background: radial-gradient(50% 8% at 50% 50%, #00E5FF88, transparent 70%);
-  animation: riverPulse 6s ease-in-out infinite alternate;
-}
-@keyframes riverPulse { from { opacity: .4; } to { opacity: 1; } }
+.zone-center .card-grid { grid-template-columns: 1fr; }
 
-/* 系統卡片 */
-.sys-grid { display: grid; gap: var(--sp-4); margin-top: var(--sp-8); }
-.zone-learn .sys-grid { grid-template-columns: repeat(2, 1fr); }
-.zone-game .sys-grid { grid-template-columns: repeat(2, 1fr); }
-.sys-card {
-  text-align: center; padding: var(--sp-6) var(--sp-4);
-  /* hover 回饋 */
+/* 卡片 */
+.home-card {
+  display: block;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px 16px;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
   transition: transform .2s ease, box-shadow .2s ease;
 }
-.sys-card:hover {
+.home-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
 }
-.sys-card:active {
-  transform: scale(.97);
+.home-card:active { transform: scale(.98); }
+.home-card img {
+  width: 80px; height: 80px;
+  object-fit: cover; border-radius: 50%;
+  margin: 0 auto 12px;
+  border: 2px solid var(--card-border);
+  display: block;
 }
-/* 進場動畫：只在支援時啟用，不影響佈局 */
-@media (prefers-reduced-motion: no-preference) {
-  .sys-card {
-    animation: cardEnter .5s ease-out backwards;
-  }
-  /* 交錯延遲 */
-  .sys-grid .sys-card:nth-child(1) { animation-delay: .05s; }
-  .sys-grid .sys-card:nth-child(2) { animation-delay: .1s; }
-  .sys-grid .sys-card:nth-child(3) { animation-delay: .15s; }
-  .sys-grid .sys-card:nth-child(4) { animation-delay: .2s; }
-  .sys-grid .sys-card:nth-child(5) { animation-delay: .25s; }
-  .sys-grid .sys-card:nth-child(6) { animation-delay: .3s; }
-  .sys-grid .sys-card:nth-child(7) { animation-delay: .35s; }
-  .sys-grid .sys-card:nth-child(8) { animation-delay: .4s; }
-  .sys-grid .sys-card:nth-child(9) { animation-delay: .45s; }
-}
-@keyframes cardEnter {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-/* 減少動態偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .ink-river::after { animation: none; }
-}
-.sys-card img {
-  width: 96px; height: 96px; object-fit: cover; border-radius: 50%;
-  margin: 0 auto var(--sp-3); border: 2px solid var(--line);
-}
-.sys-card h3 { font-size: var(--fs-16); margin-bottom: var(--sp-1); }
-.sys-card p { font-size: var(--fs-13); color: var(--muted); }
+.home-card h3 { font-size: 16px; margin: 0 0 4px; font-weight: 700; }
+.home-card p { font-size: 13px; color: var(--muted); margin: 0; }
 
-.zone-title { font-size: var(--fs-32); font-weight: 800; letter-spacing: .1em; }
-.zone-sub { color: var(--muted); font-size: var(--fs-14); margin-top: var(--sp-2); }
-
-/* 手機：上下分，橫向河 */
+/* 手機版：垂直堆疊 */
 @media (max-width: 768px) {
-  #gateway { grid-template-columns: 1fr; grid-template-rows: 1fr 44px 1fr 44px 1fr; }
-  .ink-river {
-    background: linear-gradient(90deg,
-      transparent 0%, #2B262066 30%, #00E5FF44 70%, transparent 100%);
-  }
-  .zone-learn, .zone-game, .zone-center { padding: var(--sp-8) var(--sp-4); }
-  .sys-card img { width: 72px; height: 72px; }
-}
-
-/* 中央區主題 */
-.theme-center {
-  --bg: #FAFAF8;
-  --bg-soft: #F0EDE6;
-  --ink: #1a1a1a;
-  --muted: #6b6b6b;
-  --line: #E0DCD4;
-  --accent: #B4552D;
-  --card: #FFFFFF;
+  #gateway { grid-template-columns: 1fr; }
+  .zone { padding: 32px 20px; }
+  .zone-center { border-left: none; border-right: none; border-top: 1px solid #E0DCD4; border-bottom: 1px solid #E0DCD4; }
+  .home-card img { width: 64px; height: 64px; }
 }
