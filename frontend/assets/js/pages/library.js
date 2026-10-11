@@ -529,6 +529,7 @@ function openModal(title, lib = null, onOk = null) {
   document.getElementById("l-m-tags").value = (lib?.tags || []).join(", ");
   document.getElementById("l-m-vis").value = lib?.visibility || "public";
   modal.hidden = false;
+  modal.style.display = 'block';
 
   const okBtn = document.getElementById("l-m-ok");
   okBtn.onclick = async () => {
@@ -553,7 +554,7 @@ function openModal(title, lib = null, onOk = null) {
   document.getElementById("l-m-title").focus();
 }
 
-function closeModal() { modal.hidden = true; }
+function closeModal() { modal.hidden = true; modal.style.display = 'none'; }
 
 /* ============ 初始化 ============ */
 
