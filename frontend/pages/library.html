@@ -44,6 +44,31 @@ body { background: var(--lib-bg); color: var(--lib-text); font-family: -apple-sy
     <div class="empty"><div class="big">◈</div><p>載入中...</p></div>
   </div>
 </main>
+<!-- 建庫 Modal -->
+<div id="l-modal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto">
+    <h3 id="l-modal-title" style="margin:0 0 16px;font-size:18px">建立知識庫</h3>
+    <label style="display:block;margin-bottom:12px;font-size:14px">庫名
+      <input id="l-m-title" type="text" placeholder="例如：高中數學公式庫" style="width:100%;margin-top:4px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px">
+    </label>
+    <label style="display:block;margin-bottom:12px;font-size:14px">描述
+      <textarea id="l-m-desc" placeholder="這個庫是做什麼的？" style="width:100%;margin-top:4px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;min-height:80px"></textarea>
+    </label>
+    <label style="display:block;margin-bottom:12px;font-size:14px">標籤（用逗號分隔）
+      <input id="l-m-tags" type="text" placeholder="數學, 公式, 高中" style="width:100%;margin-top:4px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px">
+    </label>
+    <label style="display:block;margin-bottom:16px;font-size:14px">可見性
+      <select id="l-m-vis" style="width:100%;margin-top:4px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px">
+        <option value="public">公開</option>
+        <option value="private">私人</option>
+      </select>
+    </label>
+    <div style="display:flex;gap:12px;justify-content:flex-end">
+      <button id="l-m-cancel" style="padding:10px 20px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer">取消</button>
+      <button id="l-m-ok" style="padding:10px 20px;border:none;background:#1a1a1a;color:#fff;border-radius:8px;cursor:pointer;font-weight:600">建立</button>
+    </div>
+  </div>
+</div>
 <script src="../assets/js/core/nav.js"></script>
 <script src="../assets/js/pages/library.js?v=5.0.0"></script>
 </body>
