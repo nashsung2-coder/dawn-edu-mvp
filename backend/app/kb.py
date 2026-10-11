@@ -84,7 +84,7 @@ def list_libraries(viewer_id: str = None, limit: int = 50,
                    search: str = "", tag: str = "") -> list[dict]:
     """探索：列出公開庫（＋自己的私人庫）。"""
     with db.get_conn() as conn:
-        q = """SELECT l.*, u.nickname as owner_name,
+        q = """SELECT l.*, u.name as owner_name,
                       (SELECT COUNT(*) FROM kb_pages WHERE library_id = l.id) as page_count
                FROM kb_libraries l
                LEFT JOIN users u ON u.id = l.owner_id
