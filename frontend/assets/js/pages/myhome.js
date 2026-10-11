@@ -43,11 +43,20 @@ function petMood(mood) {
 
 async function render() {
   view.innerHTML = `<p class="center" style="color:#A08060">正在點亮壁爐…</p>`;
+  // 超時保護：8 秒後若還沒載入完，顯示提示
+  const timeout = setTimeout(() => {
+    if (view.innerHTML.includes('正在點亮壁爐')) {
+      view.innerHTML = `<div class="center" style="padding:40px">
+        <p style="color:#A08060">載入有點慢，再試一次吧</p>
+        <button class="btn-warm" onclick="location.reload()">重新載入</button></div>`;
+    }
+  }, 8000);
   try {
     const [statusR, petR] = await Promise.allSettled([
       get(`/islands/${userId}`),
       get("/world/pet"),
     ]);
+    clearTimeout(timeout);
     const st = statusR.status === "fulfilled" ? (statusR.value.island || statusR.value) : null;
     const pet = petR.status === "fulfilled" ? (petR.value.pet || petR.value.data?.pet) : null;
     const territory = st ? (Number(st.territory) || 0) : 0;
