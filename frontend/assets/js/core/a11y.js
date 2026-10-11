@@ -44,3 +44,22 @@ export function trapFocus(container) {
   container.addEventListener("keydown", onKey);
   return () => container.removeEventListener("keydown", onKey);
 }
+
+/* 輕提示 toast（共用） */
+export function toast(msg) {
+  let root = document.getElementById("toast-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "toast-root";
+    root.setAttribute("aria-live", "polite");
+    root.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center";
+    document.body.appendChild(root);
+  }
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  el.style.cssText = "background:#333;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25);animation:toastIn .25s ease";
+  root.appendChild(el);
+  announce(msg);
+  setTimeout(() => el.remove(), 3200);
+}
