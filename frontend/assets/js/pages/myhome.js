@@ -28,6 +28,13 @@ function escapeHtml(s) {
 
 function petImg(level) {
   const lv = Number(level) || 1;
+  // 用 IMG 解析器：後端只傳等級，前端解析為邊緣圖片 URL
+  if (window.IMG) {
+    if (lv >= 10) return IMG.resolve('pet', 'adult');
+    if (lv >= 5) return IMG.resolve('pet', 'baby');
+    return IMG.resolve('pet', 'egg');
+  }
+  // 降級：硬編碼路徑
   if (lv >= 10) return "../assets/img/game/pet-adult.webp?v=3.0.0";
   if (lv >= 5) return "../assets/img/game/pet-baby.webp?v=3.0.0";
   return "../assets/img/game/pet-egg.webp?v=3.0.0";
