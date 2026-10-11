@@ -3,40 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>知識星海圖書館｜曙光教育</title>
-<link rel="stylesheet" href="../assets/css/base.css">
-<link rel="stylesheet" href="../assets/css/components.css">
-<link rel="stylesheet" href="../assets/css/pages/library.css">
+<title>知識庫｜曙光教育</title>
+<link rel="stylesheet" href="../assets/css/design-tokens.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--lib-bg); color: var(--lib-text); font-family: -apple-system, "Noto Sans TC", sans-serif; min-height: 100dvh; }
+.topbar { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--lib-line); position: sticky; top: 0; background: var(--lib-bg); z-index: 10; }
+.topbar .back { color: var(--lib-muted); text-decoration: none; font-size: 20px; }
+.topbar h1 { font-size: 15px; font-weight: 600; flex: 1; letter-spacing: .02em; }
+.topbar h1 .mono { font-family: var(--lib-font); font-size: 12px; color: var(--lib-muted); margin-left: 8px; }
+.btn-new { background: var(--lib-accent); color: #fff; border: none; border-radius: var(--lib-radius); padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-new:hover { opacity: .9; }
+.container { max-width: 1000px; margin: 0 auto; padding: 32px 24px 100px; }
+.search-row { display: flex; gap: 12px; margin-bottom: 24px; }
+.search-row input { flex: 1; background: var(--lib-bg-soft); border: 1px solid var(--lib-line); border-radius: var(--lib-radius); padding: 12px 16px; color: var(--lib-text); font-size: 14px; }
+.search-row input:focus { outline: none; border-color: var(--lib-accent); }
+.search-row input::placeholder { color: var(--lib-muted); }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.lib-card { background: var(--lib-bg-soft); border: 1px solid var(--lib-line); border-radius: var(--lib-radius); padding: 20px; cursor: pointer; transition: border-color .2s ease; }
+.lib-card:hover { border-color: var(--lib-accent); }
+.lib-card .tag { font-family: var(--lib-font); font-size: 11px; color: var(--lib-accent); text-transform: uppercase; letter-spacing: .08em; }
+.lib-card h3 { font-size: 16px; margin: 8px 0; font-weight: 600; }
+.lib-card p { font-size: 13px; color: var(--lib-muted); line-height: 1.6; }
+.lib-card .meta { display: flex; gap: 12px; margin-top: 12px; font-family: var(--lib-font); font-size: 11px; color: var(--lib-muted); }
+.empty { text-align: center; padding: 80px 20px; color: var(--lib-muted); }
+.empty .big { font-size: 48px; margin-bottom: 16px; opacity: .3; }
+</style>
 </head>
 <body>
 <header class="topbar">
-  <a href="../desktop.html" class="back" aria-label="回首頁">‹</a>
-  <h1>知識星海圖書館</h1>
-  <button id="l-create-btn" class="btn btn-primary" style="font-size:13px;padding:8px 14px">＋ 建庫</button>
+  <a href="../desktop.html" class="back">‹</a>
+  <h1>知識庫 <span class="mono">LIBRARY</span></h1>
+  <button class="btn-new" id="l-create-btn">＋ 建庫</button>
 </header>
-
-<main id="l-view" class="container" tabindex="-1">
-  <!-- JS 渲染 -->
-</main>
-<div id="l-modal" class="modal" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="l-modal-title">
-    <h2 id="l-modal-title">建立知識庫</h2>
-    <label>庫名<input id="l-m-title" type="text" maxlength="60" placeholder="例如：高中物理力學全解"></label>
-    <label>簡介<textarea id="l-m-desc" rows="3" maxlength="500" placeholder="這個庫在講什麼？適合誰？"></textarea></label>
-    <label>標籤（逗號分隔）<input id="l-m-tags" type="text" placeholder="物理, 力學, 高中"></label>
-    <label>可見性
-      <select id="l-m-vis">
-        <option value="public">公開（所有人可探索）</option>
-        <option value="private">私人（只有我看得到）</option>
-      </select>
-    </label>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="l-m-cancel">取消</button>
-      <button class="btn btn-primary" id="l-m-ok">建立</button>
-    </div>
+<main class="container" id="l-view">
+  <div class="search-row">
+    <input type="text" id="l-search" placeholder="搜尋知識庫..." aria-label="搜尋知識庫">
   </div>
-</div>
-
+  <div class="lib-grid" id="l-grid">
+    <div class="empty"><div class="big">◈</div><p>載入中...</p></div>
+  </div>
+</main>
+<script src="../assets/js/core/nav.js"></script>
 <script type="module" src="../assets/js/pages/library.js"></script>
 </body>
 </html>
