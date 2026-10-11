@@ -433,6 +433,27 @@ CREATE TABLE IF NOT EXISTS library_weapons (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 費曼說服挑戰：用戶說服 AI → AI 反向提問 → 達標入課本
+CREATE TABLE IF NOT EXISTS feynman_persuasion (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    library_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    rounds INTEGER NOT NULL DEFAULT 0,
+    best_score INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS feynman_rounds (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    round_num INTEGER NOT NULL,
+    explanation TEXT NOT NULL DEFAULT '',
+    score INTEGER NOT NULL DEFAULT 0,
+    ai_response TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 知識節點倉庫：從一道題目長出知識連結（可共享成學習網絡）
 CREATE TABLE IF NOT EXISTS knowledge_nodes (
     id TEXT PRIMARY KEY,
@@ -790,6 +811,27 @@ CREATE TABLE IF NOT EXISTS library_weapons (
     name TEXT NOT NULL,
     base_dmg_min INTEGER NOT NULL DEFAULT 10,
     base_dmg_max INTEGER NOT NULL DEFAULT 20,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 費曼說服挑戰（Postgres 版）
+CREATE TABLE IF NOT EXISTS feynman_persuasion (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    library_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    rounds INTEGER NOT NULL DEFAULT 0,
+    best_score INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS feynman_rounds (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    round_num INTEGER NOT NULL,
+    explanation TEXT NOT NULL DEFAULT '',
+    score INTEGER NOT NULL DEFAULT 0,
+    ai_response TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
