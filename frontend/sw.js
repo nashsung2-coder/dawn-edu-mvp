@@ -1,5 +1,5 @@
 /* 曙光教育 PWA Service Worker */
-const CACHE = "dawn-edu-v5";
+const CACHE = "dawn-edu-v6";
 const CORE = [
   "/desktop.html",
   "/mobile.html",
