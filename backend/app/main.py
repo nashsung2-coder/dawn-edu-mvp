@@ -354,7 +354,9 @@ def game_shop():
     """回傳武器目錄，前端不得寫死價格。"""
     return {"ok": True, "weapons": [
         {"id": k, "name": v["name"], "cost": v["cost"],
-         "type": v["type"], "desc": v["desc"]}
+         "type": v["type"], "desc": v["desc"],
+         "target": v.get("target", ""), "target_label": v.get("target_label", ""),
+         "use_hint": v.get("use_hint", "")}
         for k, v in economy.WEAPONS.items()
     ]}
 

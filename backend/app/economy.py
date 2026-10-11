@@ -17,15 +17,21 @@ WEAPONS = {
         "name": "星塵飛鏢", "cost": 20, "type": "attack",
         "desc": "輕巧迅捷的星砂飛鏢，對拓荒者造成 10–20 傷害。",
         "dmg": [10, 20],
+        "target": "duel", "target_label": "對決中使用（指定對手）",
+        "use_hint": "在知識對決中自動生效，先手加成",
     },
     "wave": {
         "name": "潮汐巨浪", "cost": 50, "type": "attack",
         "desc": "引動知識之海的巨浪，造成 25–40 傷害。",
         "dmg": [25, 40],
+        "target": "duel", "target_label": "對決中使用（範圍傷害）",
+        "use_hint": "在知識對決中自動生效，適合據點攻防",
     },
     "shield": {
         "name": "曙光護盾", "cost": 30, "type": "defense",
         "desc": "抵擋下一次反擊，守護你的島嶼。",
+        "target": "self", "target_label": "對自己使用（防禦）",
+        "use_hint": "使用後抵擋下一次受到的傷害",
     },
 }
 
