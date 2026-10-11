@@ -5,6 +5,22 @@
   var ctx = canvas.getContext('2d');
   var W, H, stars = [];
   
+  // 載入時抓星砂（背景更新，不擋畫面）
+  (function fetchStardust() {
+    try {
+      var token = localStorage.getItem('dawn:v1:auth-token') || localStorage.getItem('dawn.token');
+      if (!token) return;
+      fetch('https://dawn-edu-mvp.onrender.com/api/v1/dashboard', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && typeof d.stardust === 'number') {
+          localStorage.setItem('dawn:stardust', String(d.stardust));
+        }
+      }).catch(function(){});
+    } catch(e) {}
+  })();
+  
   function resize() {
     W = canvas.width = window.innerWidth;
     H = canvas.height = window.innerHeight;
@@ -137,10 +153,26 @@
           setTimeout(function(){ toast.hidden = true; }, 2500);
         }
         if (panel) {
-          panel.innerHTML = '<h3>' + pl.name + '</h3>'
+          // 檢查是否已征服
+          var conquered = [];
+          try { conquered = JSON.parse(localStorage.getItem('dawn:conquered') || '[]'); } catch(e) {}
+          var isConquered = conquered.indexOf(pl.id) !== -1;
+          // 征服需要戰力（根據星球類型）
+          var needPower = pl.type === 'battle' ? 50 : pl.type === 'mystery' ? 80 : 30;
+          
+          var html = '<h3>' + pl.name + (isConquered ? ' 🏳️' : '') + '</h3>'
             + '<p>類型：' + pl.type + '</p>'
-            + '<p>座標：' + pl.x + ', ' + pl.y + '</p>'
-            + '<button onclick="document.getElementById(\'sp-panel\').hidden=true" style="margin-top:8px;padding:8px 16px">關閉</button>';
+            + '<p>座標：' + pl.x + ', ' + pl.y + '</p>';
+          
+          if (isConquered) {
+            html += '<p style="color:#27AE60">✅ 已征服</p>';
+          } else {
+            html += '<p>征服需要戰力：' + needPower + '（星砂轉換）</p>'
+              + '<button onclick="startConquer(\'' + pl.id + '\',' + needPower + ')" '
+              + 'style="margin-top:8px;padding:10px 20px;background:#E74C3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:15px">⚔️ 發起征服戰</button>';
+          }
+          html += '<br><button onclick="document.getElementById(\'sp-panel\').hidden=true" style="margin-top:8px;padding:8px 16px">關閉</button>';
+          panel.innerHTML = html;
           panel.hidden = false;
         }
         return; // 不移動
@@ -161,4 +193,30 @@
   });
   
   draw();
+  
+  // 征服星球：檢查星砂，跳轉對戰
+  window.startConquer = function(planetId, needPower) {
+    // 從 API 拿星砂（同步用 localStorage 快取，避免每次都打 API）
+    var stardust = 0;
+    try {
+      var cached = localStorage.getItem('dawn:stardust');
+      if (cached) stardust = parseInt(cached) || 0;
+    } catch(e) {}
+    
+    // 戰力 = 星砂 / 10（每 10 星砂 = 1 戰力）
+    var power = Math.floor(stardust / 10);
+    
+    if (power < needPower) {
+      var toast = document.getElementById('sp-toast');
+      if (toast) {
+        toast.textContent = '戰力不足！需要 ' + needPower + '，你只有 ' + power + '。去學習賺星砂吧！';
+        toast.hidden = false;
+        setTimeout(function(){ toast.hidden = true; }, 3000);
+      }
+      return;
+    }
+    
+    // 跳轉對戰，帶星球參數
+    location.href = 'space-battle.html?planet=' + planetId + '&power=' + power;
+  };
 })();
