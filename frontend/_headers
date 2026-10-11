@@ -1,0 +1,11 @@
+# Cloudflare Pages 快取標頭：靜態資源長期快取
+/assets/img/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/css/*
+  Cache-Control: public, max-age=86400
+/assets/js/*
+  Cache-Control: public, max-age=86400
+/*.html
+  Cache-Control: public, max-age=3600
+/
+  Cache-Control: public, max-age=3600
