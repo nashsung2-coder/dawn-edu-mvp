@@ -33,7 +33,8 @@ input.txt { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 
   var API = 'https://dawn-edu-mvp.onrender.com/api/v1';
   
   function getToken() {
-    try { return localStorage.getItem('dawn.token') || ''; } catch(e) { return ''; }
+    // 支援多種 token key（相容不同版本的登入）
+    try { return localStorage.getItem('dawn:v1:auth-token') || localStorage.getItem('dawn.token') || ''; } catch(e) { return ''; }
   }
   
   function isLoggedIn() { return !!getToken(); }
