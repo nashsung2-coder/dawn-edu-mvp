@@ -411,6 +411,22 @@ CREATE TABLE IF NOT EXISTS kb_pages (
 );
 CREATE INDEX IF NOT EXISTS idx_kbpage_lib ON kb_pages(library_id, sort_order);
 
+-- 知識節點倉庫：從一道題目長出知識連結（可共享成學習網絡）
+CREATE TABLE IF NOT EXISTS knowledge_nodes (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL DEFAULT '',
+    explanation TEXT NOT NULL DEFAULT '',
+    concepts TEXT NOT NULL DEFAULT '[]',
+    source TEXT NOT NULL DEFAULT 'review',
+    is_public INTEGER NOT NULL DEFAULT 1,
+    upvotes INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_knode_owner ON knowledge_nodes(owner_id);
+CREATE INDEX IF NOT EXISTS idx_knode_public ON knowledge_nodes(is_public, created_at);
+
 -- 題庫快取：LLM 生成的題目存起來，下次同主題直接用（解決 35 秒等待）
 CREATE TABLE IF NOT EXISTS question_cache (
     id TEXT PRIMARY KEY,
