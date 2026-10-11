@@ -386,6 +386,28 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_conv ON chat_messages(sender_id, receiver_id, created_at);
 
+-- 群聊
+CREATE TABLE IF NOT EXISTS chat_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS chat_group_members (
+    group_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (group_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS chat_group_messages (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_group_msg ON chat_group_messages(group_id, created_at);
+
 -- 知識庫（貢獻/圖書館）MVP
 CREATE TABLE IF NOT EXISTS kb_libraries (
     id TEXT PRIMARY KEY,
@@ -766,6 +788,28 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_chat_conv ON chat_messages(sender_id, receiver_id, created_at);
+
+-- 群聊（Postgres 版）
+CREATE TABLE IF NOT EXISTS chat_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS chat_group_members (
+    group_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (group_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS chat_group_messages (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_group_msg ON chat_group_messages(group_id, created_at);
 
 -- 知識庫（Postgres 版）
 CREATE TABLE IF NOT EXISTS kb_libraries (

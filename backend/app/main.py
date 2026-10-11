@@ -1486,6 +1486,60 @@ def chat_list(request: Request):
     return {"ok": True, "conversations": chat_mod.list_conversations(user["id"])}
 
 
+class ChatGroupCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    member_names: list[str] = Field(default_factory=list, max_length=50)
+
+
+@app.post("/api/v1/chat/groups", summary="建立群聊")
+def chat_group_create(body: ChatGroupCreateIn, request: Request):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    try:
+        return chat_mod.create_group(user["id"], body.name, body.member_names)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/chat/groups", summary="我的群聊列表")
+def chat_group_list(request: Request):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    return {"ok": True, "groups": chat_mod.list_groups(user["id"])}
+
+
+class ChatGroupSendIn(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+
+@app.post("/api/v1/chat/groups/{group_id}/messages", summary="群聊發訊息")
+def chat_group_send(group_id: str, body: ChatGroupSendIn, request: Request):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    try:
+        return chat_mod.send_group_message(user["id"], group_id, body.content)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/chat/groups/{group_id}/messages", summary="群聊訊息")
+def chat_group_messages(group_id: str, request: Request, limit: int = Query(50, le=100)):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    try:
+        return chat_mod.get_group_messages(user["id"], group_id, limit)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400 if isinstance(e, ValueError) else 404, str(e))
+
+
+@app.get("/api/v1/chat/search", summary="用暱稱找用戶")
+def chat_search(request: Request, name: str = Query("", max_length=50)):
+    from app import chat as chat_mod
+    _current_user(request)
+    u = chat_mod.search_user_by_name(name)
+    return {"ok": True, "user": u}
+
+
 @app.get("/", summary="健康檢查")
 def root():
     return {"service": "dawn-edu-mvp", "status": "ok",
