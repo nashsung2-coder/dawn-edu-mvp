@@ -251,11 +251,21 @@ def list_market(status: str = "open", limit: int = 50,
                 "SELECT * FROM market_listings WHERE status = ?"
                 " ORDER BY created_at DESC LIMIT ?",
                 (status, limit)).fetchall()
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["tags"] = db.jloads(d.get("tags", "[]"), [])
-        out.append(d)
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["tags"] = db.jloads(d.get("tags", "[]"), [])
+            # 武器：帶上等級和降級預覽
+            if d.get("item_type") == "weapon":
+                w = conn.execute(
+                    "SELECT level, name FROM user_weapons WHERE weapon_id = ? AND user_id = ?",
+                    (d.get("item_id"), d.get("seller_id"))).fetchone()
+                if w:
+                    wd = dict(w)
+                    d["weapon_level"] = wd["level"]
+                    d["weapon_level_after"] = max(1, wd["level"] - 1)
+                    d["weapon_name"] = wd["name"]
+            out.append(d)
     return out
 
 
