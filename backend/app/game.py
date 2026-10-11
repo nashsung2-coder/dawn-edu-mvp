@@ -27,6 +27,36 @@ EXPAND_ACTIONS = {
     "complete_quest": 2.0,    # 完成一個任務市集委託
     "co_study": 1.5,         # 與夥伴完成共修任務
 }
+
+# 擴張行為 → 需要的學習證明（查 learn_sessions / duels）
+# 每個行為對應一種真實學習活動，沒做就不能點
+EXPAND_REQUIREMENTS = {
+    "complete_topic": {
+        "check": "finished_session",  # 完成一場完整戰役（quiz+feynman+debate+finish）
+        "hint": "請先完成一場費曼戰役（測驗＋解釋＋辯論），再來開疆拓土！",
+        "link": "pages/quiz.html",
+    },
+    "fix_myth": {
+        "check": "feynman_done",  # 完成費曼解釋
+        "hint": "請先完成一次費曼解釋（把觀念講清楚），再來破除迷思！",
+        "link": "pages/quiz.html",
+    },
+    "ask_question": {
+        "check": "session_started",  # 開過戰役（提出問題）
+        "hint": "請先到費曼戰役提出你的問題，再來開疆拓土！",
+        "link": "pages/quiz.html",
+    },
+    "complete_quest": {
+        "check": "duel_done",  # 完成一場對決
+        "hint": "請先完成一場知識對決，再來領取任務獎勵！",
+        "link": "pages/duel.html",
+    },
+    "co_study": {
+        "check": "session_started",
+        "hint": "請先開始一場學習，再來共學擴張！",
+        "link": "pages/quiz.html",
+    },
+}
 DAILY_EXPAND_CAP = 5.0  # §10.2 每日擴張上限
 
 # 每次擴張附贈的資源（鼓勵回饋）：行為 → [(資源鍵, 數量), ...]
@@ -122,11 +152,65 @@ def occupy_tag(user_id: str, tag_label: str) -> None:
         conn.commit()
 
 
+def _check_expand_requirement(user_id: str, action: str) -> tuple[bool, str, str]:
+    """檢查擴張的學習證明。回傳 (通過?, 提示訊息, 跳轉連結)。"""
+    req = EXPAND_REQUIREMENTS.get(action)
+    if not req:
+        return True, "", ""
+    check = req["check"]
+    ph = "%s" if db.is_postgres() else "?"
+    try:
+        with db.get_conn() as conn:
+            if check == "finished_session":
+                # 今天有完成完整戰役（status=finished）
+                row = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM learn_sessions WHERE user_id = {ph} "
+                    f"AND status = 'finished' AND date(created_at) = date('now')",
+                    (user_id,)).fetchone()
+                done = (row["c"] if isinstance(row, dict) else row[0]) > 0
+            elif check == "feynman_done":
+                # 今天有費曼解釋紀錄
+                row = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM learn_sessions WHERE user_id = {ph} "
+                    f"AND feynman_text IS NOT NULL AND feynman_text != '' "
+                    f"AND date(created_at) = date('now')",
+                    (user_id,)).fetchone()
+                done = (row["c"] if isinstance(row, dict) else row[0]) > 0
+            elif check == "session_started":
+                row = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM learn_sessions WHERE user_id = {ph} "
+                    f"AND date(created_at) = date('now')",
+                    (user_id,)).fetchone()
+                done = (row["c"] if isinstance(row, dict) else row[0]) > 0
+            elif check == "duel_done":
+                row = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM duels WHERE (challenger_id = {ph} OR opponent_id = {ph}) "
+                    f"AND status = 'finished' AND date(created_at) = date('now')",
+                    (user_id, user_id)).fetchone()
+                done = (row["c"] if isinstance(row, dict) else row[0]) > 0
+            else:
+                done = True
+    except Exception:
+        done = False  # 查不到就當沒做，安全起見
+    if done:
+        return True, "", ""
+    return False, req["hint"], req["link"]
+
+
 def expand_island(user_id: str, action: str) -> dict:
     if action not in EXPAND_ACTIONS:
         return {
             "ok": False,
             "reason": f"未知的擴張行為「{action}」，可用：{', '.join(EXPAND_ACTIONS)}。",
+        }
+    # 先驗證學習證明
+    ok, hint, link = _check_expand_requirement(user_id, action)
+    if not ok:
+        return {
+            "ok": False,
+            "reason": hint,
+            "need_learn": True,
+            "link": link,
         }
     delta = EXPAND_ACTIONS[action]
     with db.get_conn() as conn:
