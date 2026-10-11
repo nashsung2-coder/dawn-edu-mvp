@@ -36,20 +36,46 @@ async function renderShelf() {
   }
   shelf.innerHTML = `<div class="skeleton" style="height:120px"></div>`;
   try {
-    const [tb, mastery] = await Promise.all([
+    const [tb, mastery, feynman] = await Promise.all([
       swr("learn:textbook", "/learn/textbook"),
       swr("learn:mastery", "/learn/mastery").catch(() => ({ data: { topics: [] } })),
+      get("/bookshelf/feynman").catch(() => ({ entries: [] })),
     ]);
     const chapters = tb.data?.chapters || [];
+    const feynmanEntries = feynman.entries || feynman.data?.entries || [];
     const masteryMap = Object.fromEntries((mastery.data?.topics || []).map(t => [t.topic, t]));
 
-    if (!chapters.length) {
+    // 費曼說服條目
+    let feynmanHtml = "";
+    if (feynmanEntries.length) {
+      feynmanHtml = `<div style="margin-bottom:24px">
+        <h2 style="font-size:18px;margin-bottom:12px">費曼說服 · 我的解釋</h2>
+        ${feynmanEntries.map(e => {
+          const entry = e.entry || {};
+          return `<div class="card" style="padding:16px;margin-bottom:12px">
+            <h3 style="margin:0 0 8px">${esc(e.title)}</h3>
+            ${entry.user_voice_summary ? `<p style="font-size:14px"><strong>我的話：</strong>${esc(entry.user_voice_summary.slice(0, 200))}…</p>` : ""}
+            ${entry.ai_supplement ? `<p style="font-size:13px;color:var(--muted)"><strong>AI 補充：</strong>${esc(entry.ai_supplement.slice(0, 200))}…</p>` : ""}
+            ${(entry.key_points || []).length ? `<div style="margin-top:8px">` +
+              entry.key_points.map(k => `<span style="display:inline-block;background:var(--surface);padding:4px 10px;border-radius:12px;font-size:12px;margin:2px">${esc(k)}</span>`).join("") + `</div>` : ""}
+            <p style="font-size:12px;color:var(--muted);margin-top:8px">${fmtDate(e.created_at)}</p>
+          </div>`;
+        }).join("")}
+      </div>`;
+    }
+
+    if (!chapters.length && !feynmanEntries.length) {
       shelf.innerHTML = `<div class="state-empty">
         <img src="../assets/img/empty-zen.webp?v=3.0.0" alt="空書架">
         <p>書架還是空的。去打一場費曼戰役，第一章會自動上架。</p>
-        <a class="btn btn-primary" href="quiz.html">開始第一戰</a></div>`;
+        <a class="btn btn-primary" href="quiz.html">開始第一戰</a>
+        <a class="btn btn-ghost" href="feynman.html" style="margin-left:8px">試試費曼說服</a></div>`;
       return;
     }
+
+    shelf.innerHTML = feynmanHtml + `<div id="bs-chapters"></div>`;
+    // 原有章節渲染邏輯繼續…
+    const chaptersEl = document.getElementById("bs-chapters");
 
     // 統計
     const avgMastery = chapters.length
@@ -61,7 +87,7 @@ async function renderShelf() {
     userline.textContent = `共 ${chapters.length} 章`;
 
     // 書架陳列
-    shelf.innerHTML = `<div class="bs-grid">` + chapters.map((c, i) => {
+    chaptersEl.innerHTML = `<div class="bs-grid">` + chapters.map((c, i) => {
       const m = masteryMap[c.topic];
       const r = c.badge?.rarity || "普通";
       return `<button class="bs-book" data-idx="${i}" style="--rarity:${rarityColor(r)}">
@@ -73,7 +99,7 @@ async function renderShelf() {
       </button>`;
     }).join("") + `</div>`;
 
-    shelf.querySelectorAll(".bs-book").forEach(btn => {
+    chaptersEl.querySelectorAll(".bs-book").forEach(btn => {
       btn.onclick = () => showDetail(chapters[+btn.dataset.idx]);
     });
     announce(`書架載入完成，共 ${chapters.length} 章`);
