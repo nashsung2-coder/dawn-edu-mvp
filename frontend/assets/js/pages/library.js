@@ -2,9 +2,44 @@
  * 探索 → 興趣星辰（AI 推薦）→ 我的庫 → 庫詳情（Google Sites 式編輯）→ 費曼調用
  * 全調真實後端，零假數據。
  */
-import { get, post, patch, del } from "../core/api.js";
-import { isLoggedIn } from "../core/auth.js";
-import { announce, focusMain, toast } from "../core/a11y.js";
+/* 知識星海圖書館（IIFE 零依賴版） */
+(function() {
+"use strict";
+function getToken() {
+  return localStorage.getItem('dawn:v1:auth-token') || localStorage.getItem('dawn.token');
+}
+function apiFetch(method, path, body) {
+  var token = getToken();
+  var opts = { method: method, headers: {} };
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  return fetch('https://dawn-edu-mvp.onrender.com/api/v1' + path, opts).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
+}
+function get(p) { return apiFetch('GET', p); }
+function post(p, b) { return apiFetch('POST', p, b); }
+function patch(p, b) { return apiFetch('PATCH', p, b); }
+function del(p) { return apiFetch('DELETE', p); }
+function isLoggedIn() { return !!getToken(); }
+function announce(msg) {}
+function focusMain() {}
+function toast(msg) {
+  try {
+    var el = document.getElementById('l-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'l-toast';
+      el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;z-index:9999;max-width:80%';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(function(){ el.style.display = 'none'; }, 2500);
+  } catch(e) {}
+}
+
 
 const view = document.getElementById("l-view");
 const modal = document.getElementById("l-modal");
@@ -427,7 +462,7 @@ async function editPageUI(pageId) {
         <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;line-height:1.8">
           # 大標題　## 中標題　**粗體**　- 列表<br>
           !youtube[影片ID] 嵌入 YouTube　!link[網址] 連結卡片<br>
-          ```python … ``` 程式碼區塊
+          \`\`\`python … \`\`\` 程式碼區塊
         </div>
         <textarea id="l-ep-content" class="l-page-edit">${escapeHtml(page.content || "")}</textarea>
       </label>
@@ -539,4 +574,5 @@ function closeModal() { modal.hidden = true; }
   const libId = params.get("lib");
   if (libId) renderDetail(libId);
   else renderHome();
+})();
 })();
