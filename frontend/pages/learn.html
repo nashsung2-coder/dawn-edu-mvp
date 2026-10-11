@@ -7,69 +7,88 @@
 <link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
 <style>
 body { background: #F4EFE6; color: #2B2620; margin: 0; min-height: 100dvh; }
-.console-head { padding: 32px 24px 16px; max-width: 900px; margin: 0 auto; }
-.console-head a { color: #8A8175; text-decoration: none; font-size: 14px; }
-.console-head h1 { font-size: 32px; margin: 8px 0 4px; }
-.console-head p { color: #8A8175; margin: 0; }
-.console-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px; padding: 16px 24px 48px; max-width: 900px; margin: 0 auto;
-}
-.console-card {
-  display: block; background: #FBF8F1; border: 1px solid #E2D9C8;
-  border-radius: 16px; padding: 24px 16px; text-align: center;
-  text-decoration: none; color: inherit;
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-.console-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
-.console-card img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin: 0 auto 12px; display: block; border: 2px solid #E2D9C8; }
-.console-card h3 { font-size: 16px; margin: 0 0 4px; }
-.console-card p { font-size: 12px; color: #8A8175; margin: 0; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+.back { color: #8A8175; text-decoration: none; font-size: 14px; }
+/* 問候區 */
+.hero { background: #FBF8F1; border: 1px solid #E2D9C8; border-radius: 16px; padding: 24px; margin: 16px 0; }
+.hero h1 { font-size: 24px; margin: 0 0 8px; }
+.hero .streak { font-size: 15px; color: #B4552D; font-weight: 700; }
+.hero p { color: #8A8175; font-size: 14px; margin: 8px 0 0; }
+/* 行動按鈕 */
+.cta { display: block; background: #B4552D; color: #fff; text-align: center; padding: 18px; border-radius: 12px; font-size: 18px; font-weight: 800; text-decoration: none; margin: 16px 0; }
+.cta small { display: block; font-size: 13px; font-weight: 400; opacity: .85; margin-top: 4px; }
+/* 數據卡 */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+.stat { background: #FBF8F1; border: 1px solid #E2D9C8; border-radius: 12px; padding: 16px; text-align: center; }
+.stat .num { font-size: 28px; font-weight: 800; color: #B4552D; }
+.stat .label { font-size: 12px; color: #8A8175; margin-top: 4px; }
+/* 功能網格 */
+.sec-title { font-size: 18px; font-weight: 800; margin: 24px 0 12px; }
+.console-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.console-card { display: block; background: #FBF8F1; border: 1px solid #E2D9C8; border-radius: 12px; padding: 20px 12px; text-align: center; text-decoration: none; color: inherit; transition: transform .2s ease; }
+.console-card:hover { transform: translateY(-3px); }
+.console-card img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; margin: 0 auto 8px; display: block; border: 2px solid #E2D9C8; }
+.console-card h3 { font-size: 14px; margin: 0 0 2px; }
+.console-card p { font-size: 11px; color: #8A8175; margin: 0; }
+.badge-dot { display: inline-block; background: #e74c3c; color: #fff; font-size: 11px; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
 </style>
 </head>
 <body>
-<div class="console-head">
-  <a href="../desktop.html">← 返回首頁</a>
-  <h1>學習主控台</h1>
-  <p>刪除干擾，進入專注。點一枚徽章，進入那個世界。</p>
+<div class="wrap">
+  <a class="back" href="../desktop.html">← 返回首頁</a>
+  <div id="l-dash">
+    <div class="hero">
+      <h1 id="l-greet">早安！</h1>
+      <div class="streak" id="l-streak">載入中…</div>
+      <p id="l-tip"></p>
+    </div>
+    <a class="cta" href="quiz.html" id="l-cta">
+      開始今日學習
+      <small id="l-cta-sub">AI 會幫你選最該做的</small>
+    </a>
+    <div class="stats">
+      <div class="stat"><div class="num" id="l-review">–</div><div class="label">到期複習</div></div>
+      <div class="stat"><div class="num" id="l-stardust">–</div><div class="label">星砂</div></div>
+      <div class="stat"><div class="num" id="l-char">–</div><div class="label">我的角色</div></div>
+    </div>
+  </div>
+  <h2 class="sec-title">學習功能</h2>
+  <div class="console-grid">
+    <a class="console-card" href="quiz.html"><img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy"><h3>費曼戰役</h3><p>解釋 · 辯論</p></a>
+    <a class="console-card" href="review.html"><img src="../assets/img/emblem-review.webp?v=3.0.0" alt="" loading="lazy"><h3>複習任務<span class="badge-dot" id="l-review-badge" hidden></span></h3><p>間隔重複</p></a>
+    <a class="console-card" href="library.html"><img src="../assets/img/emblem-library.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>圖書館</h3><p>探索 · 建庫</p></a>
+    <a class="console-card" href="feynman.html"><img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>費曼說服</h3><p>說服 AI</p></a>
+    <a class="console-card" href="mastery.html"><img src="../assets/img/emblem-mastery.webp?v=3.0.0" alt="" loading="lazy"><h3>掌握度</h3><p>進度 · 弱項</p></a>
+    <a class="console-card" href="bookshelf.html"><img src="../assets/img/emblem-bookshelf.webp?v=3.0.0" alt="" loading="lazy"><h3>我的書架</h3><p>課本 · 戰績</p></a>
+    <a class="console-card" href="favorites.html"><img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy"><h3>藏書閣</h3><p>收藏</p></a>
+    <a class="console-card" href="knowledge.html"><img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>知識網絡</h3><p>共享節點</p></a>
+    <a class="console-card" href="character.html"><img src="../assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>角色</h3><p>能力加成</p></a>
+  </div>
 </div>
-<div class="console-grid">
-  <a class="console-card" href="quiz.html">
-    <img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy">
-    <h3>費曼戰役</h3><p>解釋 · 辯論 · 授勳</p>
-  </a>
-  <a class="console-card" href="mastery.html">
-    <img src="../assets/img/emblem-mastery.webp?v=3.0.0" alt="" loading="lazy">
-    <h3>掌握度</h3><p>主題進度 · 弱項提醒</p>
-  </a>
-  <a class="console-card" href="favorites.html">
-    <img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy">
-    <h3>藏書閣</h3><p>知識湖 · 收藏</p>
-  </a>
-  <a class="console-card" href="bookshelf.html">
-    <img src="../assets/img/emblem-bookshelf.webp?v=3.0.0" alt="" loading="lazy">
-    <h3>我的書架</h3><p>個人化課本 · 戰績</p>
-  </a>
-  <a class="console-card" href="review.html">
-    <img src="../assets/img/emblem-review.webp?v=3.0.0" alt="" loading="lazy">
-    <h3>複習任務</h3><p>間隔重複 · 不遺忘</p>
-  </a>
-  <a class="console-card" href="library.html">
-    <img src="../assets/img/emblem-library.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-    <h3>知識星海圖書館</h3><p>探索 · 建庫 · 費曼</p>
-  </a>
-  <a class="console-card" href="feynman.html">
-    <img src="../assets/img/emblem-quiz.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-    <h3>費曼說服</h3><p>說服 AI · 入課本</p>
-  </a>
-  <a class="console-card" href="knowledge.html">
-    <img src="../assets/img/emblem-favorites.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-    <h3>知識網絡</h3><p>共享節點 · 學習網</p>
-  </a>
-  <a class="console-card" href="character.html">
-    <img src="../assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'">
-    <h3>角色選擇</h3><p>六種角色 · 能力加成</p>
-  </a>
-</div>
+<script type="module">
+import { get } from "../assets/js/core/api.js";
+import { isLoggedIn } from "../assets/js/core/auth.js";
+const h = new Date().getHours();
+document.getElementById("l-greet").textContent = h < 12 ? "早安！" : h < 18 ? "午安！" : "晚安！";
+if (isLoggedIn()) {
+  get("/dashboard").then(d => {
+    const streak = d.streak || 0;
+    document.getElementById("l-streak").textContent =
+      streak > 0 ? `已連續學習 ${streak} 天` : "今天開始累積連續天數吧！";
+    document.getElementById("l-tip").textContent =
+      streak >= 7 ? "太棒了！保持這個節奏。" : "每天 15 分鐘，就能保住連續紀錄。";
+    const due = d.review_due || 0;
+    document.getElementById("l-review").textContent = due;
+    if (due > 0) {
+      const b = document.getElementById("l-review-badge");
+      b.hidden = false; b.textContent = due;
+      document.getElementById("l-cta-sub").textContent = `有 ${due} 題到期複習，先搞定它們`;
+      document.getElementById("l-cta").href = "review.html";
+    }
+    document.getElementById("l-stardust").textContent = d.stardust ?? 0;
+    document.getElementById("l-char").textContent = d.character?.name || "未選";
+  }).catch(() => {});
+}
+</script>
 </body>
 </html>
