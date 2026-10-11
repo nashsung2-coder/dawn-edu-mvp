@@ -376,6 +376,16 @@ CREATE TABLE IF NOT EXISTS review_cards (
 CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
     ON review_cards(user_id, next_review_at);
 
+-- 聊天訊息 MVP
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_conv ON chat_messages(sender_id, receiver_id, created_at);
+
 -- 知識庫（貢獻/圖書館）MVP
 CREATE TABLE IF NOT EXISTS kb_libraries (
     id TEXT PRIMARY KEY,
@@ -688,6 +698,16 @@ CREATE TABLE IF NOT EXISTS review_cards (
 CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
     ON review_cards(user_id, next_review_at);
 
+-- 聊天訊息（Postgres 版）
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_conv ON chat_messages(sender_id, receiver_id, created_at);
+
 -- 知識庫（Postgres 版）
 CREATE TABLE IF NOT EXISTS kb_libraries (
     id TEXT PRIMARY KEY,
@@ -834,6 +854,7 @@ def init_db() -> None:
     _migrate_users_secqa_columns()
     _migrate_badge_market_columns()
     _migrate_users_tier_column()
+    _migrate_islands_skin_column()
 
 
 def _migrate_users_auth_columns() -> None:
@@ -933,6 +954,17 @@ def _migrate_users_tier_column() -> None:
             existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
             if "tier" not in existing:
                 conn.execute("ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'basic'")
+
+
+def _migrate_islands_skin_column() -> None:
+    """為 islands 表補上 skin 欄位（JSON：背景/房屋/島嶼風格選擇）。"""
+    with get_conn() as conn:
+        if is_postgres():
+            conn.execute("ALTER TABLE islands ADD COLUMN IF NOT EXISTS skin TEXT NOT NULL DEFAULT '{}'")
+        else:
+            existing = {r["name"] for r in conn.execute("PRAGMA table_info(islands)").fetchall()}
+            if "skin" not in existing:
+                conn.execute("ALTER TABLE islands ADD COLUMN skin TEXT NOT NULL DEFAULT '{}'")
 
 
 def jloads(s: str, default):

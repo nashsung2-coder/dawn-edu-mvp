@@ -108,6 +108,132 @@ def get_island(user_id: str) -> dict:
         return d
 
 
+PORTAL_COST = 20  # 傳送門啟動費用（星砂）
+
+
+# 換膚選項：背景/房屋/島嶼風格（圖片都在 GitHub frontend/assets/img/game/）
+SKIN_OPTIONS = {
+    "background": [
+        {"id": "bg-default", "name": "星海默認", "img": "bg-default.webp"},
+        {"id": "bg-sunset", "name": "暮色星海", "img": "bg-sunset.webp"},
+        {"id": "bg-aurora", "name": "極光之夜", "img": "bg-aurora.webp"},
+    ],
+    "house": [
+        {"id": "house-cottage", "name": "茅草小屋", "img": "house-cottage.webp"},
+        {"id": "house-tree", "name": "樹屋", "img": "house-tree.webp"},
+        {"id": "house-crystal", "name": "水晶宮殿", "img": "house-crystal.webp"},
+    ],
+    "island_style": [
+        {"id": "island-1", "name": "初生綠洲", "img": "island-1.webp"},
+        {"id": "island-2", "name": "繁茂群島", "img": "island-2.webp"},
+        {"id": "island-3", "name": "星海帝國", "img": "island-3.webp"},
+    ],
+}
+
+
+def get_skin_options() -> dict:
+    """回傳可選的換膚選項。"""
+    return SKIN_OPTIONS
+
+
+def get_island_skin(user_id: str) -> dict:
+    """取得用戶島嶼換膚設定。"""
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT skin FROM islands WHERE user_id = ?" if not db.is_postgres()
+            else "SELECT skin FROM islands WHERE user_id = %s",
+            (user_id,)).fetchone()
+        if not row:
+            return {}
+        skin_json = row["skin"] if isinstance(row, dict) else row[0]
+        return db.jloads(skin_json, {})
+
+
+def set_island_skin(user_id: str, category: str, skin_id: str) -> dict:
+    """設定島嶼換膚。"""
+    if category not in SKIN_OPTIONS:
+        raise ValueError(f"未知的分類「{category}」。")
+    valid_ids = {s["id"] for s in SKIN_OPTIONS[category]}
+    if skin_id not in valid_ids:
+        raise ValueError(f"未知的造型「{skin_id}」。")
+    with db.get_conn() as conn:
+        ensure_user(conn, user_id)
+        # 確保島嶼存在
+        get_island(user_id)
+        row = conn.execute(
+            "SELECT skin FROM islands WHERE user_id = ?" if not db.is_postgres()
+            else "SELECT skin FROM islands WHERE user_id = %s",
+            (user_id,)).fetchone()
+        skin_json = row["skin"] if isinstance(row, dict) else row[0]
+        skin = db.jloads(skin_json, {})
+        skin[category] = skin_id
+        import json
+        ph = "%s" if db.is_postgres() else "?"
+        conn.execute(f"UPDATE islands SET skin = {ph} WHERE user_id = {ph}",
+                     (json.dumps(skin, ensure_ascii=False), user_id))
+        conn.commit()
+    return {"ok": True, "skin": skin}
+
+
+def visit_island(visitor_id: str, host_name: str) -> dict:
+    """傳送門：拜訪好友的島嶼（需付星砂）。
+    
+    回傳好友島嶼的公開資訊（不含敏感資料）。
+    """
+    from app import economy as economy_mod
+    if not host_name or not host_name.strip():
+        raise ValueError("請輸入好友的名字。")
+    host_name = host_name.strip()
+    with db.get_conn() as conn:
+        # 找好友
+        host = conn.execute(
+            "SELECT id, name FROM users WHERE name = ?",
+            (host_name,)).fetchone()
+        if not host:
+            raise KeyError(f"找不到「{host_name}」。請確認名字拼寫。")
+        host_id = host["id"] if isinstance(host, dict) else host[0]
+        host_name_real = host["name"] if isinstance(host, dict) else host[1]
+        if host_id == visitor_id:
+            raise ValueError("這就是你自己的島嶼，不用傳送門啦！")
+        # 扣星砂
+        try:
+            economy_mod.spend(visitor_id, PORTAL_COST, f"傳送門拜訪 {host_name_real}")
+        except ValueError as e:
+            raise ValueError(f"星砂不足（需要 {PORTAL_COST}）。{e}")
+        # 取好友島嶼公開資訊
+        row = conn.execute(
+            "SELECT * FROM islands WHERE user_id = ?", (host_id,)).fetchone()
+        if not row:
+            raise KeyError(f"「{host_name_real}」還沒有島嶼。")
+        d = _island_dict(row)
+        # 換膚設定（安全取值）
+        import json as _json2
+        skin = {}
+        try:
+            rd = dict(row)
+            skin_json = rd.get("skin", "{}")
+            skin = _json2.loads(skin_json) if skin_json else {}
+        except Exception:
+            pass
+        # 只回公開資訊
+        # 取好友寵物
+        pet_row = conn.execute(
+            "SELECT name, species, level FROM pets WHERE user_id = ?", (host_id,)).fetchone()
+        pet = dict(pet_row) if pet_row else None
+        return {
+            "ok": True,
+            "host_name": host_name_real,
+            "island": {
+                "name": d.get("name"),
+                "territory": d.get("territory"),
+                "resources": d.get("resources"),
+                "skin": skin,
+            },
+            "pet": pet,
+            "cost": PORTAL_COST,
+        }
+
+
 def _island_dict(row) -> dict:
     import json
 

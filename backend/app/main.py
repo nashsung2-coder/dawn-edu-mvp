@@ -291,6 +291,48 @@ def island_expand(user_id: str, body: ExpandIn, request: Request):
     return result
 
 
+class PortalIn(BaseModel):
+    host_name: str = Field(description="好友的名字")
+
+
+@app.post("/api/v1/islands/{user_id}/portal", summary="傳送門：拜訪好友島嶼")
+def island_portal(user_id: str, body: PortalIn, request: Request):
+    _own_island(request, user_id)
+    try:
+        from app import game as game_mod
+        return game_mod.visit_island(user_id, body.host_name)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/islands/skin/options", summary="換膚選項")
+def island_skin_options():
+    from app import game as game_mod
+    return {"ok": True, "options": game_mod.get_skin_options()}
+
+
+@app.get("/api/v1/islands/{user_id}/skin", summary="我的換膚設定")
+def island_skin_get(user_id: str, request: Request):
+    _own_island(request, user_id)
+    from app import game as game_mod
+    return {"ok": True, "skin": game_mod.get_island_skin(user_id)}
+
+
+class SkinSetIn(BaseModel):
+    category: str = Field(description="background/house/island_style")
+    skin_id: str = Field(description="造型 ID")
+
+
+@app.post("/api/v1/islands/{user_id}/skin", summary="設定換膚")
+def island_skin_set(user_id: str, body: SkinSetIn, request: Request):
+    _own_island(request, user_id)
+    from app import game as game_mod
+    try:
+        return game_mod.set_island_skin(user_id, body.category, body.skin_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 # ---------------- 星砂經濟（純遊戲） ----------------
 class EarnIn(BaseModel):
     amount: int = Field(description="本次獲得星砂（1–50）")
@@ -1204,6 +1246,40 @@ def kb_page_delete(page_id: str, request: Request):
 def kb_recommend(request: Request, limit: int = Query(6, le=12)):
     user = _current_user(request)
     return {"ok": True, "libraries": kb_mod.recommend_libraries(user["id"], limit)}
+
+
+# ---------------- 即時通訊 ----------------
+
+class ChatSendIn(BaseModel):
+    receiver_name: str = Field(description="好友名字")
+    content: str = Field(description="訊息內容", max_length=2000)
+
+
+@app.post("/api/v1/chat/send", summary="發送訊息")
+def chat_send(body: ChatSendIn, request: Request):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    try:
+        return chat_mod.send_message(user["id"], body.receiver_name, body.content)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/v1/chat/with/{other_name}", summary="與某人的對話")
+def chat_with(other_name: str, request: Request, limit: int = Query(50, le=100)):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    try:
+        return chat_mod.get_conversation(user["id"], other_name, limit)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/api/v1/chat/conversations", summary="對話列表")
+def chat_list(request: Request):
+    from app import chat as chat_mod
+    user = _current_user(request)
+    return {"ok": True, "conversations": chat_mod.list_conversations(user["id"])}
 
 
 @app.get("/", summary="健康檢查")
