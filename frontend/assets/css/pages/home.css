@@ -1,107 +1,71 @@
-/* 首頁 v2：重構版。簡單、穩固、不花俏。
-   三欄：學習（左）/ 連結（中）/ 遊戲（右）。手機版垂直堆疊。 */
+/* 首頁 v3：極簡。兩個巨大按鈕，點進去才是主控台。 */
 
+body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; }
+
+/* 頂部細條：連結區 */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 24px;
+  background: #FAFAF8; border-bottom: 1px solid #E0DCD4;
+  font-size: 14px;
+}
+.topbar .brand { font-weight: 800; font-size: 18px; }
+.topbar nav { display: flex; gap: 16px; }
+.topbar nav a { color: #6b6b6b; text-decoration: none; }
+.topbar nav a:hover { color: #1a1a1a; }
+
+/* 主區：左右兩大按鈕 */
 #gateway {
+  flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  min-height: 100dvh;
+  grid-template-columns: 1fr 1fr;
+  min-height: calc(100dvh - 53px);
 }
 
-/* 各區基礎 */
-.zone {
+/* 巨大按鈕 */
+.gate {
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-decoration: none; color: inherit;
   padding: 48px 32px;
-  min-width: 0;
-  position: relative;
-  overflow: hidden;
+  position: relative; overflow: hidden;
+  transition: transform .2s ease;
 }
-.zone > * { position: relative; z-index: 1; }
+.gate:hover { transform: scale(1.02); }
+.gate:active { transform: scale(.98); }
+.gate > * { position: relative; z-index: 1; }
 
-/* 左：學習區（暖米色） */
-.zone-learn {
-  background: #F4EFE6;
-  color: #2B2620;
-  --card-bg: #FBF8F1;
-  --card-border: #E2D9C8;
-  --muted: #8A8175;
-  --accent: #B4552D;
+.gate-learn {
+  background: #F4EFE6; color: #2B2620;
 }
-.zone-learn::before {
+.gate-learn::before {
   content: ""; position: absolute; inset: 0;
   background: url("../../img/home-zen-bg.webp") center / cover no-repeat;
   opacity: .4; pointer-events: none;
 }
 
-/* 中：連結區（淺灰白） */
-.zone-center {
-  background: #FAFAF8;
-  color: #1a1a1a;
-  --card-bg: #FFFFFF;
-  --card-border: #E0DCD4;
-  --muted: #6b6b6b;
-  --accent: #B4552D;
-  border-left: 1px solid #E0DCD4;
-  border-right: 1px solid #E0DCD4;
+.gate-game {
+  background: #0B0E2A; color: #EAF6FF;
 }
-
-/* 右：遊戲區（深藍） */
-.zone-game {
-  background: #0B0E2A;
-  color: #EAF6FF;
-  --card-bg: #12163A;
-  --card-border: #23264F;
-  --muted: #8B93C9;
-  --accent: #00E5FF;
-}
-.zone-game::before {
+.gate-game::before {
   content: ""; position: absolute; inset: 0;
   background: url("../../img/home-neon-bg.webp") center / cover no-repeat;
   opacity: .5; pointer-events: none;
 }
 
-/* 標題 */
-.zone-label { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
-.zone-title { font-size: 32px; font-weight: 800; margin: 0 0 8px; letter-spacing: .05em; }
-.zone-desc { font-size: 14px; color: var(--muted); margin: 0 0 24px; }
+.gate-icon {
+  width: 120px; height: 120px; border-radius: 50%;
+  object-fit: cover; margin-bottom: 24px;
+  border: 3px solid currentColor;
+}
+.gate-title { font-size: 48px; font-weight: 900; margin: 0 0 12px; letter-spacing: .1em; }
+.gate-desc { font-size: 16px; opacity: .7; margin: 0; text-align: center; max-width: 300px; }
+.gate-hint { margin-top: 24px; font-size: 14px; opacity: .5; }
 
-/* 卡片網格 */
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-.zone-center .card-grid { grid-template-columns: 1fr; }
-
-/* 卡片 */
-.home-card {
-  display: block;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 24px 16px;
-  text-align: center;
-  text-decoration: none;
-  color: inherit;
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-.home-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,.15);
-}
-.home-card:active { transform: scale(.98); }
-.home-card img {
-  width: 80px; height: 80px;
-  object-fit: cover; border-radius: 50%;
-  margin: 0 auto 12px;
-  border: 2px solid var(--card-border);
-  display: block;
-}
-.home-card h3 { font-size: 16px; margin: 0 0 4px; font-weight: 700; }
-.home-card p { font-size: 13px; color: var(--muted); margin: 0; }
-
-/* 手機版：垂直堆疊 */
+/* 手機版：上下排列 */
 @media (max-width: 768px) {
   #gateway { grid-template-columns: 1fr; }
-  .zone { padding: 32px 20px; }
-  .zone-center { border-left: none; border-right: none; border-top: 1px solid #E0DCD4; border-bottom: 1px solid #E0DCD4; }
-  .home-card img { width: 64px; height: 64px; }
+  .gate { min-height: 40dvh; padding: 32px 20px; }
+  .gate-icon { width: 80px; height: 80px; }
+  .gate-title { font-size: 36px; }
 }
