@@ -2,11 +2,11 @@
 (function() {
   var path = location.pathname;
   var zones = [
-    { id: 'lib', href: 'pages/library.html', icon: '◈', label: '知識庫' },
-    { id: 'learn', href: 'pages/learn.html', icon: '✎', label: '學習' },
-    { id: 'home', href: 'pages/myhome.html', icon: '⌂', label: '我的家' },
-    { id: 'game', href: 'pages/game.html', icon: '⚔', label: '遊戲' },
-    { id: 'chat', href: 'pages/chat.html', icon: '◐', label: '通訊' },
+    { id: 'lib', href: '/pages/library', icon: '◈', label: '知識庫' },
+    { id: 'learn', href: '/pages/learn', icon: '✎', label: '學習' },
+    { id: 'home', href: '/pages/myhome', icon: '⌂', label: '我的家' },
+    { id: 'game', href: '/pages/game', icon: '⚔', label: '遊戲' },
+    { id: 'chat', href: '/pages/chat', icon: '◐', label: '通訊' },
   ];
   // 首頁不顯示（首頁已有三等份入口）
   if (path.endsWith('desktop.html') || path.endsWith('mobile.html') || path === '/' || path.endsWith('/')) return;
@@ -17,11 +17,8 @@
   
   var html = '';
   zones.forEach(function(z) {
-    var href = z.href;
-    // 路徑修正：在 pages/ 目錄下，連結用相對路徑（去掉 pages/ 前綴）
-    if (path.indexOf('/pages/') !== -1) href = z.href.replace('pages/', '');
-    // 不在 pages/ 下（如首頁），保持 pages/ 前綴
-    var active = path.indexOf(z.href.split('/').pop().replace('.html','')) !== -1 ? ' active' : '';
+    var href = z.href; // 絕對路徑，直接用
+    var active = path.indexOf(z.href.split('/').pop()) !== -1 ? ' active' : '';
     html += '<a href="' + href + '" data-zone="' + z.id + '" class="' + active.trim() + '">'
       + '<span class="ni">' + z.icon + '</span><span>' + z.label + '</span></a>';
   });
