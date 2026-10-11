@@ -1,0 +1,27 @@
+/* 全站常駐導覽列 v2：底部固定，五個入口 */
+.dawn-nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  display: flex; justify-content: space-around; align-items: stretch;
+  background: rgba(10,10,11,.96); backdrop-filter: blur(16px);
+  border-top: 1px solid #1F1F23;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.dawn-nav a {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 10px 4px 8px;
+  color: #8E8E93; text-decoration: none; font-size: 11px; font-weight: 500;
+  transition: color .2s ease; position: relative;
+}
+.dawn-nav a .ni { font-size: 22px; line-height: 1; }
+.dawn-nav a.active { color: #fff; }
+.dawn-nav a.active::before {
+  content: ""; position: absolute; top: 0; left: 25%; right: 25%; height: 2px;
+  background: var(--nav-accent, #5E6AD2); border-radius: 0 0 4px 4px;
+}
+/* 各區高亮色 */
+.dawn-nav a[data-zone="lib"].active { --nav-accent: #5E6AD2; }
+.dawn-nav a[data-zone="learn"].active { --nav-accent: #8B5E3C; }
+.dawn-nav a[data-zone="home"].active { --nav-accent: #E8833A; }
+.dawn-nav a[data-zone="game"].active { --nav-accent: #00E5FF; }
+.dawn-nav a[data-zone="chat"].active { --nav-accent: #FF2E7E; }
+body.has-nav { padding-bottom: 64px; }

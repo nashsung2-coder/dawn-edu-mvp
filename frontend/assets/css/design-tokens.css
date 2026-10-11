@@ -1,0 +1,54 @@
+/* 曙光教育四區設計系統 v1.0 */
+
+:root {
+  /* ===== 學習庫 · Linear風 ===== */
+  --lib-bg: #0A0A0B;
+  --lib-bg-soft: #131316;
+  --lib-line: #1F1F23;
+  --lib-text: #F4F4F5;
+  --lib-muted: #8E8E93;
+  --lib-accent: #5E6AD2;
+  --lib-accent-soft: #5E6AD222;
+  --lib-radius: 8px;
+  --lib-font: "SF Mono", "JetBrains Mono", monospace;
+
+  /* ===== 學習區 · Aesop風 ===== */
+  --learn-bg: #F6F1E8;
+  --learn-bg-soft: #EDE6D3;
+  --learn-line: #D8CDB4;
+  --learn-text: #2B2620;
+  --learn-muted: #8A7F6A;
+  --learn-accent: #8B5E3C;
+  --learn-accent-soft: #8B5E3C18;
+  --learn-radius: 4px;
+  --learn-font-serif: "Noto Serif TC", Georgia, serif;
+  --learn-font-sans: "Noto Sans TC", sans-serif;
+
+  /* ===== 家 · 吉卜力風 ===== */
+  --home-bg: #FFF8E7;
+  --home-bg-soft: #FDEFC9;
+  --home-line: #E8D5A8;
+  --home-text: #5C4A2E;
+  --home-muted: #A08C5B;
+  --home-accent: #E8833A;
+  --home-accent-soft: #E8833A22;
+  --home-radius: 20px;
+  --home-shadow: 0 4px 16px rgba(180,130,80,.15);
+
+  /* ===== 遊戲區 · 遊戲風 ===== */
+  --game-bg: #0B0E2A;
+  --game-bg-soft: #141842;
+  --game-line: #2A2F6B;
+  --game-text: #FFFFFF;
+  --game-muted: #8B93C9;
+  --game-accent: #00E5FF;
+  --game-accent-2: #FF2E7E;
+  --game-accent-soft: #00E5FF22;
+  --game-radius: 12px;
+  --game-glow: 0 0 20px rgba(0,229,255,.3);
+}
+
+/* 共用：無障礙 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
