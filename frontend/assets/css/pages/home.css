@@ -18,7 +18,7 @@ body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; }
 #gateway {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   min-height: calc(100dvh - 53px);
 }
 
@@ -53,6 +53,11 @@ body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; }
   opacity: .5; pointer-events: none;
 }
 
+.gate-home {
+  background: linear-gradient(180deg, #1a2340 0%, #0B0E2A 100%); color: #EAF6FF;
+  border-left: 1px solid #23264F; border-right: 1px solid #23264F;
+}
+
 .gate-icon {
   width: 120px; height: 120px; border-radius: 50%;
   object-fit: cover; margin-bottom: 24px;
@@ -65,7 +70,8 @@ body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; }
 /* 手機版：上下排列 */
 @media (max-width: 768px) {
   #gateway { grid-template-columns: 1fr; }
-  .gate { min-height: 40dvh; padding: 32px 20px; }
+  .gate { min-height: 30dvh; padding: 32px 20px; }
   .gate-icon { width: 80px; height: 80px; }
   .gate-title { font-size: 36px; }
+  .gate-home { border-left: none; border-right: none; border-top: 1px solid #23264F; border-bottom: 1px solid #23264F; }
 }
