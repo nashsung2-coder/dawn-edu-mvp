@@ -558,16 +558,25 @@ function closeModal() { modal.hidden = true; }
 /* ============ 初始化 ============ */
 
 (function init() {
+  // 先綁按鈕（未登入時點了會提示去登入）
+  var createBtn = document.getElementById("l-create-btn");
+  if (createBtn) {
+    createBtn.onclick = function() {
+      if (!isLoggedIn()) { toast("請先登入再建庫"); location.href = "settings.html"; return; }
+      openModal("建立知識庫");
+    };
+  }
+  var cancelBtn = document.getElementById("l-m-cancel");
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+  if (modal) modal.addEventListener("click", function(e) { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", function(e) { if (e.key === "Escape") closeModal(); });
+
   if (!isLoggedIn()) {
     view.innerHTML = `<div class="state-empty">
       <p>請先登入再使用知識星海圖書館</p>
       <a class="btn btn-primary" href="settings.html">去登入</a></div>`;
     return;
   }
-  document.getElementById("l-create-btn").onclick = () => openModal("建立知識庫");
-  document.getElementById("l-m-cancel").onclick = closeModal;
-  modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
   // 如果是從庫詳情返回（帶 lib 參數）
   const params = new URLSearchParams(location.search);
