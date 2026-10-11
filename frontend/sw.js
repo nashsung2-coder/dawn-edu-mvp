@@ -1,16 +1,9 @@
 /* 曙光教育 PWA Service Worker */
-const CACHE = "dawn-edu-v3";
+const CACHE = "dawn-edu-v4";
 const CORE = [
   "/desktop.html",
   "/mobile.html",
   "/manifest.webmanifest",
-  "/assets/css/base.css",
-  "/assets/css/pages/home.css",
-  "/assets/js/pages/home.js",
-  "/assets/js/core/api.js",
-  "/assets/js/core/auth.js",
-  "/assets/js/core/a11y.js",
-  "/assets/js/core/config.js",
 ];
 
 self.addEventListener("install", e => {
@@ -29,21 +22,34 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
-  // 只處理同源 GET
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
-  // API 不走快取（永遠要最新）
   if (url.pathname.startsWith("/api/")) return;
+  // 導航請求：網路優先，失敗才用快取
+  if (e.request.mode === "navigate") {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // 靜態資源：快取優先
   e.respondWith(
     caches.match(e.request).then(hit => {
-      // 有快取先回，同時背景更新
-      const net = fetch(e.request).then(res => {
-        if (res.ok) {
+      if (hit) return hit;
+      return fetch(e.request).then(res => {
+        if (res.ok && res.type === "basic") {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy));
         }
         return res;
-      }).catch(() => hit);
-      return hit || net;
+      });
     })
   );
 });
