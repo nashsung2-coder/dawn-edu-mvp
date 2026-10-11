@@ -91,7 +91,7 @@ function renderGroupForm() {
   document.getElementById("c-g-go").onclick = async () => {
     const name = document.getElementById("c-g-name").value.trim();
     if (!name) { toast("請輸入群聊名稱"); return; }
-    const members = document.getElementById("c-g-members").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    const members = document.getElementById("c-g-members").value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
     const btn = document.getElementById("c-g-go");
     btn.disabled = true; btn.textContent = "建立中…";
     try {
