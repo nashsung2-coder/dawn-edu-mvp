@@ -3,100 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>遊戲主控台 - 曙光教育</title>
-<link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
+<title>遊戲｜曙光教育</title>
+<link rel="stylesheet" href="../assets/css/design-tokens.css">
 <style>
-body { background: #0B0E2A; color: #EAF6FF; margin: 0; min-height: 100dvh; }
-.wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-.back { color: #8B93C9; text-decoration: none; font-size: 14px; }
-/* HUD */
-.hud { display: flex; gap: 12px; align-items: center; background: #12163A; border: 1px solid #23264F; border-radius: 16px; padding: 16px 20px; margin: 16px 0; }
-.hud .avatar { width: 56px; height: 56px; border-radius: 50%; background: #23264F; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: #00E5FF; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--game-bg); color: var(--game-text); font-family: -apple-system, "Noto Sans TC", sans-serif; min-height: 100dvh; overflow-x: hidden; }
+/* 星空背景 */
+.stars { position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: radial-gradient(1px 1px at 20% 30%, #fff, transparent),
+    radial-gradient(1px 1px at 60% 70%, #fff, transparent),
+    radial-gradient(2px 2px at 80% 20%, #00E5FF, transparent),
+    radial-gradient(1px 1px at 40% 80%, #fff, transparent);
+  opacity: .4; }
+.wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 24px 20px 120px; }
+.back { color: var(--game-muted); text-decoration: none; font-size: 14px; }
+/* HUD：更有遊戲感 */
+.hud { display: flex; gap: 16px; align-items: center; background: linear-gradient(135deg, #141842, #1E2460); border: 1px solid var(--game-line); border-radius: 16px; padding: 20px; margin: 20px 0; box-shadow: var(--game-glow); }
+.hud .avatar { width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, var(--game-accent), var(--game-accent-2)); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; }
 .hud .info { flex: 1; }
-.hud .name { font-weight: 800; font-size: 16px; }
-.hud .sub { font-size: 12px; color: #8B93C9; }
+.hud .name { font-weight: 900; font-size: 18px; }
+.hud .sub { font-size: 12px; color: var(--game-muted); }
 .hud .res { text-align: right; }
-.hud .res .num { font-size: 20px; font-weight: 800; color: #ffd97a; }
-.hud .res .label { font-size: 11px; color: #8B93C9; }
-/* 寵物橫幅 */
-.pet-banner { display: flex; gap: 16px; align-items: center; background: #12163A; border: 1px solid #23264F; border-radius: 16px; padding: 20px; margin: 16px 0; }
-.pet-banner img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #00E5FF; }
-.pet-banner .bubble { background: #1a2340; border-radius: 12px; padding: 10px 14px; font-size: 13px; flex: 1; }
-/* 功能網格 */
-.sec-title { font-size: 18px; font-weight: 800; margin: 24px 0 12px; }
-.console-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.console-card { display: block; background: #12163A; border: 1px solid #23264F; border-radius: 12px; padding: 20px 12px; text-align: center; text-decoration: none; color: inherit; transition: transform .2s ease; }
-.console-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,229,255,.15); }
-.console-card img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; margin: 0 auto 8px; display: block; border: 2px solid #23264F; }
-.console-card h3 { font-size: 14px; margin: 0 0 2px; }
-.console-card p { font-size: 11px; color: #8B93C9; margin: 0; }
+.hud .res .num { font-size: 24px; font-weight: 900; color: #ffd97a; text-shadow: 0 0 12px rgba(255,217,122,.5); }
+/* 大按鈕：未知之境 */
+.hero-btn { display: block; text-decoration: none; color: inherit; background: linear-gradient(135deg, #1E2460, #2A3380); border: 2px solid var(--game-accent); border-radius: 20px; padding: 32px 24px; margin: 24px 0; text-align: center; box-shadow: var(--game-glow); transition: transform .2s ease; }
+.hero-btn:hover { transform: scale(1.02); }
+.hero-btn h2 { font-size: 28px; font-weight: 900; margin-bottom: 8px; background: linear-gradient(90deg, var(--game-accent), #fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-btn p { color: var(--game-muted); font-size: 14px; }
+/* 遊戲卡片網格 */
+.sec-title { font-size: 14px; font-weight: 800; letter-spacing: .15em; color: var(--game-muted); margin: 32px 0 16px; text-transform: uppercase; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.gcard { display: block; background: var(--game-bg-soft); border: 1px solid var(--game-line); border-radius: var(--game-radius); padding: 24px 16px; text-align: center; text-decoration: none; color: inherit; transition: all .2s ease; }
+.gcard:hover { transform: translateY(-4px); border-color: var(--game-accent); box-shadow: var(--game-glow); }
+.gcard .ico { font-size: 36px; margin-bottom: 12px; }
+.gcard h3 { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+.gcard p { font-size: 12px; color: var(--game-muted); }
 </style>
 </head>
 <body>
+<div class="stars"></div>
 <div class="wrap">
-  <a class="back" href="../desktop.html">← 返回首頁</a>
-  <div id="g-dash">
-    <div class="hud">
-      <div class="avatar" id="g-avatar">?</div>
-      <div class="info">
-        <div class="name" id="g-char-name">載入中…</div>
-        <div class="sub" id="g-char-bonus"></div>
-      </div>
-      <div class="res">
-        <div class="num" id="g-stardust">–</div>
-        <div class="label">星砂</div>
-      </div>
-      <div class="res">
-        <div class="num" id="g-streak" style="color:#00E5FF">–</div>
-        <div class="label">連續天數</div>
-      </div>
-    </div>
-    <div class="pet-banner" id="g-pet" hidden>
-      <img id="g-pet-img" src="" alt="寵物">
-      <div class="bubble" id="g-pet-msg">載入中…</div>
-      <a class="btn btn-primary" href="pet.html" style="font-size:13px;white-space:nowrap">去看看</a>
-    </div>
+  <a class="back" href="../desktop.html">‹ 返回</a>
+  <div class="hud" id="g-hud">
+    <div class="avatar" id="g-avatar">?</div>
+    <div class="info"><div class="name" id="g-name">載入中...</div><div class="sub" id="g-sub"></div></div>
+    <div class="res"><div class="num" id="g-points">–</div><div class="sub">星砂</div></div>
   </div>
-  <h2 class="sec-title">遊戲功能</h2>
-  <div class="console-grid">
-    <a class="console-card" href="space.html" style="border-color:#00E5FF"><img src="../assets/img/emblem-explore.webp?v=3.0.0" alt="" loading="lazy"><h3>未知之境</h3><p>開飛船 · 星球 · 對戰</p></a>
-    <a class="console-card" href="myhome.html"><img src="../assets/img/emblem-island.webp?v=3.0.0" alt="" loading="lazy"><h3>我的家</h3><p>島嶼 · 傳送門</p></a>
-    <a class="console-card" href="duel.html"><img src="../assets/img/emblem-duel.webp?v=3.0.0" alt="" loading="lazy"><h3>知識對決</h3><p>1v1 · 武器戰</p></a>
-    <a class="console-card" href="market.html"><img src="../assets/img/emblem-market.webp?v=3.0.0" alt="" loading="lazy"><h3>星際市集</h3><p>交易 · 武器</p></a>
-    <a class="console-card" href="explore.html"><img src="../assets/img/emblem-explore.webp?v=3.0.0" alt="" loading="lazy"><h3>探索冒險</h3><p>寶藏 · 事件</p></a>
-    <a class="console-card" href="pet.html"><img src="../assets/img/emblem-pet.webp?v=3.0.0" alt="" loading="lazy"><h3>靈獸夥伴</h3><p>培養 · 互動</p></a>
-    <a class="console-card" href="radar.html"><img src="../assets/img/emblem-radar.webp?v=3.0.0" alt="" loading="lazy" onerror="this.style.display='none'"><h3>三維雷達</h3><p>掃描 · 發現</p></a>
-    <a class="console-card" href="island.html"><img src="../assets/img/emblem-island.webp?v=3.0.0" alt="" loading="lazy"><h3>島嶼世界</h3><p>開疆拓土</p></a>
+  <a class="hero-btn" href="space.html">
+    <h2>未知之境</h2>
+    <p>開飛船探索宇宙 · 降落星球挑戰關卡 · 與其他玩家對戰</p>
+  </a>
+  <div class="sec-title">Battle</div>
+  <div class="grid">
+    <a class="gcard" href="duel.html"><div class="ico">⚔</div><h3>知識對決</h3><p>即時 PK</p></a>
+    <a class="gcard" href="island.html"><div class="ico">◈</div><h3>領地爭奪</h3><p>擴張版圖</p></a>
+  </div>
+  <div class="sec-title">Market</div>
+  <div class="grid">
+    <a class="gcard" href="market.html"><div class="ico">◐</div><h3>市集</h3><p>交易武器</p></a>
+    <a class="gcard" href="pet.html"><div class="ico">⬢</div><h3>靈獸</h3><p>培養夥伴</p></a>
   </div>
 </div>
+<script src="../assets/js/core/nav.js"></script>
 <script type="module">
-import { get } from "../assets/js/core/api.js";
-import { isLoggedIn } from "../assets/js/core/auth.js";
+import { get } from "../core/api.js";
+import { isLoggedIn } from "../core/auth.js";
 if (isLoggedIn()) {
-  get("/dashboard").then(d => {
-    document.getElementById("g-stardust").textContent = d.stardust ?? 0;
-    document.getElementById("g-streak").textContent = d.streak ?? 0;
-    const c = d.character;
-    if (c) {
-      document.getElementById("g-avatar").textContent = c.name[0];
-      document.getElementById("g-avatar").style.color = c.color;
-      document.getElementById("g-char-name").textContent = c.name;
-      const bonuses = Object.entries(c.bonuses || {}).slice(0, 2)
-        .map(([k, v]) => `${k} ${v >= 1 ? "+" + Math.round((v-1)*100) + "%" : "-" + Math.round((1-v)*100) + "%"}`).join(" · ");
-      document.getElementById("g-char-bonus").textContent = bonuses;
-    } else {
-      document.getElementById("g-char-name").textContent = "還沒選角色";
-      document.getElementById("g-char-bonus").innerHTML = `<a href="character.html" style="color:#00E5FF">去選擇 →</a>`;
-    }
-    const p = d.pet;
-    if (p) {
-      document.getElementById("g-pet").hidden = false;
-      document.getElementById("g-pet-img").src = "../assets/img/game/pet-baby.webp?v=3.0.0";
-      document.getElementById("g-pet-msg").textContent = `${p.name || "靈獸"} Lv.${p.level || 1} 說：「主人，今天也要一起加油喔！」`;
-    }
-  }).catch(() => {});
+  get('/dashboard').then(d => {
+    document.getElementById('g-name').textContent = d.name || '玩家';
+    document.getElementById('g-sub').textContent = d.character_name ? '角色：' + d.character_name : '';
+    document.getElementById('g-avatar').textContent = (d.name || '?')[0];
+    document.getElementById('g-points').textContent = d.points ?? 0;
+  }).catch(()=>{});
 } else {
-  document.getElementById("g-char-name").textContent = "請先登入";
+  document.getElementById('g-hud').innerHTML = '<div style="text-align:center;width:100%"><a href="settings.html" style="color:#00E5FF">登入以查看角色資訊</a></div>';
 }
 </script>
 </body>
