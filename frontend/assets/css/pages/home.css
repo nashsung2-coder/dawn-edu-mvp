@@ -44,9 +44,6 @@
 .zone-game .sys-grid { grid-template-columns: repeat(2, 1fr); }
 .sys-card {
   text-align: center; padding: var(--sp-6) var(--sp-4);
-  /* 進場動畫 */
-  opacity: 0; transform: translateY(20px);
-  animation: cardEnter .5s ease-out forwards;
   /* hover 回饋 */
   transition: transform .2s ease, box-shadow .2s ease;
 }
@@ -57,21 +54,28 @@
 .sys-card:active {
   transform: scale(.97);
 }
-/* 交錯延遲 */
-.sys-grid .sys-card:nth-child(1) { animation-delay: .05s; }
-.sys-grid .sys-card:nth-child(2) { animation-delay: .1s; }
-.sys-grid .sys-card:nth-child(3) { animation-delay: .15s; }
-.sys-grid .sys-card:nth-child(4) { animation-delay: .2s; }
-.sys-grid .sys-card:nth-child(5) { animation-delay: .25s; }
-.sys-grid .sys-card:nth-child(6) { animation-delay: .3s; }
-.sys-grid .sys-card:nth-child(7) { animation-delay: .35s; }
-.sys-grid .sys-card:nth-child(8) { animation-delay: .4s; }
+/* 進場動畫：只在支援時啟用，不影響佈局 */
+@media (prefers-reduced-motion: no-preference) {
+  .sys-card {
+    animation: cardEnter .5s ease-out backwards;
+  }
+  /* 交錯延遲 */
+  .sys-grid .sys-card:nth-child(1) { animation-delay: .05s; }
+  .sys-grid .sys-card:nth-child(2) { animation-delay: .1s; }
+  .sys-grid .sys-card:nth-child(3) { animation-delay: .15s; }
+  .sys-grid .sys-card:nth-child(4) { animation-delay: .2s; }
+  .sys-grid .sys-card:nth-child(5) { animation-delay: .25s; }
+  .sys-grid .sys-card:nth-child(6) { animation-delay: .3s; }
+  .sys-grid .sys-card:nth-child(7) { animation-delay: .35s; }
+  .sys-grid .sys-card:nth-child(8) { animation-delay: .4s; }
+  .sys-grid .sys-card:nth-child(9) { animation-delay: .45s; }
+}
 @keyframes cardEnter {
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 /* 減少動態偏好 */
 @media (prefers-reduced-motion: reduce) {
-  .sys-card { opacity: 1; transform: none; animation: none; }
   .ink-river::after { animation: none; }
 }
 .sys-card img {
