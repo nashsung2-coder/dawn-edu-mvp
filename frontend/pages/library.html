@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知識星海圖書館｜曙光教育</title>
+<link rel="stylesheet" href="../assets/css/tokens.css">
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+<link rel="stylesheet" href="../assets/css/pages/library.css">
+</head>
+<body>
+<header class="topbar">
+  <a href="../desktop.html" class="back" aria-label="回首頁">‹</a>
+  <h1>知識星海圖書館</h1>
+  <button id="l-create-btn" class="btn btn-primary" style="font-size:13px;padding:8px 14px">＋ 建庫</button>
+</header>
+
+<main id="l-view" class="container" tabindex="-1">
+  <!-- JS 渲染 -->
+</main>
+
+<!-- 建庫對話框 -->
+<div id="l-modal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="l-modal-title">
+    <h2 id="l-modal-title">建立知識庫</h2>
+    <label>庫名<input id="l-m-title" type="text" maxlength="60" placeholder="例如：高中物理力學全解"></label>
+    <label>簡介<textarea id="l-m-desc" rows="3" maxlength="500" placeholder="這個庫在講什麼？適合誰？"></textarea></label>
+    <label>標籤（逗號分隔）<input id="l-m-tags" type="text" placeholder="物理, 力學, 高中"></label>
+    <label>可見性
+      <select id="l-m-vis">
+        <option value="public">公開（所有人可探索）</option>
+        <option value="private">私人（只有我看得到）</option>
+      </select>
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="l-m-cancel">取消</button>
+      <button class="btn btn-primary" id="l-m-ok">建立</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="../assets/js/pages/library.js"></script>
+</body>
+</html>
