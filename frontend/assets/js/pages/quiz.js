@@ -64,6 +64,7 @@ async function renderLanding() {
         style="flex:1;padding:12px 16px;border:1px solid var(--line);border-radius:var(--r-full);font-size:14px">
       <button class="btn btn-primary" id="q-start">開戰</button>
     </div>
+    <div id="q-kb-hint" style="margin-top:12px;font-size:13px;color:var(--muted)" hidden></div>
     <input id="q-hypo" type="text" placeholder="你的初步假設（選填）" aria-label="初步假設"
       style="max-width:520px;width:100%;margin:8px auto 0;padding:10px 16px;border:1px solid var(--line);border-radius:var(--r-full);font-size:13px;display:block">
     </div>${histHtml}`;
@@ -74,6 +75,23 @@ async function renderLanding() {
     const hypo = document.getElementById("q-hypo").value.trim();
     startBattle(q, hypo);
   };
+
+  /* 從知識庫跳轉：自動填入主題 */
+  try {
+    const kbTopic = sessionStorage.getItem("kb_feynman_topic");
+    const kbLabel = sessionStorage.getItem("kb_feynman_label");
+    if (kbTopic) {
+      document.getElementById("q-question").value = kbTopic;
+      const hint = document.getElementById("q-kb-hint");
+      if (hint && kbLabel) {
+        hint.hidden = false;
+        hint.textContent = `來自知識庫「${kbLabel}」的挑戰`;
+      }
+      sessionStorage.removeItem("kb_feynman_topic");
+      sessionStorage.removeItem("kb_feynman_label");
+      announce(`已載入來自知識庫「${kbLabel || ""}」的主題`);
+    }
+  } catch (e) { /* 忽略 */ }
 }
 
 /* ---- Phase 0: 開戰 → 直接出題（後端要求先 quiz） ---- */
