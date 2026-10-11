@@ -153,6 +153,35 @@ async function renderDetail(libId) {
     currentLib = lib;
 
     const pages = lib.pages || [];
+    // 探索進度
+    let expHtml = "";
+    try {
+      const er = await get(`/libraries/${libId}/exploration`);
+      const exp = er.exploration || {};
+      const prog = Math.round(exp.progress || 0);
+      const milestones = exp.milestones || [];
+      expHtml = `<div class="l-explore" style="margin:16px 0;padding:16px;background:var(--surface);border-radius:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>探索進度</strong><span>${prog}%</span>
+        </div>
+        <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:12px">
+          <div style="height:100%;width:${prog}%;background:var(--accent);border-radius:4px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          已讀 ${exp.pages_read || 0} 頁 · 提問 ${exp.questions_asked || 0} 次
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${milestones.map(m => `
+            <span style="font-size:12px;padding:4px 10px;border-radius:12px;
+              background:${prog >= m.threshold ? "var(--accent)" : "var(--line)"};
+              color:${prog >= m.threshold ? "#fff" : "var(--muted)"}">
+              ${m.label} ${m.threshold}%${(exp.weapon_claimed_lv || 0) >= m.level ? " · 已領取" : ""}
+            </span>`).join("")}
+        </div>
+        <button class="btn btn-primary" id="l-claim-weapon" style="margin-top:12px;font-size:13px">領取探索武器</button>
+      </div>`;
+    } catch (e) { /* 未登入或無記錄就不顯示 */ }
+
     view.innerHTML = `
       <button class="btn btn-ghost" id="l-back" style="margin-bottom:12px">‹ 返回探索</button>
       <div class="l-detail-head">
@@ -163,6 +192,7 @@ async function renderDetail(libId) {
           <span>${lib.visibility === "private" ? "私人" : "公開"}</span>
           <span>${pages.length} 頁</span>
         </div>
+        ${expHtml}
         ${lib.is_owner ? `
         <div class="l-detail-actions">
           <button class="btn btn-primary" id="l-add-page" style="font-size:13px">＋ 新增頁面</button>
@@ -185,13 +215,29 @@ async function renderDetail(libId) {
     }
     document.getElementById("l-feynman-lib").onclick = () => feynmanForLib(lib);
 
-    // 頁面展開/收合
+    // 領取探索武器
+    const claimBtn = document.getElementById("l-claim-weapon");
+    if (claimBtn) {
+      claimBtn.onclick = async () => {
+        try {
+          const r = await post(`/libraries/${libId}/claim-weapon`, {});
+          toast(`獲得「${r.weapon_name}」Lv.${r.level}（${r.label}）！`);
+          renderDetail(libId);
+        } catch (e) { toast(e.message); }
+      };
+    }
+
+    // 頁面展開/收合（展開時記錄閱讀）
     view.querySelectorAll(".l-page-head").forEach(head => {
-      head.onclick = () => {
+      head.onclick = async () => {
         const body = head.nextElementSibling;
         const open = body.hidden;
         body.hidden = !open;
         head.querySelector(".l-toggle").textContent = open ? "收合" : "展開";
+        if (open) {
+          // 記錄讀了一頁
+          try { await post(`/libraries/${libId}/read`, {}); } catch (e) {}
+        }
       };
     });
     // 擁有者：編輯/刪除頁面
