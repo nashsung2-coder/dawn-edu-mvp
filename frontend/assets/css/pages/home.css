@@ -1,9 +1,9 @@
 /* 首頁：左中右三欄（zen 左 / center 中 / neon 右） */
 
-#gateway { display: grid; grid-template-columns: 1fr 44px 1fr 44px 1fr; min-height: 100dvh; }
+#gateway { display: grid; grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) 44px minmax(0, 1fr); min-height: 100dvh; }
 
 /* 左：禪區 */
-.zone-learn { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); }
+.zone-learn { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); min-width: 0; }
 .zone-learn::before {
   content: ""; position: absolute; inset: 0;
   background: url("../../img/home-zen-bg.webp") center / cover no-repeat;
@@ -12,7 +12,7 @@
 .zone-learn > * { position: relative; }
 
 /* 右：霓虹區 */
-.zone-game { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); }
+.zone-game { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-8); background: var(--bg); color: var(--ink); min-width: 0; }
 .zone-game::before {
   content: ""; position: absolute; inset: 0;
   background: url("../../img/home-neon-bg.webp") center / cover no-repeat;
@@ -21,7 +21,7 @@
 .zone-game > * { position: relative; }
 
 /* 中：中央區 */
-.zone-center { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-6); background: var(--bg); color: var(--ink); }
+.zone-center { position: relative; overflow: hidden; padding: var(--sp-12) var(--sp-6); background: var(--bg); color: var(--ink); min-width: 0; }
 .zone-center > * { position: relative; }
 .zone-center .sys-grid { grid-template-columns: 1fr; }
 
