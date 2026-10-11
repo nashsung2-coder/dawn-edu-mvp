@@ -233,11 +233,53 @@ function pageHtml(p, i, isOwner) {
 }
 
 function renderMarkdown(src) {
-  // 極簡 Markdown：# ## ###、**粗體**、- 列表、段落
+  // 支援：# ## ### 標題、**粗體**、- 列表
+  // Google Sites 式嵌入：
+  //   !youtube[VIDEO_ID] → YouTube 影片
+  //   !link[URL] → 連結卡片
+  //   !code[語言] → 程式碼區塊（接續多行，``` 結束）
   const lines = src.split("\n");
-  let html = "", inList = false;
+  let html = "", inList = false, inCode = false, codeLang = "", codeBuf = [];
   for (const line of lines) {
     const t = line.trim();
+
+    // 程式碼區塊
+    if (/^```/.test(t)) {
+      if (inCode) {
+        html += `<pre class="l-code"><code class="lang-${escapeHtml(codeLang)}">${escapeHtml(codeBuf.join("\n"))}</code></pre>`;
+        inCode = false; codeBuf = [];
+      } else {
+        if (inList) { html += "</ul>"; inList = false; }
+        inCode = true; codeLang = t.slice(3).trim() || "text"; codeBuf = [];
+      }
+      continue;
+    }
+    if (inCode) { codeBuf.push(line); continue; }
+
+    // YouTube 嵌入
+    const yt = t.match(/^!youtube\[([\w-]{11})\]/);
+    if (yt) {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<div class="l-embed"><iframe width="100%" height="315"
+        src="https://www.youtube.com/embed/${yt[1]}"
+        frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen title="YouTube 影片"></iframe></div>`;
+      continue;
+    }
+    // 連結卡片
+    const lk = t.match(/^!link\[(https?:\/\/[^\]]+)\]/);
+    if (lk) {
+      if (inList) { html += "</ul>"; inList = false; }
+      const url = lk[1];
+      let host = "";
+      try { host = new URL(url).hostname; } catch (e) {}
+      html += `<a class="l-linkcard" href="${escapeHtml(url)}" target="_blank" rel="noopener">
+        <span class="l-linkcard-host">${escapeHtml(host)}</span>
+        <span class="l-linkcard-url">${escapeHtml(url.length > 60 ? url.slice(0, 60) + "…" : url)}</span>
+      </a>`;
+      continue;
+    }
+
     if (/^###\s/.test(t)) { if (inList) { html += "</ul>"; inList = false; } html += `<h4>${escInline(t.slice(4))}</h4>`; }
     else if (/^##\s/.test(t)) { if (inList) { html += "</ul>"; inList = false; } html += `<h3>${escInline(t.slice(3))}</h3>`; }
     else if (/^#\s/.test(t)) { if (inList) { html += "</ul>"; inList = false; } html += `<h2>${escInline(t.slice(2))}</h2>`; }
@@ -246,6 +288,7 @@ function renderMarkdown(src) {
     else { if (inList) { html += "</ul>"; inList = false; } html += `<p>${escInline(t)}</p>`; }
   }
   if (inList) html += "</ul>";
+  if (inCode) html += `<pre class="l-code"><code>${escapeHtml(codeBuf.join("\n"))}</code></pre>`;
   return html || '<p style="color:var(--muted)">（空頁面）</p>';
 }
 
@@ -286,7 +329,12 @@ async function editPageUI(pageId) {
         <input id="l-ep-title" type="text" value="${escapeHtml(page.title)}"
           style="width:100%;margin-top:4px;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:14px">
       </label>
-      <label style="display:block;margin:12px 0 4px;font-size:13px">內容（支援 Markdown：# 標題、**粗體**、- 列表）
+      <label style="display:block;margin:12px 0 4px;font-size:13px">內容（支援 Markdown＋嵌入）
+        <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;line-height:1.8">
+          # 大標題　## 中標題　**粗體**　- 列表<br>
+          !youtube[影片ID] 嵌入 YouTube　!link[網址] 連結卡片<br>
+          ```python … ``` 程式碼區塊
+        </div>
         <textarea id="l-ep-content" class="l-page-edit">${escapeHtml(page.content || "")}</textarea>
       </label>
       <div class="l-page-actions">

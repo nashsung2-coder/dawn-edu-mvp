@@ -334,11 +334,30 @@ function bindAll() {
       try {
         const r = await post(`/islands/${userId}/expand`, { action }, { idempotent: true });
         if (r.island) ST.status = r.island; /* 後端校正 */
+        /* 需要先學習：顯示引導而非單純報錯 */
+        if (r.need_learn || r.data?.need_learn) {
+          const hint = r.reason || r.data?.reason || "請先完成學習，再來開疆拓土！";
+          const link = r.link || r.data?.link || "pages/quiz.html";
+          ST.status = snap; /* 回滾樂觀更新 */
+          paint();
+          if (confirm(`${hint}\n\n要現在去學習嗎？`)) {
+            location.href = link;
+          }
+          return;
+        }
         toast(r.reason || `${a?.label || "開疆"}成功！`);
         paint();
       } catch (e) {
         ST.status = snap; /* 回滾 */
-        toast(`開疆失敗：${e.message}`);
+        /* 後端 400 也可能帶 need_learn */
+        const msg = e.message || "";
+        if (msg.includes("費曼") || msg.includes("學習") || msg.includes("對決")) {
+          if (confirm(`${msg}\n\n要現在去學習嗎？`)) {
+            location.href = "pages/quiz.html";
+          }
+        } else {
+          toast(`開疆失敗：${msg}`);
+        }
         paint();
       }
     };
