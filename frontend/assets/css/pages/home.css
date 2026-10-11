@@ -3,16 +3,21 @@
 body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; }
 
 /* 頂部細條：連結區 */
+/* 頂部：融入設計，不突兀 */
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 24px;
-  background: #FAFAF8; border-bottom: 1px solid #E0DCD4;
-  font-size: 14px;
+  padding: 16px 32px;
+  background: rgba(250,250,248,.95); backdrop-filter: blur(8px);
+  border-bottom: 1px solid #E8E4DA;
+  font-size: 14px; position: relative; z-index: 5;
 }
-.topbar .brand { font-weight: 800; font-size: 18px; }
-.topbar nav { display: flex; gap: 16px; }
-.topbar nav a { color: #6b6b6b; text-decoration: none; }
-.topbar nav a:hover { color: #1a1a1a; }
+.topbar .brand { font-weight: 900; font-size: 20px; letter-spacing: .05em; color: #2B2620; }
+.topbar nav { display: flex; gap: 8px; }
+.topbar nav a {
+  color: #6b6b6b; text-decoration: none; padding: 8px 16px; border-radius: 999px;
+  transition: all .2s ease; font-weight: 500;
+}
+.topbar nav a:hover { color: #2B2620; background: #F0EDE6; }
 
 /* 主區：左右兩大按鈕 */
 #gateway {
@@ -58,14 +63,27 @@ body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; }
   border-left: 1px solid #23264F; border-right: 1px solid #23264F;
 }
 
-.gate-icon {
-  width: 120px; height: 120px; border-radius: 50%;
-  object-fit: cover; margin-bottom: 24px;
-  border: 3px solid currentColor;
+/* 巨大按鈕：更有質感 */
+.gate {
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-decoration: none; color: inherit;
+  padding: 48px 32px;
+  position: relative; overflow: hidden;
+  transition: transform .25s ease;
 }
-.gate-title { font-size: 48px; font-weight: 900; margin: 0 0 12px; letter-spacing: .1em; }
-.gate-desc { font-size: 16px; opacity: .7; margin: 0; text-align: center; max-width: 300px; }
-.gate-hint { margin-top: 24px; font-size: 14px; opacity: .5; }
+.gate:hover { transform: scale(1.015); }
+.gate:active { transform: scale(.985); }
+.gate > * { position: relative; z-index: 1; }
+.gate-icon {
+  width: 110px; height: 110px; border-radius: 50%;
+  object-fit: cover; margin-bottom: 20px;
+  border: 3px solid currentColor; opacity: .9;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+}
+.gate-title { font-size: 44px; font-weight: 900; margin: 0 0 10px; letter-spacing: .12em; }
+.gate-desc { font-size: 15px; opacity: .75; margin: 0; text-align: center; max-width: 280px; line-height: 1.7; }
+.gate-hint { margin-top: 20px; font-size: 13px; opacity: .45; letter-spacing: .05em; }
 
 /* 手機版：上下排列 */
 @media (max-width: 768px) {
