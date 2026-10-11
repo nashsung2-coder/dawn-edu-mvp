@@ -6,32 +6,69 @@
 <title>我的家 - 曙光教育</title>
 <link rel="stylesheet" href="../assets/css/base.css?v=3.0.0">
 <style>
-body { background: linear-gradient(180deg, #1a2340 0%, #0B0E2A 100%); color: #EAF6FF; margin: 0; min-height: 100dvh; }
-.home-head { padding: 32px 24px 16px; max-width: 800px; margin: 0 auto; text-align: center; }
-.home-head a { color: #8B93C9; text-decoration: none; font-size: 14px; }
-.home-head h1 { font-size: 36px; margin: 8px 0 4px; }
-.home-head p { color: #8B93C9; margin: 0; }
-.home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 16px 24px 48px; max-width: 800px; margin: 0 auto; }
-.home-card { background: #12163A; border: 1px solid #23264F; border-radius: 16px; padding: 24px; }
-.home-card h2 { font-size: 18px; margin: 0 0 16px; }
-.home-card p { font-size: 14px; color: #8B93C9; margin: 0 0 8px; }
-.pet-img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #00E5FF; display: block; margin: 0 auto 12px; }
-.stat-num { font-size: 36px; font-weight: 800; color: #00E5FF; }
-.bar-wrap { background: #23264F; border-radius: 999px; height: 12px; overflow: hidden; }
-.bar-fill { background: linear-gradient(90deg, #00E5FF, #7B61FF); height: 100%; border-radius: 999px; transition: width .5s ease; }
-.btn-row { display: flex; gap: 8px; margin-top: 12px; }
-input[type=text] { flex: 1; padding: 10px 14px; border: 1px solid #23264F; border-radius: 8px; background: #0B0E2A; color: #EAF6FF; font-size: 14px; }
+/* 溫馨小屋風：暖色、圓潤、柔光 */
+body {
+  margin: 0; min-height: 100dvh; color: #4A3728;
+  background: linear-gradient(180deg, #FFF8F0 0%, #FDEEDC 40%, #F5DFC5 100%);
+  font-family: "Noto Sans TC", sans-serif;
+}
+/* 壁爐光暈 */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(60% 40% at 50% 100%, #FFB35C33, transparent 70%);
+  animation: fireGlow 4s ease-in-out infinite alternate;
+}
+@keyframes fireGlow { from { opacity: .6; } to { opacity: 1; } }
+
+.wrap { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 24px; }
+.back { color: #A08060; text-decoration: none; font-size: 14px; }
+.head { text-align: center; padding: 24px 0 8px; }
+.head h1 { font-size: 34px; margin: 0; color: #5C3D2E; }
+.head p { color: #A08060; margin: 8px 0 0; font-size: 15px; }
+/* 木屋卡片 */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 20px; }
+.card-wood {
+  background: #FFFDF8; border: 2px solid #E8D5B8; border-radius: 20px;
+  padding: 24px; box-shadow: 0 4px 16px rgba(180,130,80,.12);
+}
+.card-wood h2 { font-size: 17px; margin: 0 0 14px; color: #5C3D2E; display: flex; align-items: center; gap: 8px; }
+.card-wood h2::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #FF9F45; display: inline-block; }
+/* 寵物 */
+.pet-wrap { text-align: center; }
+.pet-img { width: 130px; height: 130px; border-radius: 50%; object-fit: cover; border: 4px solid #FFD9A0; box-shadow: 0 4px 12px rgba(255,159,69,.3); }
+.pet-name { font-size: 18px; font-weight: 800; margin: 10px 0 4px; color: #5C3D2E; }
+.pet-status { font-size: 13px; color: #A08060; }
+/* 心情氣泡 */
+.speech { position: relative; background: #FFF; border: 2px solid #E8D5B8; border-radius: 16px; padding: 10px 14px; font-size: 13px; color: #6B4E35; margin: 12px 0; display: inline-block; }
+.speech::before { content: ""; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); border: 8px solid transparent; border-bottom-color: #E8D5B8; border-top: none; }
+/* 數據 */
+.big-num { font-size: 42px; font-weight: 900; color: #E8833A; text-align: center; }
+.bar { background: #F0E2CC; border-radius: 999px; height: 14px; overflow: hidden; margin: 10px 0; }
+.bar > div { background: linear-gradient(90deg, #FFB35C, #E8833A); height: 100%; border-radius: 999px; transition: width .6s ease; }
+/* 按鈕 */
+.btn-warm { display: inline-block; background: linear-gradient(180deg, #FFB35C, #F09A3E); color: #fff; border: none; border-radius: 999px; padding: 12px 28px; font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer; box-shadow: 0 3px 10px rgba(240,154,62,.4); transition: transform .15s ease; }
+.btn-warm:hover { transform: translateY(-2px); }
+.btn-warm:active { transform: scale(.97); }
+.btn-soft { display: inline-block; background: #FFF; border: 2px solid #E8D5B8; color: #8A6A4A; border-radius: 999px; padding: 10px 24px; font-size: 14px; text-decoration: none; }
+.center { text-align: center; }
+input.warm { width: 100%; box-sizing: border-box; padding: 12px 16px; border: 2px solid #E8D5B8; border-radius: 12px; font-size: 14px; background: #FFFDF8; color: #4A3728; }
+input.warm:focus { outline: none; border-color: #FFB35C; }
+.row { display: flex; gap: 8px; margin-top: 12px; }
+.row input { flex: 1; }
+/* 裝飾：小花 */
+.deco { text-align: center; font-size: 28px; margin: 8px 0; opacity: .7; }
+@media (max-width: 600px) { .wrap { padding: 16px; } .head h1 { font-size: 28px; } }
 </style>
 </head>
 <body>
-<div class="home-head">
-  <a href="../desktop.html">← 返回首頁</a>
-  <h1>我的家</h1>
-  <p>你的島嶼，你的歸宿</p>
+<div class="wrap">
+  <a class="back" href="../desktop.html">← 返回首頁</a>
+  <div class="head">
+    <h1>我的家</h1>
+    <p>歡迎回家，今天過得好嗎？</p>
+  </div>
+  <div id="mh-view"><p class="center" style="color:#A08060">正在點亮壁爐…</p></div>
 </div>
-<div id="mh-view" class="home-grid">
-  <p style="color:#8B93C9;text-align:center;grid-column:1/-1">載入中…</p>
-</div>
-<script type="module" src="../assets/js/pages/myhome.js?v=3.0.0"></script>
+<script type="module" src="../assets/js/pages/myhome.js?v=3.1.0"></script>
 </body>
 </html>
