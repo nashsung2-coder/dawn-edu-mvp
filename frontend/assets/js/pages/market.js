@@ -129,10 +129,16 @@ function listingName(l) {
 }
 
 /* ---- 主渲染 ---- */
+const MARKET_CATS = ["全部", "攻擊型", "防禦型", "輔助型", "經濟型"];
+let marketCat = "全部";
+
 async function renderAll() {
   view.innerHTML = `
     <section aria-label="市集列表">
-      <div class="m-sec-title"><h2>🏪 市集攤位</h2><span class="m-count" id="m-count-market"></span></div>
+      <div class="m-sec-title"><h2>市集攤位</h2><span class="m-count" id="m-count-market"></span></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" role="group" aria-label="分類篩選">
+        ${MARKET_CATS.map(c => `<button class="btn ${c === marketCat ? "btn-primary" : "btn-ghost"} m-cat" data-cat="${c}" style="font-size:13px;padding:6px 14px">${c}</button>`).join("")}
+      </div>
       <div id="m-market">${skeleton()}</div>
     </section>
     <section aria-label="我的上架">
@@ -157,13 +163,21 @@ async function renderAll() {
     loadWallet(),
   ]);
   const d = marketRes.status === "fulfilled" ? (marketRes.value.data || {}) : null;
-  const listings = d === null ? null
+  let listings = d === null ? null
     : (d.listings || d.items || (Array.isArray(d) ? d : []));
+  // 分類篩選
+  if (listings && marketCat !== "全部") {
+    listings = listings.filter(l => (l.archetype || "") === marketCat);
+  }
   renderMarket(listings);
-  renderMine(listings || []);
+  renderMine(d === null ? [] : (d.listings || d.items || (Array.isArray(d) ? d : [])));
   renderListForm();
   renderShop();
   renderInventory(wallet.status === "fulfilled" ? wallet.value.inventory : {});
+  // 分類按鈕綁定
+  view.querySelectorAll(".m-cat").forEach(btn => {
+    btn.onclick = () => { marketCat = btn.dataset.cat; renderAll(); };
+  });
   focusMain();
 }
 
