@@ -112,12 +112,12 @@ export function get(path, opts) {
 }
 
 /* 寫入：不自動重試；冪等寫入帶 Idempotency-Key；成功後失效快取+廣播 */
-export async function post(path, body, { idempotent = false } = {}) {
+export async function post(path, body, { idempotent = false, timeout } = {}) {
   const key = idempotent
     ? (crypto.randomUUID?.() || String(Date.now()) + Math.random())
     : undefined;
   const data = await rawFetch("POST", path, {
-    body, timeout: TIMEOUTS.write, idempotencyKey: key,
+    body, timeout: timeout || TIMEOUTS.write, idempotencyKey: key,
   });
   const invalidated = invalidateForPath(path, INVALIDATION_MAP);
   if (invalidated.length) broadcast({ type: "cache:invalidate", keys: invalidated });
