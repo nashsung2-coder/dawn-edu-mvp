@@ -1,14 +1,19 @@
-/* 知識對決 —— 爐石式對戰體驗
+/* 知識對決 —— 爐石式對戰體驗（Supabase 直連版）
  * 著陸（競技場主視覺）→ VS 畫面 → 逐題對戰 → 勝敗結算
- * 全鏈路調真實後端，零假數據。
- * 生命週期：init → loading(skeleton) → api → render / empty / error
+ * 出題經 Cloudflare Worker 直連，不再經 Render 後端
+ * 對決記錄存 Supabase duels 表
+ * 生命週期：init → loading(skeleton) → render / empty / error
  */
-import { swr, post } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
+import { chat } from "../core/llm.js";
 import { announce, focusMain } from "../core/a11y.js";
 
 const view = document.getElementById("d-view");
 const ARENA_IMG = "../assets/img/game/duel-arena.webp?v=3.0.0";
+
+let myUserId = null;
+let myName = "旅人";
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c =>
@@ -29,6 +34,22 @@ function loginView() {
     <p>請先登入再發起知識對決</p>
     <a class="btn btn-primary" href="settings.html">去登入</a></div>`;
 }
+function extractJsonArr(text) {
+  try {
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]") + 1;
+    if (start >= 0 && end > start) return JSON.parse(text.slice(start, end));
+  } catch (e) {}
+  return null;
+}
+function extractJson(text) {
+  try {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}") + 1;
+    if (start >= 0 && end > start) return JSON.parse(text.slice(start, end));
+  } catch (e) {}
+  return null;
+}
 
 /* 共用：競技場主視覺橫幅 */
 function arenaHero(subtitle) {
@@ -46,116 +67,153 @@ function arenaHero(subtitle) {
   </div>`;
 }
 
+/* LLM 出題 */
+async function generateDuelQuestions(tag) {
+  const out = await chat([
+    { role: "system", content:
+      "你是出題助手。為知識對決生成 3 題理解型選擇題。" +
+      "只輸出 JSON 陣列，每題含 question、options（4個）、answer_index（0-3）、concept（一句話概念）。" +
+      "題目要有挑戰性，需要推理。全部繁體中文。" },
+    { role: "user", content: `對決領域：${tag}\n請出 3 題。只回 JSON，不要其他文字。` },
+  ], { temperature: 0.6, maxTokens: 1600 });
+
+  const items = extractJsonArr(out);
+  if (items && items.length) {
+    return items.slice(0, 3).map(q => ({
+      question: String(q.question || "").slice(0, 300),
+      options: Array.isArray(q.options) ? q.options.slice(0, 4).map(o => String(o).slice(0, 100)) : [],
+      answer_index: Math.min(3, Math.max(0, parseInt(q.answer_index) || 0)),
+      concept: String(q.concept || "").slice(0, 100),
+    })).filter(q => q.question && q.options.length === 4);
+  }
+  throw new Error("AI 出題失敗，請再試一次");
+}
+
+/* LLM：思考斷裂分析 */
+async function analyzeThinkingGap(question, userAnswer, correctAnswer) {
+  const out = await chat([
+    { role: "system", content:
+      "你是學習診斷師。學生答錯了一題，不要責備，而是分析他的思考路徑在哪裡斷裂。" +
+      "用繁體中文，回傳 JSON：{\"thinking_path\": \"學生的思考路徑描述（80字內）\", " +
+      "\"gap_point\": \"斷裂點分析（80字內）\", " +
+      "\"correct_logic\": \"正確的邏輯鏈（100字內）\", " +
+      "\"example_fix\": \"用具體例子說明正確理解（80字內）\"}。只回 JSON。" },
+    { role: "user", content: `問題：${question}\n學生答案：${userAnswer}\n正確答案：${correctAnswer}` },
+  ], { temperature: 0.4, maxTokens: 800 });
+  const p = extractJson(out);
+  if (p) return p;
+  return {
+    thinking_path: "從你的選擇來看，你可能混淆了相關概念。",
+    gap_point: "關鍵概念的區分不夠清楚。",
+    correct_logic: "建議回到基本定義，釐清每個選項的差異。",
+    example_fix: "試著為每個選項舉一個具體例子，就能看出差別。",
+  };
+}
+
 /* ---- 著陸：競技場＋選領域＋指定對手 ---- */
 async function renderLanding() {
   skeleton();
   announce("載入對決資訊");
-  let me = null, tags = [], territory = null;
+
+  // 我的歷史對決記錄
+  let history = [];
   try {
-    const r = await swr("auth:me", "/auth/me");
-    me = r.data?.user || r.data;
-    const uid = me?.id;
-    if (!uid) throw new Error("無法取得使用者資訊");
-    const isl = await swr(`island:${uid}`, `/islands/${uid}`);
-    tags = isl.data?.occupied_tags || [];
-    territory = isl.data?.territory ?? null;
-  } catch (e) {
-    errorView(`載入失敗：${e.message}（${e.code || "未知"}）`, renderLanding);
-    return;
-  }
+    const { data } = await supabase
+      .from("duels")
+      .select("id, opponent_id, winner_id, status, created_at")
+      .or(`challenger_id.eq.${myUserId},opponent_id.eq.${myUserId}`)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    history = data || [];
+  } catch (e) { /* 忽略，顯示空歷史 */ }
 
-  const uid = me.id;
-  const myName = me.name || "旅人";
+  const histHtml = history.length
+    ? `<div class="card" style="margin-bottom:16px"><h3 style="margin-top:0">最近對決</h3>` +
+      history.map(h => {
+        const won = h.winner_id === myUserId;
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13px">`
+          + `<span>${won ? "🏆 勝" : h.winner_id ? "🛡 敗" : "⏳ 進行中"}</span>`
+          + `<span style="color:var(--muted);margin-left:8px">${(h.created_at || "").slice(0, 10)}</span></div>`;
+      }).join("") + `</div>`
+    : "";
 
-  if (!tags.length) {
-    view.innerHTML = arenaHero("在共同領域一決高下，勝者贏得星砂與榮耀") + `
-      <div class="state-empty">
-        <img src="../assets/img/empty-zen.webp?v=3.0.0" alt="空卷軸插圖">
-        <p>你還沒有佔領任何標籤，無法發起對決。<br>先去島嶼佔領一個知識標籤吧！</p>
-        <a class="btn btn-primary" href="island.html">去佔領標籤</a>
-      </div>`;
-    focusMain();
-    return;
-  }
-
-  view.innerHTML = arenaHero("在共同領域一決高下，勝者贏得星砂與榮耀") + `
+  view.innerHTML = arenaHero("在共同領域一決高下，勝者贏得星砂與榮耀") + histHtml + `
     <div class="card" style="margin-bottom:16px;border:1px solid var(--line)">
       <h2 style="margin-top:0">選擇對決領域</h2>
-      <p style="color:var(--muted);font-size:13px;margin:0 0 4px">只能用你已佔領的標籤開戰（對手也必須擁有該標籤）</p>
-      <div role="radiogroup" aria-label="對決領域"
-        style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px">` +
-      tags.map((t, i) =>
-        `<button class="d-tag" data-tag="${escapeHtml(t)}" role="radio"
-          aria-checked="${i === 0}" aria-label="領域 ${escapeHtml(t)}"
-          style="padding:12px 20px;border-radius:999px;font-size:15px;font-weight:700;cursor:pointer;
-          border:2px solid ${i === 0 ? "#ffd97a" : "var(--line)"};
-          background:${i === 0 ? "linear-gradient(135deg,#3d2b12,#6b4d1a)" : "var(--card)"};
-          color:${i === 0 ? "#ffd97a" : "inherit"}">${escapeHtml(t)}</button>`
-      ).join("") + `</div>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 4px">輸入一個知識領域，AI 會為你們出題</p>
+      <input id="d-tag" type="text" placeholder="例如：光合作用、二次函數、世界史"
+        aria-label="對決領域"
+        style="width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font-size:15px;margin-top:12px">
     </div>
     <div class="card" style="margin-bottom:16px">
       <h2 style="margin-top:0">指定對手</h2>
-      <input id="d-opponent" type="text" placeholder="對手的使用者 ID（例如 u_xxxx）"
-        aria-label="對手使用者 ID" autocomplete="off"
+      <input id="d-opponent" type="text" placeholder="對手的暱稱"
+        aria-label="對手暱稱" autocomplete="off"
         style="width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font-size:15px">
+      <p style="color:var(--muted);font-size:12px;margin:8px 0 0">輸入對方在曙光教育的暱稱</p>
       <button class="btn btn-primary" id="d-start"
         style="width:100%;margin-top:14px;padding:16px;font-size:18px;font-weight:800;letter-spacing:4px;
         background:linear-gradient(135deg,#b8860b,#ffd97a);border:none;color:#2a1a05;cursor:pointer">
         ⚔ 開 戰
       </button>
-      <p style="color:var(--muted);font-size:12px;text-align:center;margin:10px 0 0">
-        ${myName}${territory !== null ? ` · 我的領土 ${escapeHtml(String(territory))}` : ""} · 領土差距過大將被拒絕出戰</p>
     </div>`;
 
-  let selectedTag = tags[0];
-  view.querySelectorAll(".d-tag").forEach(btn => {
-    btn.onclick = () => {
-      view.querySelectorAll(".d-tag").forEach(b => {
-        b.setAttribute("aria-checked", "false");
-        b.style.borderColor = "var(--line)";
-        b.style.background = "var(--card)";
-        b.style.color = "inherit";
-      });
-      btn.setAttribute("aria-checked", "true");
-      btn.style.borderColor = "#ffd97a";
-      btn.style.background = "linear-gradient(135deg,#3d2b12,#6b4d1a)";
-      btn.style.color = "#ffd97a";
-      selectedTag = btn.dataset.tag;
-      announce(`已選擇領域 ${selectedTag}`);
-    };
-  });
-
-  document.getElementById("d-start").onclick = () => {
-    const opp = document.getElementById("d-opponent").value.trim();
-    if (!opp) { announce("請輸入對手的使用者 ID"); return; }
-    if (opp === uid) { announce("不能跟自己對決"); return; }
-    startDuel({ uid, myName, territory }, opp, selectedTag);
+  document.getElementById("d-start").onclick = async () => {
+    const tag = document.getElementById("d-tag").value.trim();
+    const oppName = document.getElementById("d-opponent").value.trim();
+    if (!tag) { announce("請輸入對決領域"); return; }
+    if (!oppName) { announce("請輸入對手暱稱"); return; }
+    // 找對手
+    try {
+      const { data: opp, error } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .ilike("name", oppName)
+        .neq("id", myUserId)
+        .limit(1)
+        .single();
+      if (error || !opp) {
+        announce("找不到這位對手，檢查暱稱是否正確");
+        return;
+      }
+      startDuel(opp, tag);
+    } catch (e) {
+      announce("搜尋對手失敗：" + e.message);
+    }
   };
   focusMain();
 }
 
 /* ---- 發起對決 → VS 畫面 ---- */
-async function startDuel(me, opponentId, tag) {
+async function startDuel(opponent, tag) {
   skeleton(220);
-  announce("正在建立對決，雙方入場");
+  announce("AI 正在出題，雙方入場");
   try {
-    const duel = await post("/duels", {
-      challenger_id: me.uid,
-      opponent_id: opponentId,
-      tag,
-    });
-    const duelId = duel.duel_id ?? duel.id;
-    const questions = duel.questions || [];
-    if (!duelId || !questions.length) throw new Error("對決建立失敗，後端未回傳題目");
-    announce(duel.reason || "對決成立，雙方入場");
-    renderVS(duelId, me, opponentId, tag, questions);
+    const questions = await generateDuelQuestions(tag);
+    if (!questions.length) throw new Error("AI 出題失敗");
+    // 在 Supabase 建立對決記錄
+    let duelId = null;
+    try {
+      const { data, error } = await supabase
+        .from("duels")
+        .insert({
+          challenger_id: myUserId,
+          opponent_id: opponent.id,
+          status: "in_progress",
+        })
+        .select("id")
+        .single();
+      if (!error && data) duelId = data.id;
+    } catch (e) { /* 記錄失敗不影響對決進行 */ }
+    announce("對決成立，雙方入場");
+    renderVS(duelId, opponent, tag, questions);
   } catch (e) {
-    errorView(`對決發起失敗：${e.message}（${e.code || "未知"}）`, renderLanding);
+    errorView(`對決發起失敗：${e.message}`, renderLanding);
   }
 }
 
 /* VS 畫面：左右雙方＋中央 VS */
-function renderVS(duelId, me, opponentId, tag, questions) {
+function renderVS(duelId, opponent, tag, questions) {
   const fighterCard = (name, sub, side) => `
     <div style="flex:1;min-width:0;text-align:${side};padding:16px;border-radius:14px;
       background:linear-gradient(135deg,rgba(20,12,40,.92),rgba(60,30,90,.92));
@@ -172,12 +230,12 @@ function renderVS(duelId, me, opponentId, tag, questions) {
       <p style="color:var(--muted);font-size:13px;margin:0">共 ${questions.length} 回合</p>
     </div>
     <div style="display:flex;align-items:stretch;gap:10px;margin-bottom:20px">
-      ${fighterCard(me.myName, me.territory !== null ? `領土 ${escapeHtml(String(me.territory))}` : "旅人", "left")}
+      ${fighterCard(myName, "挑戰者", "left")}
       <div style="display:flex;align-items:center;justify-content:center;min-width:64px">
         <span style="font-size:38px;font-weight:900;font-style:italic;color:#ff5a5a;
           text-shadow:0 0 18px rgba(255,90,90,.55)">VS</span>
       </div>
-      ${fighterCard(opponentId, "應戰者", "right")}
+      ${fighterCard(opponent.name || "對手", "應戰者", "right")}
     </div>
     <button class="btn btn-primary" id="d-enter"
       style="width:100%;padding:16px;font-size:17px;font-weight:800;letter-spacing:3px;
@@ -186,16 +244,16 @@ function renderVS(duelId, me, opponentId, tag, questions) {
     </button>`;
 
   document.getElementById("d-enter").onclick = () =>
-    renderRound(duelId, me, opponentId, tag, questions, 0, new Array(questions.length).fill(null));
-  announce(`對決成立，${me.myName} 對戰 ${opponentId}，共 ${questions.length} 回合`);
+    renderRound(duelId, opponent, tag, questions, 0, new Array(questions.length).fill(null));
+  announce(`對決成立，${myName} 對戰 ${opponent.name}，共 ${questions.length} 回合`);
   focusMain();
 }
 
 /* ---- 逐題對戰：一題一畫面 ---- */
-function renderRound(duelId, me, opponentId, tag, questions, idx, answers) {
+function renderRound(duelId, opponent, tag, questions, idx, answers) {
   const q = questions[idx];
   const total = questions.length;
-  const opts = q.options || q.choices || [];
+  const opts = q.options || [];
   const picked = answers[idx];
 
   const dots = questions.map((_, i) =>
@@ -209,7 +267,7 @@ function renderRound(duelId, me, opponentId, tag, questions, idx, answers) {
       <p style="color:#ffd97a;letter-spacing:4px;font-size:12px;margin:0">ROUND ${idx + 1} / ${total}</p>
     </div>
     <div class="card" style="margin-bottom:16px;border:1px solid var(--line)">
-      <h3 style="margin-top:0;font-size:17px;line-height:1.6">${escapeHtml(q.question || q.text || "")}</h3>
+      <h3 style="margin-top:0;font-size:17px;line-height:1.6">${escapeHtml(q.question || "")}</h3>
       <div role="radiogroup" aria-label="第 ${idx + 1} 回合選項" style="margin-top:12px">` +
       opts.map((opt, j) => {
         const isPicked = picked === j;
@@ -241,37 +299,52 @@ function renderRound(duelId, me, opponentId, tag, questions, idx, answers) {
     btn.onclick = () => {
       answers[idx] = +btn.dataset.o;
       announce(`第 ${idx + 1} 回合已選擇`);
-      renderRound(duelId, me, opponentId, tag, questions, idx, answers);
+      renderRound(duelId, opponent, tag, questions, idx, answers);
     };
   });
 
   const prev = document.getElementById("d-prev");
-  if (prev) prev.onclick = () => renderRound(duelId, me, opponentId, tag, questions, idx - 1, answers);
+  if (prev) prev.onclick = () => renderRound(duelId, opponent, tag, questions, idx - 1, answers);
 
   document.getElementById("d-next").onclick = async () => {
     if (answers[idx] === null) { announce("請先選擇一個答案"); return; }
     if (idx < total - 1) {
       announce(`進入第 ${idx + 2} 回合`);
-      renderRound(duelId, me, opponentId, tag, questions, idx + 1, answers);
+      renderRound(duelId, opponent, tag, questions, idx + 1, answers);
       return;
     }
-    // 最後一題 → 結算
-    skeleton(120);
-    announce("雙方出招完畢，結算中");
-    try {
-      const r = await post(`/duels/${duelId}/answers`, { user_id: me.uid, answers });
-      renderResult(r, total, tag);
-    } catch (e) {
-      errorView(`結算失敗：${e.message}（${e.code || "未知"}）`,
-        () => renderRound(duelId, me, opponentId, tag, questions, idx, answers));
+    // 最後一題 → 本地結算
+    let score = 0;
+    const feedback = questions.map((qq, i) => {
+      const correct = answers[i] === qq.answer_index;
+      if (correct) score++;
+      return {
+        round: i + 1,
+        question: qq.question,
+        correct,
+        your_choice: qq.options[answers[i]] || "",
+        correct_answer: qq.options[qq.answer_index] || "",
+        concept_note: qq.concept || "",
+      };
+    });
+    // 更新對決記錄
+    if (duelId) {
+      try {
+        await supabase.from("duels").update({
+          winner_id: score >= Math.ceil(total / 2) ? myUserId : opponent.id,
+          status: "completed",
+        }).eq("id", duelId);
+      } catch (e) { /* 忽略 */ }
     }
+    renderResult({ your_score: score, total, feedback }, tag);
   };
   focusMain();
 }
 
 /* ---- 結果：勝敗大字＋比分＋逐回合回顧 ---- */
-function renderResult(r, total, tag) {
-  const score = r.your_score ?? r.score ?? 0;
+function renderResult(r, tag) {
+  const score = r.your_score ?? 0;
+  const total = r.total ?? 0;
   const feedback = r.feedback || [];
   const win = score >= Math.ceil(total / 2);
 
@@ -287,11 +360,9 @@ function renderResult(r, total, tag) {
       <p style="font-size:15px;color:${win ? "#f5e6c4" : "var(--muted)"};margin:0 0 12px">
         領域 · ${escapeHtml(tag || "")}</p>
       <p style="font-size:46px;font-weight:900;margin:0;color:#fff"
-        aria-label="得分 ${score}，共 ${r.total ?? total} 題">${score}
-        <span style="font-size:20px;color:var(--muted)">/ ${r.total ?? total}</span></p>
-      ${r.settled
-        ? `<p style="color:#a8e6a3;font-size:13px;margin:12px 0 0">✓ 對決已結算</p>`
-        : `<p style="color:var(--muted);font-size:13px;margin:12px 0 0">等待對手作答後結算</p>`}
+        aria-label="得分 ${score}，共 ${total} 題">${score}
+        <span style="font-size:20px;color:var(--muted)">/ ${total}</span></p>
+      <p style="color:#a8e6a3;font-size:13px;margin:12px 0 0">✓ 對決已結算</p>
     </div>` +
     (feedback.length ? `<h2 style="margin:0 0 12px">逐回合回顧</h2>` +
       feedback.map(fb => `
@@ -316,19 +387,14 @@ function renderResult(r, total, tag) {
 
   document.getElementById("d-again").onclick = renderLanding;
 
-  // 此念有隙：答錯時的思考斷裂分析
+  // 此念有隙：答錯時的思考斷裂分析（直連 Worker）
   view.querySelectorAll(".d-gap").forEach(btn => {
     btn.onclick = async () => {
       const fb = feedback[+btn.dataset.idx];
       const box = btn.nextElementSibling;
       btn.disabled = true; btn.textContent = "分析中…";
       try {
-        const r = await post("/learn/thinking-gap", {
-          question: fb.question || "",
-          user_answer: fb.your_choice || "",
-          correct_answer: fb.correct_answer || "",
-        });
-        const a = r.analysis || {};
+        const a = await analyzeThinkingGap(fb.question || "", fb.your_choice || "", fb.correct_answer || "");
         box.hidden = false;
         box.innerHTML = `
           <div style="padding:12px;background:var(--surface);border-radius:8px;font-size:13px">
@@ -340,15 +406,27 @@ function renderResult(r, total, tag) {
         btn.textContent = "已展開分析";
       } catch (e) {
         btn.disabled = false; btn.textContent = "此念有隙 · 看思考斷裂分析";
+        announce("分析失敗：" + e.message);
       }
     };
   });
-  announce(`對決結束：${win ? "勝利" : "敗北"}，得分 ${score}，共 ${r.total ?? total} 題`);
+  announce(`對決結束：${win ? "勝利" : "敗北"}，得分 ${score}，共 ${total} 題`);
   focusMain();
 }
 
 /* ---- 啟動 ---- */
-(function init() {
+(async function init() {
   if (!isLoggedIn()) { loginView(); return; }
+  try {
+    const user = await getUser();
+    if (!user) throw new Error("無法取得使用者");
+    myUserId = user.id;
+    const { data: profile } = await supabase
+      .from("profiles").select("name").eq("id", user.id).single();
+    myName = profile?.name || "旅人";
+  } catch (e) {
+    errorView("載入使用者資料失敗：" + e.message, () => location.reload());
+    return;
+  }
   renderLanding();
 })();

@@ -1,9 +1,9 @@
-/* 即時通訊 v2.0（重構版）
- * 統一使用 core/api.js，登入狀態由後端驗證
+/* 即時通訊 v3.0（Supabase 直連版）
+ * 不再經 Render 後端，直接讀寫 Supabase
  * 功能：搜尋用戶 → 開始對話 → 發送訊息 → 自動刷新
  */
-import { get, post } from "../core/api.js";
-import { isLoggedIn, clearAuth } from "../core/auth.js";
+import { supabase, getUser } from "../core/supabase.js";
+import { isLoggedIn } from "../core/auth.js";
 import { toast } from "../core/a11y.js";
 
 const view = document.getElementById("c-view");
@@ -11,6 +11,7 @@ if (!view) throw new Error("找不到 #c-view");
 
 let currentChat = null; // { type: 'dm'|'group', id, name }
 let pollTimer = null;
+let myUserId = null;
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -58,23 +59,23 @@ function showDmForm() {
     const resultEl = document.getElementById("c-dm-result");
     resultEl.innerHTML = '<p style="color:#999">搜尋中…</p>';
     try {
-      const r = await get("/chat/search?name=" + encodeURIComponent(name));
-      const user = r.user || r.data?.user;
-      if (user) {
-        resultEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:#f5f5f5;border-radius:8px">'
-          + '<span>找到：<strong>' + esc(user.name || user.username) + '</strong></span>'
-          + '<button id="c-dm-start" class="btn-primary" data-uid="' + esc(user.id) + '" data-name="' + esc(user.name || user.username) + '">開始聊天</button></div>';
-        document.getElementById("c-dm-start").onclick = async (e) => {
-          const btn = e.target;
-          try {
-            const cr = await post("/chat/conversations", { target_user_id: btn.dataset.uid });
-            const conv = cr.conversation || cr.data?.conversation || cr;
-            openChat("dm", conv.id || btn.dataset.uid, btn.dataset.name);
-          } catch (err) {
-            // 如果沒有這個 API，直接用 user id 開聊天
-            openChat("dm", btn.dataset.uid, btn.dataset.name);
-          }
-        };
+      // 直查 profiles 表
+      const { data: users, error } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .ilike("name", `%${name}%`)
+        .neq("id", myUserId)
+        .limit(5);
+      if (error) throw error;
+      if (users && users.length) {
+        resultEl.innerHTML = users.map(u =>
+          '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:#f5f5f5;border-radius:8px;margin-bottom:8px">'
+          + '<span>找到：<strong>' + esc(u.name || "無名") + '</strong></span>'
+          + '<button class="btn-primary c-dm-start" data-uid="' + esc(u.id) + '" data-name="' + esc(u.name || "無名") + '">開始聊天</button></div>'
+        ).join("");
+        resultEl.querySelectorAll(".c-dm-start").forEach(btn => {
+          btn.onclick = () => startDm(btn.dataset.uid, btn.dataset.name);
+        });
       } else {
         resultEl.innerHTML = '<p style="color:#999">找不到這個人，檢查一下暱稱拼對了嗎？</p>';
       }
@@ -82,6 +83,55 @@ function showDmForm() {
       resultEl.innerHTML = '<p style="color:#c0392b">搜尋失敗：' + esc(e.message) + '</p>';
     }
   };
+}
+
+/* 開始 1 對 1 聊天：找現有對話或建立新的 */
+async function startDm(targetUserId, targetName) {
+  try {
+    // 找兩人已有的 dm 對話
+    const { data: myConvs } = await supabase
+      .from("conversation_members")
+      .select("conversation_id")
+      .eq("user_id", myUserId);
+    const myConvIds = (myConvs || []).map(m => m.conversation_id);
+    if (myConvIds.length) {
+      const { data: shared } = await supabase
+        .from("conversation_members")
+        .select("conversation_id")
+        .eq("user_id", targetUserId)
+        .in("conversation_id", myConvIds);
+      if (shared && shared.length) {
+        // 檢查是否為 dm（非群組）
+        const { data: conv } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("id", shared[0].conversation_id)
+          .eq("is_group", false)
+          .single();
+        if (conv) {
+          openChat("dm", conv.id, targetName);
+          return;
+        }
+      }
+    }
+    // 建立新對話
+    const { data: newConv, error: cErr } = await supabase
+      .from("conversations")
+      .insert({ is_group: false, title: targetName })
+      .select("id")
+      .single();
+    if (cErr) throw cErr;
+    const { error: mErr } = await supabase
+      .from("conversation_members")
+      .insert([
+        { conversation_id: newConv.id, user_id: myUserId },
+        { conversation_id: newConv.id, user_id: targetUserId },
+      ]);
+    if (mErr) throw mErr;
+    openChat("dm", newConv.id, targetName);
+  } catch (e) {
+    toast("建立對話失敗：" + e.message);
+  }
 }
 
 function showGroupForm() {
@@ -95,10 +145,18 @@ function showGroupForm() {
     const name = document.getElementById("c-group-name").value.trim();
     if (!name) { toast("請輸入群聊名稱"); return; }
     try {
-      const r = await post("/chat/groups", { name });
-      const g = r.group || r.data?.group || r;
+      const { data: newGroup, error: gErr } = await supabase
+        .from("conversations")
+        .insert({ is_group: true, title: name })
+        .select("id")
+        .single();
+      if (gErr) throw gErr;
+      const { error: mErr } = await supabase
+        .from("conversation_members")
+        .insert({ conversation_id: newGroup.id, user_id: myUserId });
+      if (mErr) throw mErr;
       toast("群聊建立成功！");
-      openChat("group", g.id, name);
+      openChat("group", newGroup.id, name);
     } catch (e) {
       document.getElementById("c-group-result").innerHTML = '<p style="color:#c0392b">' + esc(e.message) + '</p>';
     }
@@ -109,29 +167,56 @@ async function loadList() {
   const listEl = document.getElementById("c-list");
   if (!listEl) return;
   try {
-    const [convs, groups] = await Promise.all([
-      get("/chat/conversations").catch(() => ({ conversations: [] })),
-      get("/chat/groups").catch(() => ({ groups: [] })),
-    ]);
-    const c = convs.conversations || convs.data?.conversations || [];
-    const g = groups.groups || groups.data?.groups || [];
-    if (!c.length && !g.length) {
+    // 我的所有對話
+    const { data: memberships, error: mErr } = await supabase
+      .from("conversation_members")
+      .select("conversation_id")
+      .eq("user_id", myUserId);
+    if (mErr) throw mErr;
+    const convIds = (memberships || []).map(m => m.conversation_id);
+    if (!convIds.length) {
       listEl.innerHTML = '<p style="color:#999;text-align:center;padding:20px">還沒有聊天，點上面開始第一個對話吧！</p>';
       return;
     }
-    let html = "";
-    for (const conv of c) {
-      const name = conv.name || conv.target_name || "未知";
-      html += '<div class="chat-item" data-type="dm" data-id="' + esc(conv.id) + '" data-name="' + esc(name) + '"'
-        + ' style="padding:12px;border:1px solid #eee;border-radius:8px;margin-bottom:8px;cursor:pointer">'
-        + '<strong>' + esc(name) + '</strong>'
-        + (conv.last_message ? '<p style="margin:4px 0 0;font-size:13px;color:#666">' + esc(conv.last_message.slice(0, 30)) + '</p>' : "")
-        + '</div>';
+    const { data: convs, error: cErr } = await supabase
+      .from("conversations")
+      .select("id, is_group, title, created_at")
+      .in("id", convIds)
+      .order("created_at", { ascending: false });
+    if (cErr) throw cErr;
+
+    if (!convs || !convs.length) {
+      listEl.innerHTML = '<p style="color:#999;text-align:center;padding:20px">還沒有聊天，點上面開始第一個對話吧！</p>';
+      return;
     }
-    for (const grp of g) {
-      html += '<div class="chat-item" data-type="group" data-id="' + esc(grp.id) + '" data-name="' + esc(grp.name) + '"'
-        + ' style="padding:12px;border:1px solid #eee;border-radius:8px;margin-bottom:8px;cursor:pointer;background:#f9f9f9">'
-        + '<strong>👥 ' + esc(grp.name) + '</strong></div>';
+
+    // 為每個 dm 找出對方名稱
+    let html = "";
+    for (const conv of convs) {
+      let displayName = conv.title || "群聊";
+      if (!conv.is_group) {
+        try {
+          const { data: members } = await supabase
+            .from("conversation_members")
+            .select("user_id")
+            .eq("conversation_id", conv.id)
+            .neq("user_id", myUserId)
+            .limit(1);
+          if (members && members.length) {
+            const { data: prof } = await supabase
+              .from("profiles")
+              .select("name")
+              .eq("id", members[0].user_id)
+              .single();
+            if (prof) displayName = prof.name || conv.title || "未知";
+          }
+        } catch (e) { /* 用預設名稱 */ }
+      }
+      html += '<div class="chat-item" data-type="' + (conv.is_group ? "group" : "dm") + '" data-id="' + esc(conv.id) + '" data-name="' + esc(displayName) + '"'
+        + ' style="padding:12px;border:1px solid #eee;border-radius:8px;margin-bottom:8px;cursor:pointer'
+        + (conv.is_group ? ";background:#f9f9f9" : "") + '">'
+        + '<strong>' + (conv.is_group ? "👥 " : "") + esc(displayName) + '</strong>'
+        + '</div>';
     }
     listEl.innerHTML = html;
     listEl.querySelectorAll(".chat-item").forEach(el => {
@@ -171,23 +256,24 @@ async function loadMessages() {
   const msgEl = document.getElementById("c-messages");
   if (!msgEl) return;
   try {
-    const url = currentChat.type === "dm"
-      ? "/chat/conversations/" + currentChat.id + "/messages"
-      : "/chat/groups/" + currentChat.id + "/messages";
-    const r = await get(url);
-    const msgs = r.messages || r.data?.messages || [];
-    if (!msgs.length) {
+    const { data: msgs, error } = await supabase
+      .from("messages")
+      .select("id, content, sender_id, created_at")
+      .eq("conversation_id", currentChat.id)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (error) throw error;
+    if (!msgs || !msgs.length) {
       msgEl.innerHTML = '<p style="color:#999;text-align:center">還沒有訊息，打個招呼吧！</p>';
       return;
     }
-    // 記住滾動位置
     const wasAtBottom = msgEl.scrollHeight - msgEl.scrollTop <= msgEl.clientHeight + 50;
     msgEl.innerHTML = msgs.map(m => {
-      const mine = m.is_mine || m.mine;
+      const mine = m.sender_id === myUserId;
       return '<div style="margin-bottom:8px;text-align:' + (mine ? "right" : "left") + '">'
         + '<div style="display:inline-block;max-width:70%;padding:8px 12px;border-radius:12px;'
         + (mine ? "background:#1a1a1a;color:#fff" : "background:#fff;border:1px solid #eee") + '">'
-        + esc(m.content || m.text || "") + '</div></div>';
+        + esc(m.content || "") + '</div></div>';
     }).join("");
     if (wasAtBottom) msgEl.scrollTop = msgEl.scrollHeight;
   } catch (e) {
@@ -202,31 +288,36 @@ async function sendMessage() {
   input.value = "";
   input.disabled = true;
   try {
-    const url = currentChat.type === "dm"
-      ? "/chat/conversations/" + currentChat.id + "/messages"
-      : "/chat/groups/" + currentChat.id + "/messages";
-    await post(url, { content: text });
+    const { error } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: currentChat.id,
+        sender_id: myUserId,
+        content: text,
+      });
+    if (error) throw error;
     await loadMessages();
   } catch (e) {
     toast("發送失敗：" + e.message);
-    input.value = text; // 恢復輸入
+    input.value = text;
   } finally {
     input.disabled = false;
     input.focus();
   }
 }
 
-/* ---- 初始化：用後端驗證登入 ---- */
+/* ---- 初始化：用 Supabase 驗證登入 ---- */
 (async function init() {
   if (!isLoggedIn()) {
     showLogin();
     return;
   }
   try {
-    await get("/auth/me"); // 驗證 token 有效
+    const user = await getUser();
+    if (!user) throw new Error("無法取得使用者");
+    myUserId = user.id;
     await showHome();
   } catch (e) {
-    clearAuth(); // token 過期，清掉
     showLogin("登入已過期，請重新登入");
   }
 })();

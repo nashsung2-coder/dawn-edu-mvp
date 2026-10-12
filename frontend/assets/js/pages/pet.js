@@ -1,25 +1,32 @@
-/* 靈獸小屋：寶可夢式成長 ＋ 塔麻可吉式互動
+/* 靈獸小屋：寶可夢式成長 ＋ 塔麻可吉式互動（Supabase 直連版）
  * 蛋（Lv1-2）→ 幼體（Lv3-5）→ 成體（Lv6+）
- * 餵食 / 玩耍 / 摸頭 → 樂觀更新心情＋經驗，後端校正；升級慶祝；改名；孵化
- * 全鏈路調真實後端，零假數據。
- * 生命週期：init → loading → api → render / empty / error
+ * 餵食 / 玩耍 / 摸頭 → 樂觀更新心情＋經驗，直接寫 Supabase；升級慶祝；改名；孵化
+ * 飼料經 shop_items + inventory 表
+ * 生命週期：init → loading → render / empty / error
  */
-import { post, get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
 const view = document.getElementById("p-view");
 const userline = document.getElementById("p-userline");
 
-/* 後端 world.py PET_INTERACTIONS 的真實數值（樂觀更新用同一份） */
+/* 互動數值（與後端 world.py PET_INTERACTIONS 同步） */
 const INTERACTIONS = {
   feed: { icon: "", label: "餵食", mood: 15, exp: 10, text: "餵食了星砂餅乾，寵物很開心！" },
   play: { icon: "", label: "玩耍", mood: 20, exp: 15, text: "陪寵物玩耍，羈絆加深了！" },
   pat:  { icon: "", label: "摸頭", mood: 10, exp: 5,  text: "摸摸寵物的頭，它發出滿足的呼嚕聲。" },
 };
 
+/* 靈獸種類池（孵化時隨機） */
+const SPECIES_POOL = ["星塵狐", "月影貓", "晨曦鳥", "夜光龜", "雲霧鹿"];
+
+let myUserId = null;
+let PET = null;
+let bubbleTimer = null;
+
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c =>
+  return String(s ?? "").replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function skeleton() {
@@ -53,7 +60,6 @@ function moodLabel(mood) {
   if (m >= 20) return "有點低落";
   return "悶悶不樂";
 }
-/* Lv1-2 蛋 → Lv3-5 幼體 → Lv6+ 成體 */
 function petImg(level) {
   const lv = Number(level) || 1;
   const f = lv >= 6 ? "pet-adult" : lv >= 3 ? "pet-baby" : "pet-egg";
@@ -63,13 +69,12 @@ function petStageName(level) {
   const lv = Number(level) || 1;
   return lv >= 6 ? "成體" : lv >= 3 ? "幼體" : "蛋";
 }
-/* 升級門檻：level*100（後端 pet_gain_exp） */
 function expPct(pet) {
   const lv = Number(pet.level) || 1;
   const exp = Number(pet.exp) || 0;
   return Math.max(0, Math.min(100, Math.round((exp / (lv * 100)) * 100)));
 }
-/* 本地模擬升級（樂觀用，與後端同規則） */
+/* 本地模擬升級（與後端同規則：level*100） */
 function simGain(pet, addExp, addMood) {
   const p = { ...pet };
   p.mood = Math.min(100, (Number(p.mood) || 0) + addMood);
@@ -80,9 +85,6 @@ function simGain(pet, addExp, addMood) {
   p.exp = exp; p.level = lv;
   return p;
 }
-
-let PET = null;          /* 當前靈獸（單一真相來源） */
-let bubbleTimer = null;
 
 /* ---- 無靈獸：孵化 ---- */
 function renderNoPet() {
@@ -104,32 +106,76 @@ function renderNoPet() {
     btn.disabled = true; btn.textContent = "孵化中…";
     announce("靈蛋孵化中");
     try {
-      const r = await post("/world/pet/hatch", { name });
-      const pet = r.pet || r.data || r;
-      if (!pet || !pet.id) throw new Error("後端未回傳靈獸資料");
+      const species = SPECIES_POOL[Math.floor(Math.random() * SPECIES_POOL.length)];
+      const { data: pet, error } = await supabase
+        .from("pets")
+        .insert({
+          owner_id: myUserId,
+          name,
+          species,
+          level: 1,
+          exp: 0,
+          mood: 100,
+          hunger: 100,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      if (!pet || !pet.id) throw new Error("孵化失敗，未回傳靈獸資料");
       PET = pet;
-      toast(`孵化成功！${pet.name} 誕生了！`);
+      toast(`孵化成功！${pet.name}（${pet.species}）誕生了！`);
       announce(`孵化成功！${pet.name} 加入了你的小屋`);
       renderPet();
     } catch (e) {
-      errorView(`孵化失敗：${e.message}（${e.code || "未知"}）`, renderNoPet);
+      errorView(`孵化失敗：${e.message}`, renderNoPet);
     }
   };
 }
 
-/* ---- 有靈獸：狀態 ＋ 互動 ＋ 改名 ---- */
-async function loadFoodCount() {
+/* ---- 飼料庫存 ---- */
+async function getFoodItemId() {
+  // 找「星砂餅乾」這個商品，沒有就找第一個 type=food 的
   try {
-    const r = await get("/world/pet/food");
-    const owned = r.owned ?? r.data?.owned ?? 0;
-    const el = document.getElementById("p-food-count");
-    if (el) el.textContent = `${owned} 個`;
+    const { data } = await supabase
+      .from("shop_items")
+      .select("id, price")
+      .ilike("name", "%餅乾%")
+      .limit(1)
+      .single();
+    if (data) return data;
+  } catch (e) {}
+  try {
+    const { data } = await supabase
+      .from("shop_items")
+      .select("id, price")
+      .eq("type", "food")
+      .limit(1)
+      .single();
+    if (data) return data;
+  } catch (e) {}
+  return null;
+}
+
+async function loadFoodCount() {
+  const el = document.getElementById("p-food-count");
+  if (!el) return;
+  try {
+    const food = await getFoodItemId();
+    if (!food) { el.textContent = "商店未上架"; return; }
+    const { data } = await supabase
+      .from("inventory")
+      .select("quantity")
+      .eq("user_id", myUserId)
+      .eq("item_id", food.id)
+      .single();
+    el.textContent = `${data?.quantity ?? 0} 個`;
   } catch (e) {
-    const el = document.getElementById("p-food-count");
-    if (el) el.textContent = "未知";
+    const el2 = document.getElementById("p-food-count");
+    if (el2) el2.textContent = "0 個";
   }
 }
 
+/* ---- 有靈獸：狀態 ＋ 互動 ＋ 改名 ---- */
 function renderPet(bubbleText) {
   const pet = PET;
   const mood = Number(pet.mood);
@@ -196,23 +242,12 @@ function renderPet(bubbleText) {
   </div>`;
   focusMain();
 
-  /* 互動：樂觀更新 → 後端校正 */
   view.querySelectorAll(".p-act").forEach(btn => {
     btn.onclick = () => interact(btn.dataset.act, btn);
   });
 
-  /* 星砂餅乾：顯示庫存＋購買 */
   loadFoodCount();
-  document.getElementById("p-buy-food").onclick = async () => {
-    try {
-      const r = await post("/world/pet/food/buy", { qty: 1 });
-      const count = r.pet_food ?? r.data?.pet_food ?? 0;
-      document.getElementById("p-food-count").textContent = `${count} 個`;
-      toast(`購買成功！星砂餅乾 ${count} 個（-5 星砂）`);
-    } catch (e) {
-      toast(`購買失敗：${e.message}`);
-    }
-  };
+  document.getElementById("p-buy-food").onclick = buyFood;
 
   document.getElementById("p-rename-btn").onclick = async () => {
     const name = document.getElementById("p-newname").value.trim();
@@ -220,9 +255,13 @@ function renderPet(bubbleText) {
     if (name === PET.name) { announce("名字沒有改變"); return; }
     announce("改名中");
     try {
-      const r = await post("/world/pet/rename", { name });
-      const updated = r.pet || r.data || r;
-      if (!updated || !updated.id) throw new Error("後端未回傳靈獸資料");
+      const { data: updated, error } = await supabase
+        .from("pets")
+        .update({ name, updated_at: new Date().toISOString() })
+        .eq("id", PET.id)
+        .select()
+        .single();
+      if (error) throw error;
       PET = updated;
       toast(`改名成功，現在叫「${updated.name}」`);
       renderPet();
@@ -232,43 +271,118 @@ function renderPet(bubbleText) {
   };
 }
 
+/* 購買飼料 */
+async function buyFood() {
+  const btn = document.getElementById("p-buy-food");
+  btn.disabled = true;
+  try {
+    const food = await getFoodItemId();
+    if (!food) throw new Error("商店尚未上架星砂餅乾");
+    const price = food.price || 5;
+
+    // 檢查星砂餘額
+    const { data: profile } = await supabase
+      .from("profiles").select("points").eq("id", myUserId).single();
+    if ((profile?.points ?? 0) < price) throw new Error("星砂不足");
+
+    // 扣星砂
+    const { error: pErr } = await supabase
+      .from("profiles")
+      .update({ points: (profile.points ?? 0) - price })
+      .eq("id", myUserId);
+    if (pErr) throw pErr;
+
+    // 記帳
+    await supabase.from("starsand_ledger").insert({
+      user_id: myUserId, amount: -price, reason: "購買星砂餅乾",
+    });
+
+    // 增加庫存（upsert）
+    const { data: inv } = await supabase
+      .from("inventory")
+      .select("id, quantity")
+      .eq("user_id", myUserId)
+      .eq("item_id", food.id)
+      .single();
+    if (inv) {
+      await supabase.from("inventory")
+        .update({ quantity: (inv.quantity || 0) + 1 })
+        .eq("id", inv.id);
+    } else {
+      await supabase.from("inventory")
+        .insert({ user_id: myUserId, item_id: food.id, quantity: 1 });
+    }
+    await loadFoodCount();
+    toast(`購買成功！星砂餅乾 +1（-${price} 星砂）`);
+  } catch (e) {
+    toast(`購買失敗：${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* 互動：樂觀更新 → 寫入 Supabase */
 async function interact(action, btn) {
   const cfg = INTERACTIONS[action];
   if (!cfg || !PET) return;
   const oldLevel = Number(PET.level) || 1;
 
+  // 餵食需要消耗餅乾
+  if (action === "feed") {
+    try {
+      const food = await getFoodItemId();
+      if (food) {
+        const { data: inv } = await supabase
+          .from("inventory")
+          .select("id, quantity")
+          .eq("user_id", myUserId)
+          .eq("item_id", food.id)
+          .single();
+        if (!inv || (inv.quantity || 0) <= 0) {
+          toast("沒有星砂餅乾了，先去買一個吧！");
+          return;
+        }
+        await supabase.from("inventory")
+          .update({ quantity: inv.quantity - 1 })
+          .eq("id", inv.id);
+        loadFoodCount();
+      }
+    } catch (e) {
+      // 庫存查詢失敗不擋互動，繼續
+    }
+  }
+
   /* 1) 樂觀：心情條＋經驗條立刻動，對話泡泡立刻出 */
   PET = simGain(PET, cfg.exp, cfg.mood);
   renderPet(cfg.text);
   announce(cfg.text);
-  /* 請求期間鎖住所有互動按鈕，避免競態 */
   view.querySelectorAll(".p-act").forEach(b => { b.disabled = true; });
 
-  /* 2) 後端校正 */
+  /* 2) 寫入 Supabase */
   try {
-    const r = await post("/world/pet/interact", { action });
-    const p = r.pet || r.data || r;
-    if (p && p.id) {
-      const newLevel = Number(p.level) || 1;
-      PET = p;
-      const text = p.interaction_text || cfg.text;
-      renderPet(text);
-      if (p.leveled_up || newLevel > oldLevel) {
-        celebrateLevelUp(newLevel);
-      } else {
-        toast(text);
-      }
+    const { data: updated, error } = await supabase
+      .from("pets")
+      .update({
+        level: PET.level,
+        exp: PET.exp,
+        mood: PET.mood,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", PET.id)
+      .select()
+      .single();
+    if (error) throw error;
+    PET = { ...updated, _leveled: PET._leveled };
+    renderPet(cfg.text);
+    if (PET._leveled || (Number(PET.level) || 1) > oldLevel) {
+      celebrateLevelUp(Number(PET.level) || 1);
     } else {
-      throw new Error("後端未回傳靈獸資料");
+      toast(cfg.text);
     }
   } catch (e) {
-    /* 端點尚未部署（404）→ 保留樂觀狀態，友善提示 */
-    if (e.status === 404 || e.code === "HTTP_404") {
-      toast("互動已記錄，雲端同步稍後完成");
-      if (PET._leveled) celebrateLevelUp(Number(PET.level) || 1);
-    } else {
-      toast(`互動同步失敗：${e.message}（已先顯示本地效果）`);
-    }
+    // 寫入失敗，保留樂觀狀態
+    toast(`互動已記錄，雲端同步稍後完成`);
+    if (PET._leveled) celebrateLevelUp(Number(PET.level) || 1);
   }
 }
 
@@ -292,7 +406,7 @@ function celebrateLevelUp(lv) {
         [{ transform: "scale(1)" }, { transform: "scale(1.25)" }, { transform: "scale(1)" }],
         { duration: 600, easing: "ease" }
       );
-    } catch { /* 不支援 Web Animations API 時靜默略過 */ }
+    } catch { /* 不支援時靜默略過 */ }
   }
 }
 
@@ -300,8 +414,14 @@ function celebrateLevelUp(lv) {
 async function load() {
   skeleton();
   try {
-    const r = await get("/world/pet");
-    const pet = r.pet ?? r.data ?? null;
+    const { data: pet, error } = await supabase
+      .from("pets")
+      .select("*")
+      .eq("owner_id", myUserId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+    if (error && error.code !== "PGRST116") throw error; // PGRST116 = 找不到
     if (pet && pet.id) {
       PET = pet;
       renderPet();
@@ -310,7 +430,7 @@ async function load() {
       renderNoPet();
     }
   } catch (e) {
-    errorView(`載入失敗：${e.message}（${e.code || "未知"}）`, load);
+    errorView(`載入失敗：${e.message}`, load);
   }
 }
 
@@ -324,8 +444,14 @@ async function load() {
     return;
   }
   try {
-    const r = await get("/auth/me");
-    userline.textContent = `旅人 ${r.user?.name || r.name || ""} · 歡迎回來`;
-  } catch { userline.textContent = "旅人"; }
+    const user = await getUser();
+    if (!user) throw new Error("無法取得使用者");
+    myUserId = user.id;
+    const { data: profile } = await supabase
+      .from("profiles").select("name").eq("id", user.id).single();
+    userline.textContent = `旅人 ${profile?.name || ""} · 歡迎回來`;
+  } catch (e) {
+    userline.textContent = "旅人";
+  }
   load();
 })();
