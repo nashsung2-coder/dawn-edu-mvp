@@ -29,12 +29,24 @@
   }
   
   function getUserId() {
+    // 從 localStorage 拿快取的 userId，不解析 JWT
     try {
-      var t = getToken();
-      if (!t) return null;
-      var p = JSON.parse(atob(t.split('.')[1]));
-      return p.sub || p.user_id || p.id;
-    } catch(e) { return null; }
+      var cached = localStorage.getItem('dawn:v1:user-id');
+      if (cached) return cached;
+    } catch(e) {}
+    return null;
+  }
+  
+  function fetchUserId() {
+    // 從 API 拿 userId 並快取
+    return apiGet('/auth/me').then(function(r) {
+      var user = r.data?.user || r.data || r;
+      var uid = user?.id || user?.user_id;
+      if (uid) {
+        try { localStorage.setItem('dawn:v1:user-id', uid); } catch(e) {}
+      }
+      return uid;
+    }).catch(function() { return null; });
   }
   
   function apiGet(path) {
@@ -89,8 +101,8 @@
       }
     }, 8000);
     
-    var userId = getUserId();
-    if (!userId) {
+    // 先檢查有沒有 token
+    if (!getToken()) {
       clearTimeout(timeout);
       view.innerHTML = '<div class="center" style="padding:40px">'
         + '<p style="color:#A08060">請先登入再回家</p>'
@@ -98,10 +110,20 @@
       return;
     }
     
-    Promise.allSettled([
-      apiGet('/islands/' + userId),
-      apiGet('/world/pet')
-    ]).then(function(results) {
+    // 有 token，先拿 userId
+    fetchUserId().then(function(userId) {
+      if (!userId) {
+        clearTimeout(timeout);
+        view.innerHTML = '<div class="center" style="padding:40px">'
+          + '<p style="color:#A08060">無法取得用戶資訊，請重新登入</p>'
+          + '<a class="btn-warm" href="settings.html">去登入</a></div>';
+        return;
+      }
+      
+      Promise.allSettled([
+        apiGet('/islands/' + userId),
+        apiGet('/world/pet')
+      ]).then(function(results) {
       clearTimeout(timeout);
       var statusR = results[0], petR = results[1];
       var st = statusR.status === "fulfilled" ? (statusR.value.island || statusR.value) : null;
@@ -115,7 +137,7 @@
           + '<div class="pet-status">Lv.' + (pet.level || 1) + '</div>'
           + '<div><span class="speech">' + petMood(pet.mood) + '</span></div>'
           + '<a class="btn-warm" href="pet.html">去陪牠玩</a>'
-        : '<div style="font-size:56px">🥚</div>'
+        : '<img src="../assets/img/game/pet-egg.webp?v=3.0.0" alt="靈獸蛋" style="width:72px;height:72px;object-fit:contain">'
           + '<div class="pet-name">還沒有夥伴</div>'
           + '<div><span class="speech">孵化一顆蛋，開始你們的故事吧</span></div>'
           + '<a class="btn-warm" href="pet.html">去孵化</a>';
@@ -124,7 +146,7 @@
         + '<div class="cards">'
         + '<div class="card-wood"><h2>靈獸夥伴</h2><div class="pet-wrap">' + petHtml + '</div></div>'
         + '<div class="card-wood"><h2>我的領地</h2><div class="big-num">' + territory + '</div>'
-        + '<p class="center" style="color:#A08060;font-size:13px">領土單位</p><div class="deco">🏡</div>'
+        + '<p class="center" style="color:#A08060;font-size:13px">領土單位</p><div class="deco"><img src="../assets/img/game/island-1.webp?v=3.0.0" alt="島嶼" style="width:48px;height:48px;object-fit:contain"></div>'
         + '<p class="center" style="font-size:13px;color:#A08060">每一塊土地都是你努力的證明</p>'
         + '<div class="center" style="margin-top:12px"><a class="btn-soft" href="island.html">開疆拓土</a></div></div>'
         + '<div class="card-wood"><h2>探索回憶</h2><div class="bar"><div style="width:' + explorePct + '%"></div></div>'
@@ -151,7 +173,7 @@
           goBtn.disabled = true; goBtn.textContent = "出發中…";
           apiPost('/islands/' + userId + '/visit', { friend_name: name }).then(function(r) {
             resultEl.innerHTML = '<div style="background:#FFF8F0;border:2px solid #E8D5B8;border-radius:12px;padding:14px">'
-              + '<p style="margin:0 0 6px"><strong>🏠 ' + escapeHtml(r.friend_name || name) + ' 的家</strong></p>'
+              + '<p style="margin:0 0 6px"><strong>' + escapeHtml(r.friend_name || name) + ' 的家</strong></p>'
               + '<p style="margin:0;font-size:13px;color:#A08060">領土 ' + (r.territory != null ? r.territory : "?") + ' · 夥伴 ' + escapeHtml(r.pet_name || "無") + '</p></div>';
           }).catch(function(e) {
             resultEl.innerHTML = '<p style="color:#c0392b;font-size:13px">' + escapeHtml(e.message) + '</p>';
@@ -164,6 +186,7 @@
       clearTimeout(timeout);
       view.innerHTML = '<p class="center">載入失敗：' + escapeHtml(e.message) + '</p>';
     });
+    }); // fetchUserId().then 結束
   }
   
   // 未登入也顯示基本版（不卡住）

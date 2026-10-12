@@ -174,7 +174,7 @@ function homeHtml() {
         <a href="pet.html" style="font-size:12px;color:var(--accent)">去看靈獸 →</a>
       </div>` : `
       <div style="text-align:center;color:var(--muted);font-size:13px">
-        <div style="font-size:40px">🥚</div>
+        <img src="../assets/img/game/pet-egg.webp?v=3.0.0" alt="靈獸蛋" style="width:64px;height:64px;object-fit:contain">
         <p>還沒有靈獸<br><a href="pet.html" style="color:var(--accent)">去孵化 →</a></p>
       </div>`}
       <div style="text-align:center;min-width:140px">
@@ -196,7 +196,7 @@ function homeHtml() {
         <input id="i-portal-name" type="text" placeholder="好友的名字"
           aria-label="好友名字"
           style="flex:1;padding:10px 14px;border:1px solid var(--line);border-radius:999px;font-size:14px">
-        <button class="btn btn-primary" id="i-portal-go" style="white-space:nowrap">傳送</button>
+        <button class="btn btn-primary" id="i-portal-go" style="white-space:nowrap">拜訪好友</button>
       </div>
       <div id="i-portal-result" style="margin-top:12px"></div>
     </div>
