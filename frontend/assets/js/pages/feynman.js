@@ -32,13 +32,18 @@ function renderStart() {
   document.getElementById("f-start").onclick = async () => {
     const t = document.getElementById("f-topic").value.trim();
     if (!t) { toast("請輸入主題"); return; }
+    const btn = document.getElementById("f-start");
+    btn.disabled = true; btn.textContent = "AI 出題中…（約需 30 秒）";
     try {
       const r = await post("/feynman/persuade", {
-        topic: t, library_id: document.getElementById("f-lib").value });
+        topic: t, library_id: document.getElementById("f-lib").value }, { timeout: 60000 });
       sessionId = r.session_id;
       topic = t;
       renderChallenge(r.prompt);
-    } catch (e) { toast(e.message); }
+    } catch (e) {
+      toast(e.code === "TIMEOUT" ? "AI 回應超時，請再試一次" : e.message);
+      btn.disabled = false; btn.textContent = "開始挑戰";
+    }
   };
   focusMain();
 }
@@ -61,12 +66,12 @@ async function submitExplanation() {
   const text = document.getElementById("f-explain").value.trim();
   if (text.length < 20) { toast("解釋太短了，再多講一點"); return; }
   const btn = document.getElementById("f-submit");
-  btn.disabled = true; btn.textContent = "AI 評估中…";
+  btn.disabled = true; btn.textContent = "AI 評估中…（約需 30 秒）";
   try {
-    const r = await post(`/feynman/persuade/${sessionId}`, { explanation: text });
+    const r = await post(`/feynman/persuade/${sessionId}`, { explanation: text }, { timeout: 60000 });
     renderResult(r);
   } catch (e) {
-    toast(e.message);
+    toast(e.code === "TIMEOUT" ? "AI 回應超時，請再試一次" : e.message);
     btn.disabled = false; btn.textContent = "提交，說服 AI";
   }
 }
