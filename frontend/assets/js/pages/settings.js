@@ -7,6 +7,7 @@ import { swr, post, get, put } from "../core/api.js";
 import { setToken, clearAuth, isLoggedIn } from "../core/auth.js";
 import { broadcast } from "../core/sync.js";
 import { announce } from "../core/a11y.js";
+import { supabase, signIn, signUp, getUser, signOut } from "../core/supabase.js";
 
 const view = document.getElementById("s-view");
 const userline = document.getElementById("s-userline");
@@ -47,7 +48,7 @@ function setBusy(btn, busy, label) {
   else { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; }
 }
 
-/* ================= 登入 / 註冊（保持現有邏輯） ================= */
+/* ================= 登入 / 註冊（Supabase Auth） ================= */
 
 function renderAuth(mode = "login") {
   if (params.get("reason") === "login") {
@@ -63,8 +64,8 @@ function renderAuth(mode = "login") {
         <input id="s-name" autocomplete="username" required minlength="1" maxlength="20"></div>
       <div><label for="s-pass">密碼</label>
         <input id="s-pass" type="password" autocomplete="${mode === "login" ? "current-password" : "new-password"}" required minlength="4"></div>
-      ${mode === "register" ? `<div><label for="s-email">Email（選填）</label>
-        <input id="s-email" type="email" autocomplete="email"></div>` : ""}
+      ${mode === "register" ? `<div><label for="s-email">Email（必填，用於登入）</label>
+        <input id="s-email" type="email" autocomplete="email" required></div>` : ""}
       <button class="btn btn-primary" type="submit">${mode === "login" ? "登入" : "註冊"}</button>
       <p id="s-err" style="color:#B3261E;font-size:13px" role="alert"></p>
     </form>`;
@@ -81,19 +82,26 @@ function renderAuth(mode = "login") {
     errEl.textContent = "";
     if (!name) { errEl.textContent = "請輸入暱稱"; return; }
     if (password.length < 4) { errEl.textContent = "密碼至少 4 個字元"; return; }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = "Email 格式不正確"; return; }
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = mode === "login" ? "登入中…" : "註冊中…";
     try {
-      const path = mode === "login" ? "/auth/login" : "/auth/register";
-      const body = mode === "login" ? { name, password } : { name, password, email };
-      const r = await post(path, body);
-      const token = r.token || r.access_token;
-      if (!token) throw new Error("後端未回傳 token");
-      setToken(token);
+      if (mode === "login") {
+        // 用暱稱查 email，再用 Supabase 登入
+        const { data: profile } = await supabase.from("profiles").select("email").eq("name", name).single();
+        if (!profile?.email) throw new Error("找不到此暱稱，請先註冊");
+        await signIn(profile.email, password);
+      } else {
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Email 格式不正確");
+        await signUp(email, password, name);
+      }
       broadcast({ type: "cache:invalidate", keys: ["auth:me", "game:state"] });
       announce(mode === "login" ? "登入成功" : "註冊成功");
       renderProfile();
     } catch (err) {
       errEl.textContent = `失敗：${err.message}`;
+      btn.disabled = false;
+      btn.textContent = mode === "login" ? "登入" : "註冊";
     }
   };
 }
@@ -102,22 +110,19 @@ function renderAuth(mode = "login") {
 
 async function renderProfile() {
   skeleton();
-  // 三路並行載入，單一路失敗不拖累其他
-  const [meR, ptsR, badgeR] = await Promise.allSettled([
-    swr("auth:me", "/auth/me"),
-    swr("world:attr-points", "/world/attr-points"),
-    swr("learn:badges", "/learn/badges"),
-  ]);
-  if (meR.status === "rejected") {
-    userline.textContent = "載入失敗";
-    errorView(`讀取個人資料失敗：${meR.reason.message}`, renderProfile);
-    return;
-  }
-  const me = meR.value.data?.user || meR.value.data || {};
-  if (meR.value.stale) announce("顯示快取資料，更新中");
-  const points = ptsR.status === "fulfilled" ? (ptsR.value.data?.points ?? 0) : null;
-  const badges = badgeR.status === "fulfilled"
-    ? (badgeR.value.data?.badges || badgeR.value.data || []) : null;
+  try {
+    const user = await getUser();
+    if (!user) { renderAuth("login"); return; }
+    const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    if (error) throw error;
+    const me = { name: profile.name, email: profile.email, id: profile.id };
+    const [ptsR, badgeR] = await Promise.allSettled([
+      swr("world:attr-points", "/world/attr-points"),
+      swr("learn:badges", "/learn/badges"),
+    ]);
+    const points = profile.points ?? (ptsR.status === "fulfilled" ? (ptsR.value.data?.points ?? 0) : 0);
+    const badges = badgeR.status === "fulfilled"
+      ? (badgeR.value.data?.badges || badgeR.value.data || []) : [];
 
   userline.textContent = `旅人 ${me.name || ""}`;
   renderSections(me, points, badges);
@@ -414,8 +419,9 @@ function bindFooter() {
     try { localStorage.removeItem("dawn.device"); } catch (e) {}
     location.href = "../index.html";
   };
-  document.getElementById("s-logout").onclick = () => {
-    clearAuth();
+  document.getElementById("s-logout").onclick = async () => {
+    try { await signOut(); } catch (e) {}
+    clearAuth(); // 清掉舊系統的 token（過渡期）
     broadcast({ type: "auth:logout" });
     announce("已登出");
     renderAuth("login");
@@ -445,6 +451,11 @@ function bindFooter() {
 
 /* ---- 啟動 ---- */
 (async function init() {
-  if (isLoggedIn()) renderProfile();
-  else renderAuth("login");
+  try {
+    const user = await getUser();
+    if (user) renderProfile();
+    else renderAuth("login");
+  } catch (e) {
+    renderAuth("login");
+  }
 })();
