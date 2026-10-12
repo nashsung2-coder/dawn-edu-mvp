@@ -1,9 +1,10 @@
 /* 星海市集：動物森友會商店風
  * 市集街道橫幅＋大字星砂 → 商品卡片（樂觀購買）→ 我的上架 → 武器圖鑑 → 上架表單
- * 全調真實後端，零假數據。
+ * v4.0：直讀 Supabase（shop_items 商品、inventory 背包、profiles 星砂），
+ * 購買經 transfer_starsand 原子扣款＋記帳，不再經 Render 後端。
  * 生命週期：init → 未登入檢查 → loading(skeleton) → api → render/empty/error
  */
-import { swr, post, get, del } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
@@ -11,24 +12,25 @@ const view = document.getElementById("m-view");
 const walletEl = document.getElementById("m-wallet");
 const IMG = "../assets/img/game";
 
-/* 武器商店品項：從後端 /game/shop 即時取得，零寫死價格 */
+/* 商店品項：從 Supabase shop_items 即時取得 */
 let SHOP_ITEMS = [];
-const SHOP_ICONS = { dart: "🗡️", wave: "🌊", shield: "🛡️" };
+const TYPE_ICONS = { weapon: "🗡️", food: "🍪", decoration: "🏠" };
 
 async function loadShopItems() {
   try {
-    const r = await get("/game/shop");
-    const weapons = r.weapons || r.data?.weapons || [];
-    if (weapons.length) {
-      SHOP_ITEMS = weapons.map(w => ({
-        id: w.id, name: w.name, desc: w.desc,
-        price: w.cost, target_label: w.target_label, use_hint: w.use_hint,
+    const { data, error } = await supabase.from("shop_items")
+      .select("id, name, description, price, type").order("price", { ascending: true });
+    if (error) throw error;
+    if (data?.length) {
+      SHOP_ITEMS = data.map(w => ({
+        id: w.id, name: w.name, desc: w.description,
+        price: w.price ?? 0, icon: TYPE_ICONS[w.type] || "🎁", type: w.type,
       }));
       return;
     }
-  } catch (e) { /* 掉回預設 */ }
-  // 後端取不到時的保底（會在 console 警告）
-  console.warn("[market] 無法從後端取得商店目錄，使用保底價格");
+  } catch (e) { console.warn("[market] shop_items failed:", e.message); }
+  // 取不到時的保底
+  console.warn("[market] 無法從 Supabase 取得商店目錄，使用保底價格");
   SHOP_ITEMS = [
     { id: "dart", name: "星塵飛鏢", desc: "迅捷的單體攻擊", price: 20, icon: "🗡️" },
     { id: "wave", name: "潮汐巨浪", desc: "範圍傷害", price: 50, icon: "🌊" },
@@ -92,14 +94,32 @@ let myName = "", myId = "";
 let walletPts = 0;
 async function loadWallet() {
   try {
-    const r = await swr("game:state", "/game/state");
-    const d = r.data || {};
-    walletPts = d.points ?? d.stardust ?? 0;
+    const { data: profile, error } = await supabase.from("profiles")
+      .select("points").eq("id", myId).single();
+    if (error) throw error;
+    walletPts = profile?.points ?? 0;
     renderBanner();
-    return { points: walletPts, inventory: d.inventory || {} };
-  } catch {
+    return { points: walletPts, inventory: await loadInventoryRows() };
+  } catch (e) {
+    console.warn("[market] wallet failed:", e.message);
     walletEl.textContent = "錢包讀取失敗";
-    return { points: 0, inventory: {} };
+    return { points: 0, inventory: [] };
+  }
+}
+async function loadInventoryRows() {
+  try {
+    const { data, error } = await supabase.from("inventory")
+      .select("quantity, shop_items(id, name, description, type)")
+      .eq("user_id", myId);
+    if (error) throw error;
+    return (data || []).filter(r => (r.quantity || 0) > 0).map(r => ({
+      id: r.shop_items?.id, name: r.shop_items?.name || "未知物品",
+      desc: r.shop_items?.description || "", type: r.shop_items?.type,
+      qty: r.quantity,
+    }));
+  } catch (e) {
+    console.warn("[market] inventory failed:", e.message);
+    return [];
   }
 }
 function renderBanner() {
@@ -113,264 +133,130 @@ function renderBanner() {
 }
 async function loadMe() {
   try {
-    const r = await swr("auth:me", "/auth/me");
-    const d = r.data?.user || r.data?.data || r.data || {};
-    myName = d.name || ""; myId = String(d.id || "");
+    const user = await getUser();
+    if (!user) return;
+    myId = user.id;
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).single();
+    myName = profile?.name || "";
   } catch { /* 匿名 */ }
-}
-function isMine(listing) {
-  const seller = listing.seller || listing.seller_name || listing.owner || "";
-  const sid = String(listing.seller_id || listing.owner_id || "");
-  return (myName && seller === myName) || (myId && sid === myId);
-}
-function listingId(l) { return l.lid || l.id; }
-function listingName(l) {
-  return l.item_name || l.name || l.title || `${l.item_type || ""} ${l.item_id || ""}`.trim() || "未命名物品";
 }
 
 /* ---- 主渲染 ---- */
-const MARKET_CATS = ["全部", "攻擊型", "防禦型", "輔助型", "經濟型"];
+const MARKET_CATS = ["全部", "weapon", "food", "decoration"];
+const CAT_LABEL = { "全部": "全部", "weapon": "武器", "food": "食物", "decoration": "裝飾" };
 let marketCat = "全部";
 
 async function renderAll() {
   view.innerHTML = `
-    <section aria-label="市集列表">
-      <div class="m-sec-title"><h2>市集攤位</h2><span class="m-count" id="m-count-market"></span></div>
+    <section aria-label="商店">
+      <div class="m-sec-title"><h2>商店</h2><span class="m-count" id="m-count-market"></span></div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" role="group" aria-label="分類篩選">
-        ${MARKET_CATS.map(c => `<button class="btn ${c === marketCat ? "btn-primary" : "btn-ghost"} m-cat" data-cat="${c}" style="font-size:13px;padding:6px 14px">${c}</button>`).join("")}
+        ${MARKET_CATS.map(c => `<button class="btn ${c === marketCat ? "btn-primary" : "btn-ghost"} m-cat" data-cat="${c}" style="font-size:13px;padding:6px 14px">${CAT_LABEL[c]}</button>`).join("")}
       </div>
       <div id="m-market">${skeleton()}</div>
     </section>
-    <section aria-label="我的上架">
-      <div class="m-sec-title"><h2>我的上架</h2><span class="m-count" id="m-count-mine"></span></div>
-      <div id="m-mine">${skeleton(80)}</div>
+    <section aria-label="旅人市集">
+      <div class="m-sec-title"><h2>旅人市集</h2><span class="m-count">即將開放</span></div>
+      <div id="m-p2p"></div>
     </section>
-    <section aria-label="上架物品">
-      <div class="m-sec-title"><h2>上架物品</h2></div>
-      <div id="m-listform">${skeleton(120)}</div>
-    </section>
-    <section aria-label="武器商店">
-      <div class="m-sec-title"><h2>武器商店</h2><span class="m-count">常駐</span></div>
-      <div id="m-shop" class="m-cards"></div>
-    </section>
-    <section aria-label="我的武器庫">
-      <div class="m-sec-title"><h2>我的武器庫</h2></div>
+    <section aria-label="我的背包">
+      <div class="m-sec-title"><h2>我的背包</h2></div>
       <div id="m-inv">${skeleton(80)}</div>
     </section>`;
   await loadMe();
-  const [marketRes, wallet] = await Promise.allSettled([
-    swr("world:market", "/world/market"),
-    loadWallet(),
-  ]);
-  const d = marketRes.status === "fulfilled" ? (marketRes.value.data || {}) : null;
-  let listings = d === null ? null
-    : (d.listings || d.items || (Array.isArray(d) ? d : []));
-  // 分類篩選
-  if (listings && marketCat !== "全部") {
-    listings = listings.filter(l => (l.archetype || "") === marketCat);
-  }
-  renderMarket(listings);
-  renderMine(d === null ? [] : (d.listings || d.items || (Array.isArray(d) ? d : [])));
-  renderListForm();
-  renderShop();
-  renderInventory(wallet.status === "fulfilled" ? wallet.value.inventory : {});
-  // 分類按鈕綁定
+  const wallet = await loadWallet().catch(() => ({ points: 0, inventory: [] }));
+  renderMarket();
+  renderP2P();
+  renderInventory(wallet.inventory);
   view.querySelectorAll(".m-cat").forEach(btn => {
     btn.onclick = () => { marketCat = btn.dataset.cat; renderAll(); };
   });
   focusMain();
 }
 
-/* ---- 市集攤位：樂觀購買 ---- */
-function renderMarket(listings) {
+/* ---- 商店：購買（原子扣款＋入庫） ---- */
+function renderMarket() {
   const el = document.getElementById("m-market");
   const cnt = document.getElementById("m-count-market");
-  if (listings === null) {
-    el.innerHTML = `<div class="state-error"><p>市集讀取失敗</p>
-      <button class="btn btn-primary" id="m-retry">重試</button></div>`;
-    document.getElementById("m-retry").onclick = renderAll;
-    return;
-  }
-  const others = listings.filter(l => !isMine(l));
-  cnt.textContent = `${others.length} 件`;
-  if (!others.length) {
+  let items = SHOP_ITEMS;
+  if (marketCat !== "全部") items = items.filter(w => (w.type || "") === marketCat);
+  cnt.textContent = `${items.length} 件`;
+  if (!items.length) {
     el.innerHTML = `<div class="state-empty">
       <img src="../assets/img/empty-neon.webp?v=3.0.0" alt="空市集插圖">
-      <p>市集目前沒有其他旅人的上架物品</p></div>`;
+      <p>這個分類還沒有商品</p></div>`;
     return;
   }
-  el.innerHTML = `<div class="m-cards">` + others.map(l => {
-    const lid = listingId(l);
-    const price = l.price ?? 0;
-    const seller = l.seller || l.seller_name || "—";
-    const kind = l.trade_kind === "barter" ? `以物易物：${escapeHtml(l.want_text || "詳談")}` : "";
-    // 武器等級預覽
-    const isWeapon = l.item_type === "weapon";
-    const lvHtml = isWeapon && l.weapon_level ? `
-      <p class="m-desc" style="color:var(--accent)">
-        ${escapeHtml(l.weapon_name || "")} Lv.${l.weapon_level}
-        → 購買後降為 Lv.${l.weapon_level_after}
-      </p>` : "";
-    return `<div class="m-card" data-card="${escapeHtml(String(lid))}">
-      <h3>${escapeHtml(listingName(l))}</h3>
-      <p class="m-seller">賣家 ${escapeHtml(seller)}</p>
-      ${kind ? `<p class="m-desc">${kind}</p>` : ""}
-      ${lvHtml}
-      <p class="m-price">${fmt(price)} 星砂</p>
-      <button class="btn btn-primary" data-buy="${escapeHtml(String(lid))}" data-price="${price}">購買</button>
-    </div>`;
-  }).join("") + `</div>`;
-  el.querySelectorAll("[data-buy]").forEach(b => b.onclick = () => buyListing(b.dataset.buy, +b.dataset.price, b));
-}
-
-function renderMine(listings) {
-  const el = document.getElementById("m-mine");
-  const cnt = document.getElementById("m-count-mine");
-  const mine = listings.filter(isMine);
-  cnt.textContent = `${mine.length} 件`;
-  if (!mine.length) {
-    el.innerHTML = `<div class="state-empty"><p>你還沒有上架任何物品</p></div>`;
-    return;
-  }
-  el.innerHTML = `<div class="m-cards">` + mine.map(l => {
-    const lid = listingId(l);
-    return `<div class="m-card" data-card="${escapeHtml(String(lid))}">
-      <div class="m-icon" aria-hidden="true">📦</div>
-      <h3>${escapeHtml(listingName(l))}</h3>
-      <p class="m-price">✦ ${fmt(l.price ?? 0)}</p>
-      <button class="btn btn-ghost" data-delist="${escapeHtml(String(lid))}">下架</button>
-    </div>`;
-  }).join("") + `</div>`;
-  el.querySelectorAll("[data-delist]").forEach(b => b.onclick = () => delist(b.dataset.delist, b));
-}
-
-/* ---- 購買：樂觀更新，失敗回滾 ---- */
-async function buyListing(lid, price, btn) {
-  const card = btn.closest(".m-card");
-  // 樂觀：立即標記已購買
-  btn.disabled = true;
-  btn.textContent = "✓ 已購買";
-  if (card) card.classList.add("bought", "m-bounce");
-  announce("購買中…");
-  try {
-    await post(`/world/market/${encodeURIComponent(lid)}/buy`, {});
-    toast(`購買成功！✦ -${fmt(price)}`);
-    await renderAll();
-  } catch (e) {
-    // 回滾
-    btn.disabled = false; btn.textContent = "購買";
-    if (card) card.classList.remove("bought", "m-bounce");
-    toast(`購買失敗：${e.message}`);
-  }
-}
-
-async function delist(lid, btn) {
-  btn.disabled = true; btn.textContent = "下架中…";
-  try {
-    await del(`/world/market/${encodeURIComponent(lid)}`);
-    toast("已下架");
-    await renderAll();
-  } catch (e) {
-    toast(`下架失敗：${e.message}`);
-    btn.disabled = false; btn.textContent = "下架";
-  }
-}
-
-/* ---- 上架表單 ---- */
-async function renderListForm() {
-  const el = document.getElementById("m-listform");
-  let badges = [];
-  try {
-    const r = await get("/learn/badges");
-    const d = r || {};
-    badges = d.badges || (Array.isArray(d) ? d : []);
-  } catch (e) {
-    el.innerHTML = `<div class="state-error"><p>讀取可上架物品失敗：${escapeHtml(e.message)}</p></div>`;
-    return;
-  }
-  if (!badges.length) {
-    el.innerHTML = `<div class="state-empty">
-      <p>還沒有可上架的技能章。去<a href="quiz.html">費曼戰役</a>授勳，拿到技能章就能上架販售！</p></div>`;
-    return;
-  }
-  el.innerHTML = `<div class="m-form">
-    <label>選擇物品
-      <select id="m-lf-item" aria-label="選擇上架物品">
-        ${badges.map(b => {
-          const bid = b.id || b.badge_id || b.name;
-          const bname = b.name || b.badge_name || bid;
-          return `<option value="${escapeHtml(String(bid))}" data-type="${escapeHtml(b.item_type || "badge")}">${escapeHtml(bname)}${b.rarity ? ` · ${escapeHtml(b.rarity)}` : ""}</option>`;
-        }).join("")}
-      </select></label>
-    <label>定價（星砂）
-      <input id="m-lf-price" type="number" min="0" value="10" aria-label="定價星砂"></label>
-    <button class="btn btn-primary" id="m-lf-go" style="width:100%">上架販售</button>
-  </div>`;
-  document.getElementById("m-lf-go").onclick = async () => {
-    const sel = document.getElementById("m-lf-item");
-    const itemId = sel.value;
-    const itemType = sel.selectedOptions[0]?.dataset.type || "badge";
-    const price = Math.max(0, parseInt(document.getElementById("m-lf-price").value, 10) || 0);
-    const btn = document.getElementById("m-lf-go");
-    btn.disabled = true; btn.textContent = "上架中…";
-    try {
-      await post("/world/market", { item_type: itemType, item_id: itemId, price });
-      toast("上架成功！");
-      await renderAll();
-    } catch (e) {
-      toast(`上架失敗：${e.message}`);
-      btn.disabled = false; btn.textContent = "上架販售";
-    }
-  };
-}
-
-/* ---- 武器商店：圖鑑卡片 ---- */
-function renderShop() {
-  const el = document.getElementById("m-shop");
-  el.innerHTML = SHOP_ITEMS.map(w => `<div class="m-card">
-    <div class="m-icon" aria-hidden="true">${w.icon}</div>
-    <span class="m-tag">常駐商品</span>
-    <h3>${escapeHtml(w.name)}</h3>
-    <p class="m-desc">${escapeHtml(w.desc)}</p>
-    <p class="m-price">✦ ${fmt(w.price)}</p>
-    <button class="btn btn-primary" data-shop="${w.id}">購買</button>
-  </div>`).join("");
+  el.innerHTML = `<div class="m-cards">` + items.map(w => `
+    <div class="m-card" data-card="${escapeHtml(String(w.id))}">
+      <div class="m-icon" aria-hidden="true">${w.icon}</div>
+      <span class="m-tag">${escapeHtml(CAT_LABEL[w.type] || "商品")}</span>
+      <h3>${escapeHtml(w.name)}</h3>
+      <p class="m-desc">${escapeHtml(w.desc || "")}</p>
+      <p class="m-price">✦ ${fmt(w.price)}</p>
+      <button class="btn btn-primary" data-shop="${escapeHtml(String(w.id))}">購買</button>
+    </div>`).join("") + `</div>`;
   el.querySelectorAll("[data-shop]").forEach(b =>
     b.onclick = () => buyWeapon(b.dataset.shop, b));
 }
 
 async function buyWeapon(itemId, btn) {
-  btn.disabled = true; btn.textContent = "購買中…";
+  const item = SHOP_ITEMS.find(w => String(w.id) === String(itemId));
+  const price = item?.price ?? 0;
+  const card = btn.closest(".m-card");
+  btn.disabled = true;
+  const oldLabel = btn.textContent;
+  btn.textContent = "購買中…";
   try {
-    const r = await post("/game/shop/buy", { item_id: itemId });
-    toast(`獲得「${r.name || itemId}」！`);
+    // 原子扣款＋記帳（餘額不足時 RPC 會報錯）
+    const { error: payErr } = await supabase.rpc("transfer_starsand", {
+      p_user_id: myId, p_amount: -price, p_reason: `購買：${item?.name || itemId}`,
+    });
+    if (payErr) throw new Error(payErr.message.includes("餘額不足") ? `星砂不足（需要 ${fmt(price)} 星砂）` : payErr.message);
+    // 入庫（upsert）
+    const { data: existing } = await supabase.from("inventory")
+      .select("id, quantity").eq("user_id", myId).eq("item_id", itemId).maybeSingle();
+    if (existing) {
+      const { error } = await supabase.from("inventory")
+        .update({ quantity: (existing.quantity || 0) + 1 }).eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("inventory")
+        .insert({ user_id: myId, item_id: itemId, quantity: 1 });
+      if (error) throw error;
+    }
+    if (card) card.classList.add("bought", "m-bounce");
+    toast(`獲得「${item?.name || itemId}」！✦ -${fmt(price)}`);
+    announce(`購買成功：${item?.name || itemId}`);
     await renderAll();
   } catch (e) {
-    btn.disabled = false; btn.textContent = "購買";
+    btn.disabled = false; btn.textContent = oldLabel;
+    if (card) card.classList.remove("bought", "m-bounce");
     toast(`購買失敗：${e.message}`);
   }
 }
 
-/* ---- 武器庫 ---- */
-function renderInventory(inventory) {
+/* ---- 旅人市集（P2P）：尚無對應表，顯示即將開放 ---- */
+function renderP2P() {
+  document.getElementById("m-p2p").innerHTML = `<div class="state-empty">
+    <p>旅人間的交易市集即將開放，敬請期待！</p></div>`;
+}
+
+/* ---- 背包 ---- */
+function renderInventory(items) {
   const el = document.getElementById("m-inv");
-  const entries = Object.entries(inventory).filter(([, n]) => n > 0);
-  if (!entries.length) {
-    el.innerHTML = `<div class="state-empty"><p>武器庫是空的，去商店買幾件防身吧！</p></div>`;
+  if (!items.length) {
+    el.innerHTML = `<div class="state-empty"><p>背包是空的，去商店買幾件防身吧！</p></div>`;
     return;
   }
-  const meta = Object.fromEntries(SHOP_ITEMS.map(w => [w.id, w]));
-  el.innerHTML = `<div class="m-cards">` + entries.map(([id, n]) => {
-    const m = meta[id] || {};
-    return `<div class="m-card">
-      <h3>${escapeHtml(m.name || id)}</h3>
-      <p class="m-seller">數量 × ${n}</p>
-      ${m.desc ? `<p class="m-desc">${escapeHtml(m.desc)}</p>` : ""}
-      ${m.target_label ? `<p class="m-target" style="font-size:12px;color:var(--accent)">${escapeHtml(m.target_label)}</p>` : ""}
-      ${m.use_hint ? `<p class="m-hint" style="font-size:12px;color:var(--muted)">${escapeHtml(m.use_hint)}</p>` : ""}
-      <button class="btn btn-ghost" data-use="${escapeHtml(id)}">使用一個</button>
-    </div>`;
-  }).join("") + `</div>`;
+  el.innerHTML = `<div class="m-cards">` + items.map(it => `
+    <div class="m-card">
+      <div class="m-icon" aria-hidden="true">${TYPE_ICONS[it.type] || "🎁"}</div>
+      <h3>${escapeHtml(it.name)}</h3>
+      <p class="m-seller">數量 × ${it.qty}</p>
+      ${it.desc ? `<p class="m-desc">${escapeHtml(it.desc)}</p>` : ""}
+      <button class="btn btn-ghost" data-use="${escapeHtml(String(it.id))}">使用一個</button>
+    </div>`).join("") + `</div>`;
   el.querySelectorAll("[data-use]").forEach(b =>
     b.onclick = () => useWeapon(b.dataset.use, b));
 }
@@ -378,11 +264,19 @@ function renderInventory(inventory) {
 async function useWeapon(itemId, btn) {
   btn.disabled = true; btn.textContent = "使用中…";
   try {
-    const r = await post("/game/use", { item_id: itemId });
-    toast("已使用一個武器");
-    const inv = r.inventory || {};
-    renderInventory(inv);
-    await loadWallet();
+    const { data: existing } = await supabase.from("inventory")
+      .select("id, quantity").eq("user_id", myId).eq("item_id", itemId).maybeSingle();
+    if (!existing || (existing.quantity || 0) <= 0) throw new Error("背包裡沒有這個物品");
+    if (existing.quantity <= 1) {
+      const { error } = await supabase.from("inventory").delete().eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("inventory")
+        .update({ quantity: existing.quantity - 1 }).eq("id", existing.id);
+      if (error) throw error;
+    }
+    toast("已使用一個物品");
+    await renderAll();
   } catch (e) {
     toast(`使用失敗：${e.message}`);
     btn.disabled = false; btn.textContent = "使用一個";
@@ -400,13 +294,13 @@ async function useWeapon(itemId, btn) {
   }
   view.innerHTML = skeleton(200);
   try {
-    await loadShopItems();  // 先從後端拿即時價格
+    await loadShopItems();
     await renderAll();
   } catch (e) {
     view.innerHTML = `<div class="state-error">
       <img src="../assets/img/empty-error.webp?v=3.0.0" alt="錯誤插圖">
       <p>市集讀取失敗：${escapeHtml(e.message)}</p>
       <button class="btn btn-primary" id="m-retry">重試</button></div>`;
-    document.getElementById("m-retry").onclick = () => init();
+    document.getElementById("m-retry").onclick = () => location.reload();
   }
 })();

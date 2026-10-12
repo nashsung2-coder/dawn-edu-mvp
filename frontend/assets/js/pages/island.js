@@ -1,17 +1,17 @@
 /* 島嶼世界：動森式家園 ＋ 部落衝突式開拓
  * 英雄圖（按領土等級）→ 儀表板 → 開疆任務卡 → 建築槽位 → 標籤雲 → 我的島嶼 → 領土日誌
- * 全鏈路調真實後端，零假數據。樂觀更新（先動畫、後校正）＋ 並行載入。
+ * v4.0：直讀 Supabase（islands 表；領土/建築/標籤以 JSON 存於 style 欄位）＋ pets 表，不再經 Render 後端
  * 生命週期：init → loading → api → render / empty / error
  */
-import { swr, post, get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
 const view = document.getElementById("i-view");
 const sub = document.getElementById("i-sub");
+const LOG_KEY_PREFIX = "dawn:island:logs:";
 
-/* ---- 真實獎勵表（後端 game.py EXPAND_ACTIONS + ACTION_RESOURCE_REWARD，curl 實測驗證） ---- */
-/* 設計：不用 emoji 圖示，用文字＋留白，乾淨為主 */
+/* ---- 真實獎勵表（沿用原設計） ---- */
 const EXPAND_ACTIONS = [
   { key: "complete_topic", label: "完成主題", desc: "完成一個學習主題",
     reward: "領土 +1.0 · 好奇種子 ×1 · 星砂 ×10", delta: 1.0 },
@@ -31,6 +31,7 @@ const BUILDINGS = [
   { type: "瞭望塔", desc: "探索加成：劇情選項多一條線索" },
 ];
 const BUILD_MAX = 5;
+const DAILY_CAP = 5;
 
 const S = {
   tabs: "display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap",
@@ -79,6 +80,63 @@ function errorView(msg, retry) {
     <button class="btn btn-primary" id="i-retry">重試</button></div>`;
   document.getElementById("i-retry").onclick = retry;
 }
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/* ---- 島嶼 style JSON 解析/序列化（領土/建築/標籤存於 style 欄位） ---- */
+function parseIsland(row) {
+  let meta = {};
+  try { meta = JSON.parse(row.style || "{}"); } catch (e) {}
+  const isToday = meta.last_expand_date === todayStr();
+  return {
+    id: row.id,
+    name: row.name || "無名島",
+    territory: Number(meta.territory) || 0,
+    buildings: meta.buildings || {},
+    occupied_tags: meta.tags || [],
+    used_today: isToday ? (Number(meta.used_today) || 0) : 0,
+    daily_cap: DAILY_CAP,
+    resources: meta.resources || {},
+    created_at: row.created_at,
+  };
+}
+function dumpStyle(st) {
+  return JSON.stringify({
+    territory: st.territory,
+    buildings: st.buildings || {},
+    tags: st.occupied_tags || [],
+    resources: st.resources || {},
+    last_expand_date: todayStr(),
+    used_today: st.used_today,
+  });
+}
+async function persistStatus() {
+  if (!ST.status?.id) return;
+  try {
+    const { error } = await supabase.from("islands").update({ style: dumpStyle(ST.status) }).eq("id", ST.status.id);
+    if (error) throw error;
+  } catch (e) {
+    console.warn("[island] persist failed:", e.message);
+  }
+}
+
+/* ---- 領土日誌（localStorage 簡化版） ---- */
+function loadLogs() {
+  try {
+    const raw = localStorage.getItem(LOG_KEY_PREFIX + userId);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function pushLog(action) {
+  try {
+    const arr = loadLogs();
+    arr.unshift({ action, created_at: new Date().toISOString() });
+    localStorage.setItem(LOG_KEY_PREFIX + userId, JSON.stringify(arr.slice(0, 30)));
+    ST.logs = arr.slice(0, 30);
+  } catch (e) {}
+}
 
 /* 領土 <10 初生小島；<30 成長；否則繁榮都市 */
 function heroImg(territory) {
@@ -95,45 +153,32 @@ function heroAlt(territory) {
 async function loadAll() {
   skeleton();
   announce("載入島嶼世界");
-  const [statusR, namedR, logsR, tagsR] = await Promise.allSettled([
-    get(`/islands/${userId}`),
-    swr("world:islands", "/world/islands"),
-    swr("world:island-logs", `/islands/${userId}/logs?limit=10`),
-    swr("tags:tree", "/tags"),
+  const [islandsR, tagsR] = await Promise.allSettled([
+    supabase.from("islands").select("*").eq("owner_id", userId).order("created_at", { ascending: false }),
+    supabase.from("knowledge_nodes").select("title").eq("user_id", userId).limit(30),
   ]);
 
-  if (statusR.status === "fulfilled") {
-    ST.status = statusR.value.island || statusR.value;
+  if (islandsR.status === "fulfilled" && !islandsR.value.error) {
+    const rows = islandsR.value.data || [];
+    ST.named = rows;
+    ST.status = rows.length ? parseIsland(rows[0]) : null;
     ST.statusErr = null;
   } else {
     ST.status = null;
-    ST.statusErr = statusR.reason;
-    console.warn("[island] status failed:", statusR.reason?.code);
+    ST.statusErr = islandsR.status === "rejected" ? islandsR.reason : islandsR.value.error;
+    console.warn("[island] islands failed:", ST.statusErr?.message);
   }
-  if (namedR.status === "fulfilled") {
-    const d = namedR.value.data;
-    ST.named = d?.islands || (Array.isArray(d) ? d : []);
-  } else console.warn("[island] named failed:", namedR.reason?.code);
-  if (logsR.status === "fulfilled") {
-    const d = logsR.value.data;
-    ST.logs = d?.logs || (Array.isArray(d) ? d : []);
-  } else console.warn("[island] logs failed:", logsR.reason?.code);
-  if (tagsR.status === "fulfilled") {
-    ST.tagCloud = buildTagCloud(tagsR.value.data);
-  } else console.warn("[island] tags failed:", tagsR.reason?.code);
-}
-
-/* 從標籤樹挑一組建議標籤（每維度取幾個，混排） */
-function buildTagCloud(data) {
-  const dims = data?.dimensions || [];
-  const picks = [];
-  const perDim = 4;
-  dims.forEach(dim => {
-    (dim.tags || []).slice(0, perDim).forEach(t => {
-      picks.push({ code: `${dim.code}:${t.name}`, label: t.name, dim: dim.name });
-    });
-  });
-  return picks.slice(0, 24);
+  ST.logs = loadLogs();
+  if (tagsR.status === "fulfilled" && !tagsR.value.error) {
+    ST.tagCloud = (tagsR.value.data || []).slice(0, 24).map((n, i) => ({
+      code: `NOTE:${i}:${(n.title || "").slice(0, 12)}`,
+      label: (n.title || "未命名").slice(0, 12),
+      dim: "我的知識",
+    }));
+  } else {
+    ST.tagCloud = [];
+    console.warn("[island] tags failed");
+  }
 }
 
 /* ================= 渲染 ================= */
@@ -149,8 +194,10 @@ let HOME_PET = null;
 
 async function loadHomePet() {
   try {
-    const r = await get("/world/pet");
-    HOME_PET = r.pet || r.data?.pet || null;
+    const { data, error } = await supabase.from("pets")
+      .select("*").eq("owner_id", userId).order("created_at", { ascending: false }).limit(1);
+    if (error) throw error;
+    HOME_PET = (data && data[0]) || null;
   } catch (e) { HOME_PET = null; }
 }
 
@@ -159,8 +206,6 @@ function homeHtml() {
   if (!st) return "";
   const territory = Number(st.territory) || 0;
   const pet = HOME_PET;
-
-  // 探索進度：用領土等級推算（之後可接真實探索 API）
   const explorePct = Math.min(100, Math.round((territory / 50) * 100));
 
   return `<div class="card" style="${S.card};text-align:center;position:relative;overflow:hidden">
@@ -215,12 +260,12 @@ function dashboardHtml() {
   if (!st) {
     return `<div class="state-empty" style="${S.card}">
       <img src="../assets/img/empty-neon.webp?v=3.0.0" alt="空島插圖" style="width:120px">
-      <p>${ST.statusErr ? `島嶼狀態讀取失敗：${escapeHtml(ST.statusErr.message)}` : "你的島嶼還在星海中沉睡"}</p>
+      <p>${ST.statusErr ? `島嶼狀態讀取失敗：${escapeHtml(ST.statusErr.message || "未知錯誤")}` : "你的島嶼還在星海中沉睡"}</p>
       <button class="btn btn-primary" id="i-wake">開疆拓土，喚醒島嶼</button>
     </div>`;
   }
   const used = Number(st.used_today) || 0;
-  const cap = Number(st.daily_cap) || 5;
+  const cap = Number(st.daily_cap) || DAILY_CAP;
   const pct = Math.min(100, Math.round((used / cap) * 100));
   const res = st.resources || {};
   const resChips = Object.keys(res).length
@@ -245,7 +290,7 @@ function dashboardHtml() {
 function questsHtml() {
   const st = ST.status;
   const used = Number(st?.used_today) || 0;
-  const cap = Number(st?.daily_cap) || 5;
+  const cap = Number(st?.daily_cap) || DAILY_CAP;
   return `<div class="card" style="${S.card}">
     <h3 style="margin-top:0">開疆拓土</h3>
     <p style="${S.muted};font-size:13px;margin:0">選一個學習行動，島嶼立即擴張。點下去馬上有效果！</p>
@@ -273,9 +318,9 @@ function buildSlotsHtml() {
     </div>`;
   }
   const selId = document.getElementById("i-build-island")?.value || named[0].id;
-  const isl = named.find(i => i.id === selId) || named[0];
-  const built = {};
-  (isl.buildings || []).forEach(b => { built[b.btype] = Number(b.level) || 0; });
+  const row = named.find(i => i.id === selId) || named[0];
+  const isl = parseIsland(row);
+  const built = isl.buildings || {};
   return `<div class="card" style="${S.card}">
     <h3 style="margin-top:0">建築</h3>
     <label for="i-build-island" style="${S.label}">選擇島嶼</label>
@@ -284,7 +329,7 @@ function buildSlotsHtml() {
     </select>
     <div style="${S.slotGrid}">` +
     BUILDINGS.map(b => {
-      const lv = built[b.type] || 0;
+      const lv = Number(built[b.type]) || 0;
       const maxed = lv >= BUILD_MAX;
       const cost = 50 * (lv + 1);
       const pips = Array.from({ length: BUILD_MAX }, (_, i) =>
@@ -311,13 +356,13 @@ function tagsHtml() {
         return `<button style="${S.tag}${on ? ";" + S.tagOn : ""}" data-tag="${escapeHtml(t.code)}"
           aria-pressed="${on}" title="${escapeHtml(t.dim)}">${escapeHtml(t.label)}</button>`;
       }).join("")
-    : `<span style="${S.muted};font-size:13px">標籤載入中…</span>`;
+    : `<span style="${S.muted};font-size:13px">多建立一些知識節點，這裡會出現可佔領的標籤</span>`;
   return `<div class="card" style="${S.card}">
     <h3 style="margin-top:0">佔領標籤</h3>
     <p style="${S.muted};font-size:13px;margin:0 0 8px">點標籤直接佔領，已佔領的會高亮。佔領提升島嶼知識密度。</p>
     <div role="group" aria-label="標籤雲">${cloud}</div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <input id="i-tag-input" type="text" placeholder="自訂標籤，如 SUBJ:物理" aria-label="自訂標籤"
+      <input id="i-tag-input" type="text" placeholder="自訂標籤，如 物理：力學" aria-label="自訂標籤"
         style="flex:1;${S.input}">
       <button class="btn btn-primary" id="i-occupy-go">佔領</button>
     </div></div>`;
@@ -327,17 +372,16 @@ function namedHtml() {
   const named = ST.named;
   return `<div class="card" style="${S.card}">
     <h3 style="margin-top:0">我的島嶼</h3>
-    ${named.length ? `<div class="i-grid">` + named.map(it =>
-      `<div class="card" style="margin:0"><h4 style="margin:0 0 4px">${escapeHtml(it.name || "無名島")}</h4>
-       <p style="${S.muted};font-size:13px;margin:0">${escapeHtml(it.topic || "")}
-       ${(it.buildings?.length) ? ` · ${it.buildings.map(b => `${escapeHtml(b.btype)} Lv.${b.level}`).join("、")}` : ""}</p></div>`
-    ).join("") + `</div>`
+    ${named.length ? `<div class="i-grid">` + named.map(it => {
+      const p = parseIsland(it);
+      const bNames = Object.entries(p.buildings || {}).map(([t, lv]) => `${escapeHtml(t)} Lv.${lv}`).join("、");
+      return `<div class="card" style="margin:0"><h4 style="margin:0 0 4px">${escapeHtml(it.name || "無名島")}</h4>
+       <p style="${S.muted};font-size:13px;margin:0">領土 ${p.territory}${bNames ? ` · ${bNames}` : ""}</p></div>`;
+    }).join("") + `</div>`
     : `<p style="${S.muted};font-size:13px">還沒有命名的島嶼</p>`}
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <input id="i-island-name" type="text" placeholder="島嶼名稱" aria-label="島嶼名稱"
         maxlength="20" style="flex:1;min-width:140px;${S.input}">
-      <input id="i-island-topic" type="text" placeholder="主題（選填）" aria-label="島嶼主題"
-        maxlength="20" style="flex:1;min-width:110px;${S.input}">
       <button class="btn btn-primary" id="i-create-island">命名新島嶼</button>
     </div></div>`;
 }
@@ -347,7 +391,7 @@ function logsHtml() {
   return `<div class="card" style="${S.card}">
     <h3 style="margin-top:0">領土日誌</h3>
     ${logs.length ? `<ul style="${S.logs}">` + logs.slice(0, 10).map(l =>
-      `<li style="${S.logRow}"><span>${escapeHtml(l.action || l.kind || l.text || "")}</span>
+      `<li style="${S.logRow}"><span>${escapeHtml(l.action || "")}</span>
        <span style="${S.muted};font-size:12px">${escapeHtml((l.created_at || "").slice(0, 10))}</span></li>`
     ).join("") + `</ul>` : `<p style="${S.muted};font-size:13px">尚無領土紀錄，開疆拓土來寫下第一筆</p>`}
   </div>`;
@@ -374,36 +418,59 @@ function bindPortal() {
     btn.textContent = "傳送中…";
     resultDiv.innerHTML = "";
     try {
-      const r = await post(`/islands/${userId}/portal`, { host_name: name });
-      const isl = r.island || {};
-      const pet = r.pet;
+      // 找好友的 profile
+      const { data: profiles, error: pErr } = await supabase.from("profiles")
+        .select("id, name").ilike("name", `%${name}%`).limit(5);
+      if (pErr) throw pErr;
+      if (!profiles?.length) throw new Error("找不到這位旅人");
+      const host = profiles[0];
+      if (host.id === userId) throw new Error("不能拜訪自己的島嶼");
+      // 好友的島嶼
+      const { data: islands, error: iErr } = await supabase.from("islands")
+        .select("*").eq("owner_id", host.id).order("created_at", { ascending: false }).limit(1);
+      if (iErr) throw iErr;
+      if (!islands?.length) throw new Error(`${host.name} 還沒有島嶼`);
+      const isl = parseIsland(islands[0]);
+      // 扣傳送費 20 星砂
+      const { error: payErr } = await supabase.rpc("transfer_starsand", {
+        p_user_id: userId, p_amount: -20, p_reason: `拜訪 ${host.name} 的島嶼`,
+      });
+      if (payErr) throw new Error(payErr.message.includes("餘額不足") ? "星砂不足（需要 20 星砂）" : payErr.message);
       resultDiv.innerHTML = `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;text-align:left;background:var(--bg-soft)">
-        <h4 style="margin:0 0 8px">${escapeHtml(r.host_name)} 的島嶼</h4>
+        <h4 style="margin:0 0 8px">${escapeHtml(host.name)} 的島嶼</h4>
         <p style="margin:4px 0;font-size:14px">島名：${escapeHtml(isl.name || "無名島")}</p>
         <p style="margin:4px 0;font-size:14px">領土：${escapeHtml(String(isl.territory ?? 0))} 單位</p>
-        ${pet ? `<p style="margin:4px 0;font-size:14px">靈獸：${escapeHtml(pet.name || "無名")}（${escapeHtml(pet.species || "")} Lv.${pet.level || 1}）</p>` : ""}
         <p style="margin:8px 0 0;font-size:12px;color:var(--muted)">傳送消耗 20 星砂</p>
       </div>`;
-      toast(`已拜訪 ${r.host_name} 的島嶼！`);
+      toast(`已拜訪 ${host.name} 的島嶼！`);
     } catch (e) {
       resultDiv.innerHTML = `<p style="color:var(--danger,#ef4444);font-size:14px">${escapeHtml(e.message)}</p>`;
     } finally {
       btn.disabled = false;
-      btn.textContent = "傳送";
+      btn.textContent = "拜訪好友";
     }
   };
 }
 
 /* ================= 互動綁定 ================= */
 function bindAll() {
-  /* 喚醒（無狀態時） */
+  /* 喚醒（無狀態時）：建立第一座島 */
   document.getElementById("i-wake")?.addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true; btn.textContent = "喚醒中…";
     try {
-      const r = await post(`/islands/${userId}/expand`, { action: "complete_quest" }, { idempotent: true });
-      if (r.island) ST.status = r.island;
-      toast(r.reason || "島嶼已喚醒！");
+      const { data, error } = await supabase.from("islands").insert({
+        owner_id: userId, name: "無名島",
+        style: JSON.stringify({ territory: 2, buildings: {}, tags: [], resources: {} }),
+      }).select().single();
+      if (error) throw error;
+      await supabase.rpc("transfer_starsand", {
+        p_user_id: userId, p_amount: 10, p_reason: "喚醒島嶼",
+      }).catch(() => {});
+      ST.named.unshift(data);
+      ST.status = parseIsland(data);
+      pushLog("喚醒島嶼");
+      toast("島嶼已喚醒！");
       paint();
     } catch (err) {
       toast(`喚醒失敗：${err.message}`);
@@ -417,9 +484,7 @@ function bindAll() {
       const action = btn.dataset.expand;
       const delta = Number(btn.dataset.delta) || 0;
       const a = EXPAND_ACTIONS.find(x => x.key === action);
-      /* 快照以便回滾 */
       const snap = JSON.parse(JSON.stringify(ST.status || {}));
-      /* 樂觀：先漲領土、進度條，卡片轉圈 */
       if (ST.status) {
         ST.status.territory = (Number(ST.status.territory) || 0) + delta;
         ST.status.used_today = (Number(ST.status.used_today) || 0) + delta;
@@ -431,32 +496,17 @@ function bindAll() {
       }
       announce(`${a?.label || "開疆"}中，領土擴張動畫播放`);
       try {
-        const r = await post(`/islands/${userId}/expand`, { action }, { idempotent: true });
-        if (r.island) ST.status = r.island; /* 後端校正 */
-        /* 需要先學習：顯示引導而非單純報錯 */
-        if (r.need_learn || r.data?.need_learn) {
-          const hint = r.reason || r.data?.reason || "請先完成學習，再來開疆拓土！";
-          const link = r.link || r.data?.link || "pages/quiz.html";
-          ST.status = snap; /* 回滾樂觀更新 */
-          paint();
-          if (confirm(`${hint}\n\n要現在去學習嗎？`)) {
-            location.href = link;
-          }
-          return;
-        }
-        toast(r.reason || `${a?.label || "開疆"}成功！`);
+        // 發放星砂獎勵（原子記帳）
+        await supabase.rpc("transfer_starsand", {
+          p_user_id: userId, p_amount: 10, p_reason: `開疆拓土：${a?.label || action}`,
+        });
+        await persistStatus();
+        pushLog(`${a?.label || "開疆"}（領土 +${delta}）`);
+        toast(`${a?.label || "開疆"}成功！+10 星砂`);
         paint();
       } catch (e) {
-        ST.status = snap; /* 回滾 */
-        /* 後端 400 也可能帶 need_learn */
-        const msg = e.message || "";
-        if (msg.includes("費曼") || msg.includes("學習") || msg.includes("對決")) {
-          if (confirm(`${msg}\n\n要現在去學習嗎？`)) {
-            location.href = "pages/quiz.html";
-          }
-        } else {
-          toast(`開疆失敗：${msg}`);
-        }
+        ST.status = snap;
+        toast(`開疆失敗：${e.message}`);
         paint();
       }
     };
@@ -465,25 +515,45 @@ function bindAll() {
   /* 建築島嶼切換 */
   document.getElementById("i-build-island")?.addEventListener("change", paint);
 
-  /* 建造 / 升級：樂觀 */
+  /* 建造 / 升級 */
   view.querySelectorAll("[data-build]").forEach(btn => {
     btn.onclick = async () => {
       const btype = btn.dataset.build;
       const islandId = btn.dataset.island;
       const lv = Number(btn.dataset.lv) || 0;
+      const cost = 50 * (lv + 1);
       btn.disabled = true;
       const old = btn.textContent;
       btn.textContent = "建造中…";
       announce(`正在${lv === 0 ? "建造" : "升級"}${btype}`);
       try {
-        const r = await post("/world/build", { island_id: islandId, btype }, { idempotent: true });
-        toast(r.reason || `${btype} Lv.${r.level} 完成！`);
-        /* 重整命名島嶼（建築等級） */
-        try {
-          const nr = await swr("world:islands", "/world/islands");
-          const d = nr.data;
-          ST.named = d?.islands || (Array.isArray(d) ? d : []);
-        } catch { /* 保持舊列表 */ }
+        const { error: payErr } = await supabase.rpc("transfer_starsand", {
+          p_user_id: userId, p_amount: -cost, p_reason: `${lv === 0 ? "建造" : "升級"}${btype}`,
+        });
+        if (payErr) throw new Error(payErr.message.includes("餘額不足") ? `星砂不足（需要 ${cost} 星砂）` : payErr.message);
+        // 更新該島嶼的建築等級
+        const row = ST.named.find(i => i.id === islandId);
+        if (row) {
+          const p = parseIsland(row);
+          p.buildings = p.buildings || {};
+          p.buildings[btype] = lv + 1;
+          const { error } = await supabase.from("islands").update({
+            style: JSON.stringify({
+              territory: p.territory, buildings: p.buildings,
+              tags: p.occupied_tags, resources: p.resources,
+              last_expand_date: todayStr(), used_today: p.used_today,
+            }),
+          }).eq("id", islandId);
+          if (error) throw error;
+          const { data: fresh } = await supabase.from("islands").select("*").eq("id", islandId).single();
+          if (fresh) {
+            const idx = ST.named.findIndex(i => i.id === islandId);
+            ST.named[idx] = fresh;
+            if (ST.status?.id === islandId) ST.status = parseIsland(fresh);
+          }
+        }
+        pushLog(`${lv === 0 ? "建造" : "升級"}${btype} Lv.${lv + 1}`);
+        toast(`${btype} Lv.${lv + 1} 完成！`);
         paint();
       } catch (e) {
         toast(`建造失敗：${e.message}`);
@@ -505,7 +575,6 @@ function bindAll() {
 
 async function occupyTag(tag, btn) {
   if (btn) btn.disabled = true;
-  /* 樂觀：先高亮 */
   const tags = new Set(ST.status?.occupied_tags || []);
   const had = tags.has(tag);
   if (!had && ST.status) {
@@ -513,43 +582,34 @@ async function occupyTag(tag, btn) {
     paint();
   }
   try {
-    const r = await post(`/islands/${userId}/occupy`, { tag });
-    if (r.island) ST.status = r.island;
-    else if (ST.status && !had) ST.status.occupied_tags = [...new Set([...(ST.status.occupied_tags || []), tag])];
-    toast(r.reason || `已佔領「${tag}」`);
+    await persistStatus();
+    if (!had) pushLog(`佔領標籤「${tag}」`);
+    toast(had ? `「${tag}」已經佔領過了` : `已佔領「${tag}」`);
     paint();
   } catch (e) {
-    /* 回滾樂觀高亮 */
     if (ST.status && !had) ST.status.occupied_tags = [...tags];
     toast(`佔領失敗：${e.message}`);
     paint();
   }
 }
 
-/* 命名新島嶼（session_id 必填，取書架最新戰役；無則時間戳） */
+/* 命名新島嶼 */
 function bindNamed() {
   document.getElementById("i-create-island")?.addEventListener("click", async () => {
     const name = document.getElementById("i-island-name").value.trim();
-    const topic = document.getElementById("i-island-topic").value.trim();
     if (!name) { announce("請先輸入島嶼名稱"); return; }
     const btn = document.getElementById("i-create-island");
     btn.disabled = true; btn.textContent = "命名中…";
-    let session_id = `manual-${Date.now()}`;
     try {
-      const hs = await swr("learn:sessions", "/learn/sessions").catch(() => null);
-      const arr = hs?.data?.sessions || hs?.data || [];
-      const first = Array.isArray(arr) ? arr[0] : arr?.items?.[0];
-      const sid = first?.id || first?.sid || first?.session_id;
-      if (sid) session_id = sid;
-    } catch { /* 用預設值 */ }
-    try {
-      const r = await post("/world/islands", { name, topic, session_id }, { idempotent: true });
-      toast(`「${r.island?.name || name}」已在星海中浮現`);
-      try {
-        const nr = await swr("world:islands", "/world/islands");
-        const d = nr.data;
-        ST.named = d?.islands || (Array.isArray(d) ? d : []);
-      } catch { /* 保持舊列表 */ }
+      const { data, error } = await supabase.from("islands").insert({
+        owner_id: userId, name,
+        style: JSON.stringify({ territory: 0, buildings: {}, tags: [], resources: {} }),
+      }).select().single();
+      if (error) throw error;
+      ST.named.unshift(data);
+      if (!ST.status) ST.status = parseIsland(data);
+      pushLog(`命名新島嶼「${name}」`);
+      toast(`「${name}」已在星海中浮現`);
       paint();
     } catch (e) {
       toast(`命名失敗：${e.message}`);
@@ -568,13 +628,13 @@ function bindNamed() {
     return;
   }
   try {
-    const r = await swr("auth:me", "/auth/me");
-    const me = r.data?.user || r.data || {};
-    userId = me.id;
-    if (!userId) throw new Error("無法取得使用者 ID");
-    sub.textContent = `旅人 ${me.name || ""} 的島嶼世界`;
+    const user = await getUser();
+    if (!user) throw new Error("無法取得使用者");
+    userId = user.id;
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).single();
+    sub.textContent = `旅人 ${profile?.name || ""} 的島嶼世界`;
   } catch (e) {
-    errorView(`載入失敗：${e.message}`, init);
+    errorView(`載入失敗：${e.message}`, () => location.reload());
     return;
   }
   await loadAll();
