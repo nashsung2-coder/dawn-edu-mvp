@@ -1,4 +1,6 @@
-/* 全站導覽列自動插入 */
+/* 全站導覽列自動插入 v2.0
+ * 新增：登入狀態顯示、星砂餘額（Gemini UX 建議）
+ */
 (function() {
   var path = location.pathname;
   var zones = [
@@ -22,6 +24,33 @@
     html += '<a href="' + href + '" data-zone="' + z.id + '" class="' + active.trim() + '">'
       + '<span class="ni">' + z.icon + '</span><span>' + z.label + '</span></a>';
   });
+  
+  // 登入狀態 / 星砂餘額（右側）
+  var token = null;
+  try { token = localStorage.getItem('dawn:v1:auth-token'); } catch(e) {}
+  if (token) {
+    // 已登入：顯示星砂餘額（點擊去看明細）
+    html += '<a href="/pages/game" data-zone="sand" id="dawn-sand">'
+      + '<span class="ni">✨</span><span id="dawn-sand-num">…</span></a>';
+    // 異步載入餘額
+    setTimeout(function() {
+      fetch('https://dawn-edu-mvp.onrender.com/api/v1/game/currency', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        var num = d.starsand ?? d.data?.starsand ?? d.balance ?? '?';
+        var el = document.getElementById('dawn-sand-num');
+        if (el) el.textContent = num;
+      }).catch(function() {
+        var el = document.getElementById('dawn-sand-num');
+        if (el) el.textContent = '✨';
+      });
+    }, 500);
+  } else {
+    // 未登入：明確的登入按鈕（Gemini P0 建議）
+    html += '<a href="/pages/settings" data-zone="login" style="background:#1a1a1a;color:#fff;border-radius:8px;margin:4px;">'
+      + '<span class="ni">→</span><span>登入</span></a>';
+  }
+  
   nav.innerHTML = html;
   document.body.appendChild(nav);
   document.body.classList.add('has-nav');
