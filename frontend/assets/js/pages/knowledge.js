@@ -66,7 +66,14 @@ async function render() {
         t.onclick = () => { searchInput.value = t.dataset.concept; tab = "public"; load(); };
       });
     } catch (e) {
-      list.innerHTML = `<p>載入失敗：${escapeHtml(e.message)}</p>`;
+      var msg = e.message || '';
+      var friendly = msg.includes('Failed to fetch') || msg.includes('Network')
+        ? '網路連線失敗，請檢查網路後重試'
+        : msg.includes('500') || msg.includes('Internal')
+        ? '伺服器暫時出問題，請稍後再試'
+        : '載入失敗：' + msg;
+      list.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px">${escapeHtml(friendly)}</p>
+        <div style="text-align:center"><button class="btn btn-primary" onclick="location.reload()">重試</button></div>`;
     }
   }
 
