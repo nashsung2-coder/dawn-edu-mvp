@@ -1,9 +1,9 @@
 /* 複習任務：SM-2 間隔重複，一張一張複習到期卡片。
+ * v4.0：直讀 Supabase review_cards 表，不再經 Render 後端。
  * 流程：統計 → 逐張複習（問題 → 顯示提示 → 0-5 自評 → 下次間隔） → 完成慶祝。
- * 全鏈路調真實後端，零假數據。
- * 生命週期：init → loading → api → render / empty / error
+ * 生命週期：init → loading → render / empty / error
  */
-import { swr, post, get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
@@ -32,76 +32,72 @@ function errorView(msg, retry) {
   document.getElementById("r-retry").onclick = retry;
 }
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c =>
+  return String(s ?? "").replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-/* ---- 資料正規化（防禦式：後端形狀以契約為準，多寫相容） ---- */
-function normCards(r) {
-  const d = r?.data ?? r;
-  const arr = d?.cards ?? d?.due ?? d?.items ?? (Array.isArray(d) ? d : []);
-  return Array.isArray(arr) ? arr : [];
-}
-function cardId(c) { return c.id ?? c.card_id ?? c.cid ?? ""; }
-function cardQuestion(c) { return c.question ?? c.front ?? c.title ?? c.topic ?? "未命名卡片"; }
-function cardHint(c) { return c.hint ?? c.answer_hint ?? c.answer ?? c.back ?? ""; }
-function cardTopic(c) { return c.topic ?? c.subject ?? ""; }
-function normStats(r) {
-  const d = r?.data ?? r ?? {};
-  return {
-    total: d.total_cards ?? d.total ?? 0,
-    due: d.due_count ?? d.due ?? 0,
-    reviewed: d.reviewed_count ?? d.reviewed ?? 0,
-    rate: d.completion_rate ?? d.rate ?? 0,
-  };
-}
-function normUpcoming(r) {
-  const d = r?.data ?? r;
-  const arr = d?.upcoming ?? d?.items ?? (Array.isArray(d) ? d : []);
-  return Array.isArray(arr) ? arr : [];
-}
-function normTier(r) {
-  const d = r?.data ?? r ?? {};
-  return {
-    tier: d.tier ?? "basic",
-    name: d.tier_name ?? d.name ?? "基礎版",
-    battlesLeft: d.daily_battles_left ?? d.battles_left ?? null,
-  };
+/* ---- SM-2 演算法 ---- */
+function sm2(card, grade) {
+  let { ease_factor = 2.5, interval_days = 1, repetitions = 0 } = card;
+  if (grade >= 3) {
+    if (repetitions === 0) interval_days = 1;
+    else if (repetitions === 1) interval_days = 6;
+    else interval_days = Math.round(interval_days * ease_factor);
+    repetitions += 1;
+    ease_factor = ease_factor + (0.1 - (5 - grade) * (0.08 + (5 - grade) * 0.02));
+  } else {
+    repetitions = 0;
+    interval_days = 1;
+  }
+  ease_factor = Math.max(1.3, ease_factor);
+  const next = new Date();
+  next.setDate(next.getDate() + interval_days);
+  return { ease_factor, interval_days, repetitions, next_review_at: next.toISOString() };
 }
 
-/* ---- 著陸：統計卡＋方案＋開始按鈕 ---- */
+/* ---- 資料讀取 ---- */
+async function loadReviewData(userId) {
+  const now = new Date().toISOString();
+  const [dueRes, totalRes, upcomingRes] = await Promise.all([
+    supabase.from("review_cards").select("*").eq("user_id", userId)
+      .lte("next_review_at", now).order("next_review_at", { ascending: true }),
+    supabase.from("review_cards").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabase.from("review_cards").select("next_review_at").eq("user_id", userId)
+      .gt("next_review_at", now).order("next_review_at", { ascending: true }).limit(20),
+  ]);
+  if (dueRes.error) throw dueRes.error;
+  const dueCards = dueRes.data || [];
+  const total = totalRes.count ?? 0;
+  // 即將到期：按天分組
+  const upcomingMap = {};
+  (upcomingRes.data || []).forEach(c => {
+    const days = Math.ceil((new Date(c.next_review_at) - Date.now()) / 86400000);
+    upcomingMap[days] = (upcomingMap[days] || 0) + 1;
+  });
+  const upcoming = Object.entries(upcomingMap)
+    .map(([days, count]) => ({ days: +days, count }))
+    .sort((a, b) => a.days - b.days).slice(0, 5);
+  return { dueCards, stats: { total, due: dueCards.length, rate: 0 }, upcoming };
+}
+
+/* ---- 著陸：統計卡＋開始按鈕 ---- */
 async function renderLanding() {
   skeleton();
-  let stats = normStats({}), upcoming = [], tier = normTier({}), dueCards = [];
-  let failed = false;
+  let dueCards = [], stats = { total: 0, due: 0, rate: 0 }, upcoming = [];
   try {
-    const [s, u, t, d] = await Promise.allSettled([
-      swr("learn:review:stats", "/learn/review/stats"),
-      swr("learn:review:upcoming", "/learn/review/upcoming"),
-      swr("tier", "/tier"),
-      swr("learn:review:due", "/learn/review/due"),
-    ]);
-    if (s.status === "fulfilled") stats = normStats(s.value);
-    if (u.status === "fulfilled") upcoming = normUpcoming(u.value);
-    if (t.status === "fulfilled") tier = normTier(t.value);
-    if (d.status === "fulfilled") dueCards = normCards(d.value);
-    if (s.status === "rejected" && d.status === "rejected") failed = true;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("登入已過期，請重新登入");
+    const data = await loadReviewData(user.id);
+    dueCards = data.dueCards; stats = data.stats; upcoming = data.upcoming;
   } catch (e) {
-    console.warn("[review] landing failed:", e.code);
-    failed = true;
-  }
-  if (failed) {
-    errorView("複習資料載入失敗，請稍後再試", renderLanding);
+    errorView(`複習資料載入失敗：${e.message}`, renderLanding);
     return;
   }
 
-  const ratePct = Math.round((stats.rate > 1 ? stats.rate : stats.rate * 100) || 0);
   const upcomingHtml = upcoming.length
-    ? `<div class="r-upcoming"><h2>即將到期</h2>` + upcoming.slice(0, 5).map(x => {
-        const days = x.days_until ?? x.days ?? x.in_days ?? 0;
-        const count = x.count ?? x.cards ?? 1;
-        return `<div class="r-urow"><span>${escapeHtml(String(days))} 天後</span><span>${escapeHtml(String(count))} 張</span></div>`;
-      }).join("") + `</div>`
+    ? `<div class="r-upcoming"><h2>即將到期</h2>` + upcoming.map(x =>
+        `<div class="r-urow"><span>${escapeHtml(String(x.days))} 天後</span><span>${escapeHtml(String(x.count))} 張</span></div>`
+      ).join("") + `</div>`
     : "";
 
   view.innerHTML = `<div class="r-landing">
@@ -111,11 +107,6 @@ async function renderLanding() {
     <div class="r-stats" role="list" aria-label="複習統計">
       <div class="r-stat" role="listitem"><strong>${stats.due}</strong><span>今日到期</span></div>
       <div class="r-stat" role="listitem"><strong>${stats.total}</strong><span>卡片總數</span></div>
-      <div class="r-stat" role="listitem"><strong>${ratePct}%</strong><span>完成率</span></div>
-    </div>
-    <div class="r-tier">
-      <span class="r-tier-badge ${tier.tier === "basic" ? "basic" : "plus"}">${escapeHtml(tier.name)}</span>
-      ${tier.battlesLeft !== null ? `<span>今日剩餘戰役 ${escapeHtml(String(tier.battlesLeft))} 場</span>` : ""}
     </div>
     ${dueCards.length
       ? `<div class="r-mode-select" style="margin:16px 0">
@@ -168,8 +159,8 @@ async function renderLanding() {
 function renderCard(cards, idx, stats, mode = "flow") {
   const card = cards[idx];
   const total = cards.length;
-  const q = cardQuestion(card);
-  const topic = cardTopic(card);
+  const q = card.question || "未命名卡片";
+  const topic = card.topic || "";
   const isGame = mode === "game";
 
   view.innerHTML = `<div class="r-progress" role="progressbar" aria-valuenow="${idx + 1}"
@@ -177,9 +168,6 @@ function renderCard(cards, idx, stats, mode = "flow") {
       <div class="r-progress-fill" style="width:${Math.round(((idx + 1) / total) * 100)}%"></div>
     </div>
     <p class="r-count">第 ${idx + 1} / ${total} 張${isGame ? " · 遊戲化模式" : " · 心流模式"}</p>
-    ${isGame ? `<div class="r-game-hud" style="text-align:center;margin-bottom:12px">
-      <span style="font-size:14px">連擊 <strong id="r-combo">0</strong></span>
-    </div>` : ""}
     <div class="card r-card">
       ${topic ? `<p class="r-topic">${escapeHtml(topic)}</p>` : ""}
       <h2 class="r-question">${escapeHtml(q)}</h2>
@@ -189,7 +177,7 @@ function renderCard(cards, idx, stats, mode = "flow") {
     </div>`;
 
   document.getElementById("r-show").onclick = () => {
-    const hint = cardHint(card);
+    const hint = card.hint || card.answer || "";
     document.getElementById("r-hint-slot").innerHTML =
       `<div class="r-hint">${hint ? escapeHtml(hint) : "（這張卡片沒有提示）"}</div>`;
     document.getElementById("r-show").style.display = "none";
@@ -200,7 +188,6 @@ function renderCard(cards, idx, stats, mode = "flow") {
 }
 
 function renderGrades(cards, idx, stats, mode = "flow") {
-  const card = cards[idx];
   const slot = document.getElementById("r-grade-slot");
   const isGame = mode === "game";
   slot.innerHTML = `<p class="r-grade-title">${isGame ? "回憶成功！選擇你的掌握度" : "你回憶起來了嗎？"}</p>
@@ -219,12 +206,21 @@ function renderGrades(cards, idx, stats, mode = "flow") {
 async function gradeCard(cards, idx, stats, grade, btn, mode = "flow") {
   btn.disabled = true;
   announce(`已評 ${grade} 分，記錄中`);
-  const cid = cardId(cards[idx]);
+  const card = cards[idx];
   let nextDays = null;
   try {
-    const r = await post(`/learn/review/${cid}/grade`, { grade });
-    const d = r?.data ?? r ?? {};
-    nextDays = d.next_interval_days ?? d.next_review_in_days ?? d.interval_days ?? d.next_days ?? null;
+    const result = sm2(card, grade);
+    nextDays = result.interval_days;
+    const { error } = await supabase.from("review_cards").update({
+      ease_factor: result.ease_factor,
+      interval_days: result.interval_days,
+      repetitions: result.repetitions,
+      next_review_at: result.next_review_at,
+      last_reviewed_at: new Date().toISOString(),
+    }).eq("id", card.id);
+    if (error) throw error;
+    // 更新本地卡片狀態
+    Object.assign(card, result);
   } catch (e) {
     announce(`評分失敗：${e.message}，可重試`);
     btn.disabled = false;
@@ -232,9 +228,8 @@ async function gradeCard(cards, idx, stats, grade, btn, mode = "flow") {
   }
   const nextText = nextDays !== null ? `下次 ${nextDays} 天後再見` : "已排入下次複習";
   const slot = document.getElementById("r-grade-slot");
-  const card = cards[idx];
-  const q = cardQuestion(card);
-  const hint = cardHint(card);
+  const q = card.question || "";
+  const hint = card.hint || card.answer || "";
   slot.innerHTML = `<p class="r-next">${escapeHtml(nextText)}</p>
     <button class="btn btn-ghost" id="r-save-node" style="margin-bottom:8px">存入知識倉庫</button>
     <div id="r-node-form" hidden style="margin-bottom:12px;text-align:left">
@@ -258,10 +253,20 @@ async function gradeCard(cards, idx, stats, grade, btn, mode = "flow") {
       .split(/[,，]/).map(s => s.trim()).filter(Boolean);
     const isPublic = document.getElementById("r-node-public").checked;
     try {
-      await post("/knowledge/nodes", {
-        question: q, answer: hint || "", explanation: hint || "",
-        concepts, source: "review", is_public: isPublic,
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).single();
+      const { error } = await supabase.from("knowledge_nodes").insert({
+        user_id: user.id,
+        title: q.slice(0, 100),
+        question: q,
+        answer: hint,
+        explanation: hint,
+        concepts,
+        is_public: isPublic,
+        owner_name: profile?.name || "匿名",
+        source: "review",
       });
+      if (error) throw error;
       announce("已存入知識倉庫");
       document.getElementById("r-save-node").textContent = "已存入知識倉庫";
       document.getElementById("r-save-node").disabled = true;
@@ -302,9 +307,9 @@ function renderDone(stats, doneCount) {
     return;
   }
   try {
-    const r = await swr("auth:me", "/auth/me");
-    const me = r.data?.user || r.data?.data || {};
-    userline.textContent = `旅人 ${me.name || ""} · 溫故知新`;
+    const user = await getUser();
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).single();
+    userline.textContent = `旅人 ${profile?.name || ""} · 溫故知新`;
   } catch { userline.textContent = "旅人"; }
   renderLanding();
 })();

@@ -1,11 +1,9 @@
 /* 我的書架：個人化課本陳列。
- * 資料來源（全真端點，零假數據）：
- * - GET /learn/textbook → 課本章節（每章 = 一本書）
- * - GET /learn/sessions/{sid} → 章節詳情（測驗題目、作答）
- * - GET /learn/mastery → 主題掌握度
- * - GET /learn/badges → 技能章
+ * v4.0：直讀 Supabase，不再經 Render 後端。
+ * - textbook_entries → 費曼說服課本條目
+ * - battle_records → 戰役紀錄（含技能章）
  */
-import { swr, get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce } from "../core/a11y.js";
 
@@ -36,73 +34,78 @@ async function renderShelf() {
   }
   shelf.innerHTML = `<div class="skeleton" style="height:120px"></div>`;
   try {
-    const [tb, mastery, feynman] = await Promise.all([
-      swr("learn:textbook", "/learn/textbook"),
-      swr("learn:mastery", "/learn/mastery").catch(() => ({ data: { topics: [] } })),
-      get("/bookshelf/feynman").catch(() => ({ entries: [] })),
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("登入已過期，請重新登入");
+
+    const [tbRes, battleRes] = await Promise.all([
+      supabase.from("textbook_entries").select("*").eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase.from("battle_records").select("*").eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
     ]);
-    const chapters = tb.data?.chapters || [];
-    const feynmanEntries = feynman.entries || feynman.data?.entries || [];
-    const masteryMap = Object.fromEntries((mastery.data?.topics || []).map(t => [t.topic, t]));
+    if (tbRes.error) throw tbRes.error;
+    if (battleRes.error) throw battleRes.error;
+
+    const feynmanEntries = tbRes.data || [];
+    const battles = battleRes.data || [];
 
     // 費曼說服條目
     let feynmanHtml = "";
     if (feynmanEntries.length) {
       feynmanHtml = `<div style="margin-bottom:24px">
         <h2 style="font-size:18px;margin-bottom:12px">費曼說服 · 我的解釋</h2>
-        ${feynmanEntries.map(e => {
-          const entry = e.entry || {};
-          return `<div class="card" style="padding:16px;margin-bottom:12px">
-            <h3 style="margin:0 0 8px">${esc(e.title)}</h3>
-            ${entry.user_voice_summary ? `<p style="font-size:14px"><strong>我的話：</strong>${esc(entry.user_voice_summary.slice(0, 200))}…</p>` : ""}
-            ${entry.ai_supplement ? `<p style="font-size:13px;color:var(--muted)"><strong>AI 補充：</strong>${esc(entry.ai_supplement.slice(0, 200))}…</p>` : ""}
-            ${(entry.key_points || []).length ? `<div style="margin-top:8px">` +
-              entry.key_points.map(k => `<span style="display:inline-block;background:var(--surface);padding:4px 10px;border-radius:12px;font-size:12px;margin:2px">${esc(k)}</span>`).join("") + `</div>` : ""}
+        ${feynmanEntries.map(e => `
+          <div class="card" style="padding:16px;margin-bottom:12px">
+            <h3 style="margin:0 0 8px">${esc(e.title || e.topic)}</h3>
+            ${e.user_voice_summary ? `<p style="font-size:14px"><strong>我的話：</strong>${esc(e.user_voice_summary.slice(0, 200))}…</p>` : ""}
+            ${e.ai_supplement ? `<p style="font-size:13px;color:var(--muted)"><strong>AI 補充：</strong>${esc(e.ai_supplement.slice(0, 200))}…</p>` : ""}
+            ${(e.key_points || []).length ? `<div style="margin-top:8px">` +
+              e.key_points.map(k => `<span style="display:inline-block;background:var(--surface);padding:4px 10px;border-radius:12px;font-size:12px;margin:2px">${esc(k)}</span>`).join("") + `</div>` : ""}
             <p style="font-size:12px;color:var(--muted);margin-top:8px">${fmtDate(e.created_at)}</p>
-          </div>`;
-        }).join("")}
+          </div>`).join("")}
       </div>`;
     }
 
-    if (!chapters.length && !feynmanEntries.length) {
+    if (!battles.length && !feynmanEntries.length) {
       shelf.innerHTML = `<div class="state-empty">
         <img src="../assets/img/empty-zen.webp?v=3.0.0" alt="空書架">
         <p>書架還是空的。去打一場費曼戰役，第一章會自動上架。</p>
         <a class="btn btn-primary" href="quiz.html">開始第一戰</a>
         <a class="btn btn-ghost" href="feynman.html" style="margin-left:8px">試試費曼說服</a></div>`;
+      stats.innerHTML = "";
+      userline.textContent = "";
       return;
     }
 
     shelf.innerHTML = feynmanHtml + `<div id="bs-chapters"></div>`;
-    // 原有章節渲染邏輯繼續…
     const chaptersEl = document.getElementById("bs-chapters");
 
     // 統計
-    const avgMastery = chapters.length
-      ? chapters.reduce((s, c) => s + (masteryMap[c.topic]?.mastery || 0), 0) / chapters.length : 0;
+    const badgeCount = battles.filter(b => b.badge_name).length;
+    const avgScore = battles.length
+      ? battles.reduce((s, b) => s + (b.feynman_score || 0), 0) / battles.length : 0;
     stats.innerHTML = `
-      <div class="bs-stat"><span class="bs-stat-n">${chapters.length}</span><span class="bs-stat-l">藏書</span></div>
-      <div class="bs-stat"><span class="bs-stat-n">${Math.round(avgMastery * 100)}%</span><span class="bs-stat-l">平均掌握度</span></div>
-      <div class="bs-stat"><span class="bs-stat-n">${chapters.filter(c => c.badge).length}</span><span class="bs-stat-l">技能章</span></div>`;
-    userline.textContent = `共 ${chapters.length} 章`;
+      <div class="bs-stat"><span class="bs-stat-n">${battles.length}</span><span class="bs-stat-l">戰役</span></div>
+      <div class="bs-stat"><span class="bs-stat-n">${Math.round(avgScore)}</span><span class="bs-stat-l">平均分數</span></div>
+      <div class="bs-stat"><span class="bs-stat-n">${badgeCount}</span><span class="bs-stat-l">技能章</span></div>`;
+    userline.textContent = `共 ${battles.length} 場戰役 · ${feynmanEntries.length} 篇課本`;
 
     // 書架陳列
-    chaptersEl.innerHTML = `<div class="bs-grid">` + chapters.map((c, i) => {
-      const m = masteryMap[c.topic];
-      const r = c.badge?.rarity || "普通";
+    chaptersEl.innerHTML = `<div class="bs-grid">` + battles.map((b, i) => {
+      const r = b.badge_rarity || "普通";
+      const quizText = b.quiz_total ? `${b.quiz_score}/${b.quiz_total}` : "";
       return `<button class="bs-book" data-idx="${i}" style="--rarity:${rarityColor(r)}">
         <span class="bs-book-spine"></span>
-        <span class="bs-book-title">${esc(c.topic || c.question)}</span>
-        <span class="bs-book-meta">${esc(c.quiz_score || "")} · ${fmtDate(c.completed_at)}</span>
-        ${c.badge ? `<span class="bs-book-badge" style="border-color:${rarityColor(r)}">${esc(c.badge.name)}</span>` : ""}
-        ${m ? `<span class="bs-book-mastery">掌握 ${Math.round(m.mastery * 100)}%</span>` : ""}
+        <span class="bs-book-title">${esc(b.question)}</span>
+        <span class="bs-book-meta">${esc(quizText)} · ${fmtDate(b.created_at)}</span>
+        ${b.badge_name ? `<span class="bs-book-badge" style="border-color:${rarityColor(r)}">${esc(b.badge_name)}</span>` : ""}
       </button>`;
     }).join("") + `</div>`;
 
     chaptersEl.querySelectorAll(".bs-book").forEach(btn => {
-      btn.onclick = () => showDetail(chapters[+btn.dataset.idx]);
+      btn.onclick = () => showDetail(battles[+btn.dataset.idx]);
     });
-    announce(`書架載入完成，共 ${chapters.length} 章`);
+    announce(`書架載入完成，共 ${battles.length} 場戰役`);
   } catch (e) {
     shelf.innerHTML = `<div class="state-error">
       <img src="../assets/img/empty-error.webp?v=3.0.0" alt="錯誤">
@@ -111,45 +114,26 @@ async function renderShelf() {
   }
 }
 
-async function showDetail(chapter) {
+async function showDetail(battle) {
   detail.innerHTML = `<div class="bs-detail-card"><div class="skeleton" style="height:80px"></div></div>`;
   detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
   try {
-    const [sessRes, badgeRes] = await Promise.all([
-      chapter.session_id ? get(`/learn/sessions/${chapter.session_id}`).catch(() => null) : null,
-      swr("learn:badges", "/learn/badges").catch(() => ({ data: { badges: [] } })),
-    ]);
-    const sess = sessRes?.data || {};
-    const badge = (badgeRes.data?.badges || []).find(b => b.session_id === chapter.session_id) || chapter.badge;
-
-    // 測驗題目
-    const quizEvents = (sess.events || []).filter(e => e.kind === "quiz");
-    const questions = quizEvents.length ? quizEvents[0].payload?.questions || [] : [];
-
+    const r = battle.badge_rarity || "普通";
     detail.innerHTML = `
     <div class="bs-detail-card">
       <button class="btn btn-ghost bs-close" id="bs-close">✕ 關閉</button>
-      <h2>${esc(chapter.topic || chapter.question)}</h2>
-      <p class="bs-detail-sub">完成於 ${fmtDate(chapter.completed_at)} · 測驗 ${esc(chapter.quiz_score || "—")} · ${esc(chapter.grade_band || "")}</p>
+      <h2>${esc(battle.question)}</h2>
+      <p class="bs-detail-sub">完成於 ${fmtDate(battle.created_at)} · 測驗 ${battle.quiz_score ?? "—"}/${battle.quiz_total ?? "—"} · 費曼 ${battle.feynman_score ?? "—"} 分</p>
 
-      ${badge ? `<div class="bs-badge-card" style="border-color:${rarityColor(badge.rarity)}">
-        <h3>🏅 ${esc(badge.name)}</h3>
-        <p>稀有度 ${esc(badge.rarity)} · ${esc(badge.archetype || "")}</p>
-        <p>攻擊 ${badge.attack ?? "—"} · 防禦 ${badge.defense ?? "—"}</p>
-        ${badge.ai_comment ? `<p class="bs-ai-comment">「${esc(badge.ai_comment)}」</p>` : ""}
+      ${battle.badge_name ? `<div class="bs-badge-card" style="border-color:${rarityColor(r)}">
+        <h3>🏅 ${esc(battle.badge_name)}</h3>
+        <p>稀有度 ${esc(r)}</p>
+        ${battle.badge_comment ? `<p class="bs-ai-comment">「${esc(battle.badge_comment)}」</p>` : ""}
       </div>` : ""}
 
-      ${chapter.ai_feedback ? `<div class="bs-section"><h3>AI 回饋</h3><p>${esc(chapter.ai_feedback)}</p></div>` : ""}
-
-      ${questions.length ? `<div class="bs-section"><h3>測驗回顧（${questions.length} 題）</h3>` +
-        questions.map((q, i) => `
-          <div class="bs-q">
-            <p><strong>Q${i + 1}.</strong> ${esc(q.question)}</p>
-            <ul>${(q.options || []).map((opt, j) =>
-              `<li class="${j === q.answer_index ? "bs-correct" : ""}">${esc(opt)}${j === q.answer_index ? " ✓" : ""}</li>`
-            ).join("")}</ul>
-            ${q.concept ? `<p class="bs-concept">💡 ${esc(q.concept)}</p>` : ""}
-          </div>`).join("") + `</div>` : ""}
+      <div class="bs-section"><h3>戰績</h3>
+        <p>辯論 ${battle.debate_blocked ?? 0}/${battle.debate_rounds ?? 0} 輪守住</p>
+      </div>
 
       <a class="btn btn-primary" href="quiz.html" style="width:100%;margin-top:12px">再打一場</a>
     </div>`;
