@@ -10,9 +10,13 @@ import { announce, focusMain } from "../core/a11y.js";
 const view = document.getElementById("q-view");
 const userline = document.getElementById("q-userline");
 
-function skeleton() {
-  view.innerHTML = `<div class="skeleton" style="height:120px"></div>
-    <div class="skeleton" style="height:20px;margin-top:12px"></div>`;
+function skeleton(msg) {
+  view.innerHTML = `<div style="text-align:center;padding:40px 20px">`
+    + `<div style="font-size:40px;margin-bottom:16px;animation:pulse 1.5s infinite">🤖</div>`
+    + `<p style="font-size:16px;font-weight:600;margin:0 0 8px">${escapeHtml(msg || "AI 正在出題，請稍候…")}</p>`
+    + `<p style="font-size:13px;color:var(--muted);margin:0">通常需要 5-15 秒，請不要關閉頁面</p>`
+    + `</div>`
+    + `<style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>`;
 }
 function errorView(msg, retry) {
   view.innerHTML = `<div class="state-error">
@@ -96,7 +100,7 @@ async function renderLanding() {
 
 /* ---- Phase 0: 開戰 → 直接出題（後端要求先 quiz） ---- */
 async function startBattle(question, hypothesis) {
-  skeleton();
+  skeleton("AI 正在出題，請稍候…");
   announce("開戰中，AI 正在出題");
   try {
     const body = { question };
@@ -113,7 +117,7 @@ async function startBattle(question, hypothesis) {
 
 /* ---- Phase 1: 穿插測驗（摸底） ---- */
 async function startQuiz(sid, question, step) {
-  skeleton();
+  skeleton("AI 正在生成摸底測驗…");
   announce("AI 正在出題（摸底測驗）");
   try {
     // B1 冪等：如果已出題，直接取現有題目
