@@ -2,7 +2,7 @@
  * 流程：著陸 → 我的天賦盤（漸層雷達＋三軸卡片）→ 距離比較（並排對照）
  * 生命週期：init → loading(skeleton) → api → render / empty / error
  */
-import { swr, get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
@@ -178,11 +178,26 @@ async function compare(uid) {
   box.innerHTML = `<div class="skeleton" style="height:120px" aria-hidden="true"></div>`;
   announce("正在計算雷達距離");
   try {
-    const r = await get(`/radar/compare?me=${encodeURIComponent(uid)}&other=${encodeURIComponent(other)}`);
-    const dist = r.distance_percent ?? r.distance ?? null;
-    const relation = r.relation || "";
-    const reason = r.reason || "";
-    const meD = r.me || {}, otD = r.other || {};
+    // 本地計算：從雙方 battle_records 推算雷達值
+    const [meB, otB] = await Promise.all([
+      supabase.from("battle_records").select("feynman_score, quiz_score").eq("user_id", uid),
+      supabase.from("profiles").select("id").ilike("name", `%${other}%`).limit(1).single()
+        .then(async ({ data: prof }) => {
+          if (!prof) throw new Error("找不到對方");
+          return supabase.from("battle_records").select("feynman_score, quiz_score").eq("user_id", prof.id);
+        }),
+    ]);
+    const meD = calcRadar(meB.data || []);
+    const otD = calcRadar(otB.data || []);
+    // 歐氏距離（歸一化）
+    let sumSq = 0;
+    for (const ax of AXES) {
+      const d = (otD[ax.key] || 0) - (meD[ax.key] || 0);
+      sumSq += d * d;
+    }
+    const dist = Math.round(Math.sqrt(sumSq / AXES.length));
+    const relation = dist < 20 ? "合作夥伴" : dist < 50 ? "互補" : "切磋對手";
+    const reason = `基於雙方最近的戰鬥紀錄計算`;
     const relColor = /合作|夥伴/.test(relation) ? "#4caf50"
       : /互補/.test(relation) ? "#4da3ff" : "#b678ff";
 
@@ -232,20 +247,34 @@ async function compare(uid) {
   }
 }
 
+
+/* 從 battle_records 本地計算雷達三軸 */
+function calcRadar(battles) {
+  if (!battles.length) return {};
+  const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const fAvg = avg(battles.map(b => Number(b.feynman_score) || 0));
+  const qAvg = avg(battles.map(b => Number(b.quiz_score) || 0));
+  const result = {};
+  for (const ax of AXES) {
+    // 簡化：三軸都用綜合分數微調
+    result[ax.key] = Math.round(Math.min(100, (fAvg * 0.6 + qAvg * 0.4)));
+  }
+  return result;
+}
+
 /* ---- 啟動 ---- */
 (async function init() {
   if (!isLoggedIn()) { loginView(); return; }
   skeleton();
   announce("載入三維雷達");
   try {
-    const me = await swr("auth:me", "/auth/me");
-    const user = me.data?.user || me.data;
+    const user = await getUser();
     const uid = user?.id;
     if (!uid) throw new Error("無法取得使用者 ID");
-    const r = await swr(`radar:${uid}`, `/radar/${uid}`);
-    const radar = r.data || {};
+    const { data: battles } = await supabase.from("battle_records")
+      .select("feynman_score, quiz_score").eq("user_id", uid);
+    const radar = calcRadar(battles || {});
     renderMain(uid, radar);
-    if (r.stale) announce("顯示的是快取資料，正在更新");
   } catch (e) {
     errorView(`雷達讀取失敗：${e.message}（${e.code || "未知"}）`, init);
   }

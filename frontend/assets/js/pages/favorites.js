@@ -1,7 +1,7 @@
 /* 藏書閣：我的收藏 + 瀏覽知識湖。全調真實後端，零假數據。
  * 生命週期：init → 未登入檢查 → loading(skeleton) → api → render/empty/error
  */
-import { swr, post, get, del } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
@@ -39,13 +39,17 @@ async function loadAll() {
   view.innerHTML = `<section aria-label="我的收藏"><h2>我的收藏</h2>${skeleton(80)}</section>
     <section aria-label="瀏覽知識湖" style="margin-top:24px"><h2>瀏覽知識湖</h2>${skeleton()}</section>`;
   try {
-    const [favRes, conRes] = await Promise.all([
-      swr("favorites:list", "/favorites"),
-      swr("contents:list", "/contents"),
-    ]);
-    favIds = normalizeFavs(favRes.data);
-    const items = normalizeContents(conRes.data);
-    contentMap = new Map(items.map(it => [String(it.id ?? it.content_id), it]));
+    // 收藏存在 localStorage，知識湖從 knowledge_nodes 讀
+    try {
+      const raw = localStorage.getItem("dawn:favorites");
+      favIds = new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) { favIds = new Set(); }
+    const { data: nodes } = await supabase.from("knowledge_nodes")
+      .select("id, title, question, concepts").eq("is_public", true).limit(50);
+    const items = (nodes || []).map(n => ({
+      id: n.id, title: n.title || n.question, summary: (n.concepts || []).join("、"),
+    }));
+    contentMap = new Map(items.map(it => [String(it.id), it]));
     renderAll();
   } catch (e) {
     view.innerHTML = `<div class="state-error">
@@ -134,8 +138,7 @@ function updateCount() {
 async function renderTags() {
   const el = document.getElementById("f-tags");
   try {
-    const t = await swr("tags", "/tags");
-    const tags = t.data?.tags || (Array.isArray(t.data) ? t.data : []);
+        const tags = t.data?.tags || (Array.isArray(t.data) ? t.data : []);
     el.innerHTML = tags.slice(0, 12).map(tag => {
       const name = tag.name || tag;
       return `<button class="f-tag" aria-pressed="false" data-tag="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
@@ -212,7 +215,8 @@ async function toggleFav(contentId, btn) {
       favIds.delete(contentId);
       toast("已取消收藏");
     } else {
-      await post("/favorites", { content_id: contentId });
+      favIds.add(contentId);
+    try { localStorage.setItem("dawn:favorites", JSON.stringify([...favIds])); } catch (e) {}
       favIds.add(contentId);
       toast("已收藏");
     }

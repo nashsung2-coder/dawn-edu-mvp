@@ -2,7 +2,7 @@
  * 全鏈路調真實後端，零假數據。
  * 生命週期：init → loading → api → render / empty / error
  */
-import { swr } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 import { announce, focusMain } from "../core/a11y.js";
 
@@ -52,20 +52,27 @@ async function renderDashboard() {
   skeleton();
   announce("載入掌握度資料");
   try {
-    const [masteryR, badgeR, sessR] = await Promise.all([
-      swr("learn:mastery", "/learn/mastery").catch(e => ({ _err: e })),
-      swr("learn:badges", "/learn/badges").catch(e => ({ _err: e })),
-      swr("learn:sessions", "/learn/sessions").catch(e => ({ _err: e })),
-    ]);
+    const user = await getUser();
+    if (!user) throw new Error("請先登入");
 
-    const topics = masteryR.data?.topics || [];
-    const badges = badgeR.data?.badges || [];
-    const sessions = sessR.data?.data || sessR.data || [];
-    const sessionList = Array.isArray(sessions) ? sessions : [];
+    // 從 battle_records 推算主題掌握度（feynman_score 平均）
+    const { data: battles } = await supabase.from("battle_records")
+      .select("question, feynman_score, badge_name, badge_rarity").eq("user_id", user.id);
 
-    if (masteryR._err && badgeR._err && sessR._err) {
-      throw masteryR._err;
-    }
+    const topicMap = {};
+    (battles || []).forEach(b => {
+      const t = b.question || "未命名主題";
+      if (!topicMap[t]) topicMap[t] = { scores: [] };
+      topicMap[t].scores.push(Number(b.feynman_score) || 0);
+    });
+    const topics = Object.entries(topicMap).map(([topic, v]) => ({
+      topic,
+      mastery: v.scores.reduce((a, b) => a + b, 0) / v.scores.length / 100,
+    }));
+    const badges = (battles || []).filter(b => b.badge_name).map(b => ({
+      name: b.badge_name, rarity: b.badge_rarity || "普通",
+    }));
+    const sessionList = battles || [];
 
     /* ---- 總覽 ---- */
     const mastered = topics.filter(t => (Number(t.mastery) || 0) >= MASTERED_AT);
@@ -145,8 +152,13 @@ async function renderDashboard() {
     return;
   }
   try {
-    const r = await swr("auth:me", "/auth/me");
-    userline.textContent = `旅人 ${r.data?.name || ""} · 載入中…`;
+    const u = await getUser();
+    let uname = "";
+    if (u) {
+      const { data: p } = await supabase.from("profiles").select("name").eq("id", u.id).single();
+      uname = p?.name || "";
+    }
+    userline.textContent = `旅人 ${uname} · 載入中…`;
   } catch { /* 保持預設文案 */ }
   renderDashboard();
 })();

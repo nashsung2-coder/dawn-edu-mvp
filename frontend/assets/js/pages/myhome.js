@@ -1,8 +1,7 @@
-/* 我的家：溫馨小屋版 v2.0（重構版）
- * 統一使用 core/api.js，不再自己寫 fetch
- * 登入狀態由後端 /auth/me 驗證，不只看 localStorage
+/* 我的家：溫馨小屋版 v2.1
+ * 直連 Supabase，不再經 Render 後端
  */
-import { get, post } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn, clearAuth } from "../core/auth.js";
 import { toast } from "../core/a11y.js";
 
@@ -41,28 +40,25 @@ function petMood(mood) {
 async function render() {
   showLoading();
 
-  // 用後端驗證登入狀態，不只看 localStorage
-  let userId = null;
+  let user = null;
   try {
-    const me = await get("/auth/me");
-    const user = me.data?.user || me.data || me.user || me;
-    userId = user?.id || user?.user_id;
-    if (!userId) throw new Error("no user id");
+    user = await getUser();
+    if (!user) throw new Error("no user");
   } catch (e) {
-    // token 無效或過期
-    if (isLoggedIn()) clearAuth(); // 清掉過期 token
+    if (isLoggedIn()) clearAuth();
     showLogin("登入已過期，請重新登入");
     return;
   }
+  const userId = user.id;
 
-  // 並行載入島嶼和靈獸資料
+  // 並行載入島嶼和靈獸資料（直讀 Supabase）
   const [islandR, petR] = await Promise.allSettled([
-    get("/islands/" + userId),
-    get("/world/pet"),
+    supabase.from("islands").select("*").eq("user_id", userId).limit(1).single(),
+    supabase.from("pets").select("*").eq("owner_id", userId).limit(1).single(),
   ]);
 
-  const st = islandR.status === "fulfilled" ? (islandR.value.island || islandR.value) : null;
-  const pet = petR.status === "fulfilled" ? (petR.value.pet || petR.value.data?.pet) : null;
+  const st = islandR.status === "fulfilled" ? islandR.value.data : null;
+  const pet = petR.status === "fulfilled" ? petR.value.data : null;
   const territory = st ? (Number(st.territory) || 0) : 0;
   const explorePct = Math.min(100, Math.round((territory / 50) * 100));
 
@@ -96,7 +92,7 @@ async function render() {
     + '<div id="mh-portal-result" style="margin-top:12px"></div></div>'
     + '</div>';
 
-  // 傳送門
+  // 傳送門：查 profiles 找好友，再查他的島嶼和靈獸
   const goBtn = document.getElementById("mh-portal-go");
   if (goBtn) {
     goBtn.onclick = async () => {
@@ -106,10 +102,18 @@ async function render() {
       const resultEl = document.getElementById("mh-portal-result");
       goBtn.disabled = true; goBtn.textContent = "出發中…";
       try {
-        const r = await post("/islands/" + userId + "/visit", { friend_name: name });
+        const { data: friend } = await supabase.from("profiles").select("id, name")
+          .ilike("name", `%${name}%`).limit(1).single();
+        if (!friend) throw new Error("找不到這位好友");
+        const [fIsland, fPet] = await Promise.allSettled([
+          supabase.from("islands").select("territory").eq("user_id", friend.id).limit(1).single(),
+          supabase.from("pets").select("name").eq("owner_id", friend.id).limit(1).single(),
+        ]);
+        const fTerritory = fIsland.status === "fulfilled" ? (fIsland.value.data?.territory ?? "?") : "?";
+        const fPetName = fPet.status === "fulfilled" ? (fPet.value.data?.name || "無") : "無";
         resultEl.innerHTML = '<div style="background:#FFF8F0;border:2px solid #E8D5B8;border-radius:12px;padding:14px">'
-          + '<p style="margin:0 0 6px"><strong>' + esc(r.friend_name || name) + ' 的家</strong></p>'
-          + '<p style="margin:0;font-size:13px;color:#A08060">領土 ' + (r.territory ?? "?") + ' · 夥伴 ' + esc(r.pet_name || "無") + '</p></div>';
+          + '<p style="margin:0 0 6px"><strong>' + esc(friend.name) + ' 的家</strong></p>'
+          + '<p style="margin:0;font-size:13px;color:#A08060">領土 ' + fTerritory + ' · 夥伴 ' + esc(fPetName) + '</p></div>';
       } catch (e) {
         resultEl.innerHTML = '<p style="color:#c0392b;font-size:13px">' + esc(e.message) + '</p>';
       } finally {
