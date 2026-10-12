@@ -626,17 +626,23 @@ function closeModal() { modal.hidden = true; modal.style.display = 'none'; }
   if (modal) modal.addEventListener("click", function(e) { if (e.target === modal) closeModal(); });
   document.addEventListener("keydown", function(e) { if (e.key === "Escape") closeModal(); });
 
-  if (!isLoggedIn()) {
+  // 不再前端預判登入，直接嘗試載入，401 時再顯示登入提示
+  // （避免 localStorage 誤判導致已登入用戶看到「請先登入」）
+  var params = new URLSearchParams(location.search);
+  var libId = params.get("lib");
+  // 先顯示載入中
+  view.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">載入中…</p>';
+  // 嘗試用 API 驗證登入
+  apiFetch('GET', '/auth/me').then(function() {
+    // 登入有效，正常渲染
+    if (libId) renderDetail(libId);
+    else renderHome();
+  }).catch(function(e) {
+    // 401 或無 token，顯示登入提示
     view.innerHTML = `<div class="state-empty">
       <p>請先登入再使用知識星海圖書館</p>
       <a class="btn btn-primary" href="settings.html">去登入</a></div>`;
-    return;
-  }
-
-  // 如果是從庫詳情返回（帶 lib 參數）
-  const params = new URLSearchParams(location.search);
-  const libId = params.get("lib");
-  if (libId) renderDetail(libId);
-  else renderHome();
+  });
+  return;
 })();
 })();
