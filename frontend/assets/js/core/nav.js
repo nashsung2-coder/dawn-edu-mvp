@@ -1,7 +1,14 @@
-/* 全站導覽列自動插入 v2.0
+/* 全站導覽列自動插入 v2.1
+ * 新增：HTTP→HTTPS 強制跳轉（修 localStorage 登入狀態分裂問題）
  * 新增：登入狀態顯示、星砂餘額（Gemini UX 建議）
  */
 (function() {
+  // P0 修復：強制 HTTPS，避免 http/https 的 localStorage 登入狀態分裂
+  if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+    return;
+  }
+
   var path = location.pathname;
   var zones = [
     { id: 'lib', href: '/pages/library', icon: '◈', label: '知識庫' },
