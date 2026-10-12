@@ -67,7 +67,7 @@ body { background: var(--learn-bg); color: var(--learn-text); font-family: var(-
 </div>
 <script src="../assets/js/core/nav.js"></script>
 <script type="module">
-import { get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 // 日期
 document.getElementById('l-date').textContent = new Date().toLocaleDateString('zh-TW', {month:'long', day:'numeric', weekday:'long'});
@@ -82,18 +82,34 @@ const funcs = [
 document.getElementById('l-funcs').innerHTML = funcs.map(f =>
   `<a class="func" href="${f.href}"><span class="arrow">→</span><div class="t">${f.t}</div><div class="d">${f.d}</div></a>`
 ).join('');
-// 數據
+// 數據：直讀 Supabase（不再經 Render 後端）
 if (isLoggedIn()) {
-  get('/dashboard').then(d => {
-    document.getElementById('s-review').textContent = d.due_review ?? 0;
-    document.getElementById('s-points').textContent = d.points ?? 0;
-    document.getElementById('s-streak').textContent = d.streak ?? 0;
-    if ((d.due_review ?? 0) > 0) {
-      document.getElementById('l-cta-title').textContent = `複習 ${d.due_review} 個知識點`;
-      document.getElementById('l-cta-desc').textContent = '記憶需要及時鞏固';
-      document.getElementById('l-cta').href = 'review.html';
+  (async () => {
+    try {
+      const user = await getUser();
+      if (!user) throw new Error("no user");
+      const [profileR, reviewR] = await Promise.allSettled([
+        supabase.from("profiles").select("points").eq("id", user.id).single(),
+        supabase.from("review_cards").select("id", { count: "exact", head: true })
+          .eq("user_id", user.id).lte("next_review_at", new Date().toISOString()),
+      ]);
+      const points = profileR.status === "fulfilled" ? (profileR.value.data?.points ?? 0) : 0;
+      const dueReview = reviewR.status === "fulfilled" ? (reviewR.value.count ?? 0) : 0;
+      document.getElementById('s-review').textContent = dueReview;
+      document.getElementById('s-points').textContent = points;
+      document.getElementById('s-streak').textContent = 0;
+      if (dueReview > 0) {
+        document.getElementById('l-cta-title').textContent = `複習 ${dueReview} 個知識點`;
+        document.getElementById('l-cta-desc').textContent = '記憶需要及時鞏固';
+        document.getElementById('l-cta').href = 'review.html';
+      }
+    } catch (e) {
+      // 讀不到就顯示 0，不卡住
+      document.getElementById('s-review').textContent = 0;
+      document.getElementById('s-points').textContent = 0;
+      document.getElementById('s-streak').textContent = 0;
     }
-  }).catch(() => {});
+  })();
 } else {
   document.getElementById('l-stats').style.display = 'none';
 }
