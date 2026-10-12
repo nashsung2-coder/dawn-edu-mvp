@@ -97,6 +97,31 @@ if (isLoggedIn()) {
 } else {
   document.getElementById('l-stats').style.display = 'none';
 }
+// 新手導覽（只顯示一次）
+(function() {
+  try {
+    if (localStorage.getItem('dawn:v1:onboarded')) return;
+  } catch(e) { return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = '<div style="background:#fff;border-radius:16px;padding:28px;max-width:420px;width:100%;text-align:center">'
+    + '<h2 style="margin:0 0 16px">歡迎來到曙光教育！</h2>'
+    + '<div style="text-align:left;margin-bottom:20px">'
+    + '<p style="margin:0 0 12px"><strong>這是什麼？</strong><br>用遊戲的方式學習！透過「費曼戰役」用自己的話解釋觀念，說服 AI 就代表你真的懂了。</p>'
+    + '<p style="margin:0 0 12px"><strong>星砂是什麼？</strong><br>學習賺到的貨幣！完成戰役、答對問題都能賺，可以買靈獸餅乾、武器，在遊戲裡變強。</p>'
+    + '<p style="margin:0"><strong>第一步？</strong><br>點「開始今日學習」，選個主題開始你的第一場費曼戰役吧！</p>'
+    + '</div>'
+    + '<button id="onboard-go" style="width:100%;padding:14px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer">開始學習之旅</button>'
+    + '<button id="onboard-skip" style="margin-top:8px;background:none;border:none;color:#999;font-size:13px;cursor:pointer">跳過</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  function close() {
+    try { localStorage.setItem('dawn:v1:onboarded', '1'); } catch(e) {}
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+  document.getElementById('onboard-go').onclick = close;
+  document.getElementById('onboard-skip').onclick = close;
+})();
 </script>
 </body>
 </html>
