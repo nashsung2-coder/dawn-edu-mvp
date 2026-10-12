@@ -66,15 +66,23 @@ body { background: var(--game-bg); color: var(--game-text); font-family: -apple-
 </div>
 <script src="../assets/js/core/nav.js"></script>
 <script type="module">
-import { get } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { isLoggedIn } from "../core/auth.js";
 if (isLoggedIn()) {
-  get('/dashboard').then(d => {
-    document.getElementById('g-name').textContent = d.name || '玩家';
-    document.getElementById('g-sub').textContent = d.character_name ? '角色：' + d.character_name : '';
-    document.getElementById('g-avatar').textContent = (d.name || '?')[0];
-    document.getElementById('g-points').textContent = d.points ?? 0;
-  }).catch(()=>{});
+  (async () => {
+    try {
+      const user = await getUser();
+      if (!user) throw new Error("no user");
+      const { data: profile } = await supabase.from("profiles").select("name, points").eq("id", user.id).single();
+      const name = profile?.name || '玩家';
+      document.getElementById('g-name').textContent = name;
+      document.getElementById('g-avatar').textContent = name[0];
+      document.getElementById('g-points').textContent = profile?.points ?? 0;
+    } catch (e) {
+      document.getElementById('g-name').textContent = '玩家';
+      document.getElementById('g-points').textContent = 0;
+    }
+  })();
 } else {
   document.getElementById('g-hud').innerHTML = '<div style="text-align:center;width:100%"><a href="settings.html" style="color:#00E5FF">登入以查看角色資訊</a></div>';
 }
