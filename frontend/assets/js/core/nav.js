@@ -39,12 +39,12 @@
     // 已登入：顯示星砂餘額（點擊去看明細）
     html += '<a href="/pages/game" data-zone="sand" id="dawn-sand">'
       + '<span class="ni">✨</span><span id="dawn-sand-num">…</span></a>';
-    // 異步載入餘額
+    // 異步載入餘額（/dashboard 回傳 points）
     setTimeout(function() {
-      fetch('https://dawn-edu-mvp.onrender.com/api/v1/game/currency', {
+      fetch('https://dawn-edu-mvp.onrender.com/api/v1/dashboard', {
         headers: { 'Authorization': 'Bearer ' + token }
       }).then(function(r) { return r.json(); }).then(function(d) {
-        var num = d.starsand ?? d.data?.starsand ?? d.balance ?? '?';
+        var num = d.points ?? d.data?.points ?? '?';
         var el = document.getElementById('dawn-sand-num');
         if (el) el.textContent = num;
       }).catch(function() {
