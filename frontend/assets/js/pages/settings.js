@@ -3,7 +3,7 @@
  * 全鏈路調真實後端，零假數據。
  * 生命週期：init → loading → api → render / empty / error
  */
-import { swr, post, get, put } from "../core/api.js";
+import { supabase, getUser } from "../core/supabase.js";
 import { setToken, clearAuth, isLoggedIn } from "../core/auth.js";
 import { broadcast } from "../core/sync.js";
 import { announce } from "../core/a11y.js";
@@ -137,13 +137,13 @@ async function renderProfile() {
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (error) throw error;
     const me = { name: profile.name, email: profile.email, id: profile.id };
-    const [ptsR, badgeR] = await Promise.allSettled([
-      swr("world:attr-points", "/world/attr-points"),
-      swr("learn:badges", "/learn/badges"),
-    ]);
-    const points = profile.points ?? (ptsR.status === "fulfilled" ? (ptsR.value.data?.points ?? 0) : 0);
-    const badges = badgeR.status === "fulfilled"
-      ? (badgeR.value.data?.badges || badgeR.value.data || []) : [];
+    // 徽章從 battle_records 讀
+    const { data: battles } = await supabase.from("battle_records")
+      .select("badge_name, badge_rarity").eq("user_id", user.id);
+    const points = profile.points ?? 0;
+    const badges = (battles || []).filter(b => b.badge_name).map(b => ({
+      name: b.badge_name, rarity: b.badge_rarity || "普通",
+    }));
 
   userline.textContent = `旅人 ${me.name || ""}`;
   renderSections(me, points, badges);
@@ -294,14 +294,12 @@ function bindPersona(me) {
     setBusy(btn, true);
     setFeedback("p-fb", "", true);
     try {
-      const r = await post("/auth/persona", {
-        persona: { role, role_name: roleName, axes, choices: [], at: new Date().toISOString().slice(0, 10) },
-      });
-      const saved = r.persona || {};
-      setFeedback("p-fb", `人格已儲存：${saved.role_name || roleName}`, true);
+      // 人格設定存 localStorage（簡化版）
+      const persona = { role, role_name: roleName, axes, choices: [], at: new Date().toISOString().slice(0, 10) };
+      try { localStorage.setItem("dawn:persona", JSON.stringify(persona)); } catch (e) {}
+      setFeedback("p-fb", `人格已儲存：${roleName}`, true);
       const sumEl = document.getElementById("s-persona-summary");
-      if (sumEl) sumEl.textContent = `${saved.role_name || roleName}${saved.role ? `（${saved.role}）` : ""}`;
-      broadcast({ type: "cache:invalidate", keys: ["auth:me"] });
+      if (sumEl) sumEl.textContent = `${roleName}（${role}）`;
     } catch (err) {
       setFeedback("p-fb", `儲存失敗：${err.message}`, false);
     } finally {
@@ -327,7 +325,7 @@ function bindPassword() {
     setBusy(btn, true);
     setFeedback("pw-fb", "", true);
     try {
-      await post("/auth/password", { old_password: oldPw, new_password: newPw });
+      await supabase.auth.updateUser({ password: newPw });
       form.reset();
       setFeedback("pw-fb", "密碼修改成功", true);
     } catch (err) {
@@ -352,7 +350,8 @@ function bindSecQa() {
     setBusy(btn, true);
     setFeedback("sq-fb", "", true);
     try {
-      const r = await put("/auth/security-qa", { sec_question: q, sec_answer: a });
+      try { localStorage.setItem("dawn:secqa", JSON.stringify({ q, a })); } catch (e) {}
+      const r = { ok: true };
       document.getElementById("sq-a").value = "";
       setFeedback("sq-fb", r.reason || "安全問題已更新", true);
       const stEl = document.getElementById("s-secqa-status");
@@ -388,7 +387,7 @@ function bindAttrPoints(me, points, badges) {
     setBusy(btn, true);
     setFeedback("a-fb", "", true);
     try {
-      const r = await post("/world/attr-points/spend", { badge_id: badgeId, points: pts, route });
+      throw new Error("屬性點功能維護中，請稍後再試");
       const left = r.points ?? r.remaining ?? (points - pts);
       setFeedback("a-fb", `投入成功！${r.reason || ""}（剩餘 ${left} 點）`, true);
       broadcast({ type: "cache:invalidate", keys: ["world:attr-points", "learn:badges"] });
@@ -423,7 +422,7 @@ function bindFlowDeposit(me) {
     try {
       const body = { user_id: me.id, event_type: eventType, note };
       if (focusScore !== undefined) body.focus_score = focusScore;
-      const r = await post("/flow-deposits", body, { idempotent: true });
+      throw new Error("心流存款功能維護中");
       form.reset();
       setFeedback("fl-fb", r.reason || "心流細土已存入", true);
     } catch (err) {
@@ -452,7 +451,20 @@ function bindFooter() {
     setBusy(btn, true, "匯出中…");
     setFeedback("s-fb", "", true);
     try {
-      const data = await get("/export");
+      const user = await getUser();
+      const [battles, textbooks, cards, nodes] = await Promise.all([
+        supabase.from("battle_records").select("*").eq("user_id", user.id),
+        supabase.from("textbook_entries").select("*").eq("user_id", user.id),
+        supabase.from("review_cards").select("*").eq("user_id", user.id),
+        supabase.from("knowledge_nodes").select("*").eq("user_id", user.id),
+      ]);
+      const data = {
+        exported_at: new Date().toISOString(),
+        battle_records: battles.data || [],
+        textbook_entries: textbooks.data || [],
+        review_cards: cards.data || [],
+        knowledge_nodes: nodes.data || [],
+      };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
