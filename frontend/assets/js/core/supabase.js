@@ -49,6 +49,18 @@ export async function signOut() {
   if (error) throw error;
 }
 
+/* Google 登入（OAuth） */
+export async function signInWithGoogle() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+    },
+  });
+  if (error) throw error;
+  // OAuth 會跳轉到 Google，登入後 Supabase 自動跳回；profile 由 onAuthChange 補建
+}
+
 /* 確保 profiles 表有該用戶資料 */
 async function ensureProfile(user) {
   if (!user) return;
